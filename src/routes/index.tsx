@@ -1,29 +1,38 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Navigate } from '@tanstack/react-router'
+import { DashboardLayout } from '@/components/DashboardLayout'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { useAuth } from '@/hooks/useAuth'
 
-export const Route = createFileRoute("/")({
-  head: () => ({
-    meta: [
-      { title: "Your App" },
-      { name: "description", content: "Replace this with a one-sentence description of your app." },
-      { property: "og:title", content: "Your App" },
-      { property: "og:description", content: "Replace this with a one-sentence description of your app." },
-    ],
-  }),
-  component: Index,
-});
+export const Route = createFileRoute('/')({
+  component: DashboardPage,
+})
 
-// IMPORTANT: Replace this placeholder. See ./README.md for routing conventions.
-function Index() {
+function DashboardPage() {
+  const { user } = useAuth()
+  if (!user) return <Navigate to="/auth" />
+
   return (
-    <div
-      className="flex min-h-screen items-center justify-center"
-      style={{ backgroundColor: "#fcfbf8" }}
-    >
-      <img
-        data-lovable-blank-page-placeholder="REMOVE_THIS"
-        src="https://cdn.gpteng.co/blank-app-v1.svg"
-        alt="Your app will live here!"
-      />
-    </div>
-  );
+    <DashboardLayout>
+      <div className="space-y-8">
+        <h1 className="text-3xl font-display font-bold">Dashboard</h1>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {[
+            { title: "Contas Ativas", value: "0" },
+            { title: "Posts Hoje", value: "0" },
+            { title: "Na Fila", value: "0" },
+            { title: "Total do Mês", value: "0" },
+          ].map((card) => (
+            <Card key={card.title} className="bg-card">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">{card.title}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{card.value}</div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+    </DashboardLayout>
+  )
 }
