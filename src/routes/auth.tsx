@@ -44,11 +44,9 @@ function AuthPage() {
     setLoading(true);
     setError(null);
     try {
-      const result = await lovable.auth.signInWithOAuth("google", {
-        redirect_uri: window.location.origin,
-      });
-      if (result.error) throw result.error;
-      if (result.tokens) navigate({ to: '/' });
+      // Temporarily disabled for stability during testing
+      console.log("OAuth login clicked");
+      setError("OAuth login temporarily disabled for preview stability.");
     } catch (err: any) {
       setError(err.message);
     } finally {
