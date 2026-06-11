@@ -14,7 +14,267 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      campaigns: {
+        Row: {
+          created_at: string
+          end_date: string | null
+          id: string
+          max_interval_minutes: number | null
+          min_interval_minutes: number | null
+          music_id: string | null
+          name: string
+          posts_per_day_per_account: number | null
+          start_date: string | null
+          status: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          end_date?: string | null
+          id?: string
+          max_interval_minutes?: number | null
+          min_interval_minutes?: number | null
+          music_id?: string | null
+          name: string
+          posts_per_day_per_account?: number | null
+          start_date?: string | null
+          status?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          end_date?: string | null
+          id?: string
+          max_interval_minutes?: number | null
+          min_interval_minutes?: number | null
+          music_id?: string | null
+          name?: string
+          posts_per_day_per_account?: number | null
+          start_date?: string | null
+          status?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campaigns_music_id_fkey"
+            columns: ["music_id"]
+            isOneToOne: false
+            referencedRelation: "musics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      musics: {
+        Row: {
+          artist: string | null
+          created_at: string
+          duration_seconds: number | null
+          genre: string | null
+          id: string
+          music_url: string
+          name: string
+          use_count: number | null
+          user_id: string
+        }
+        Insert: {
+          artist?: string | null
+          created_at?: string
+          duration_seconds?: number | null
+          genre?: string | null
+          id?: string
+          music_url: string
+          name: string
+          use_count?: number | null
+          user_id: string
+        }
+        Update: {
+          artist?: string | null
+          created_at?: string
+          duration_seconds?: number | null
+          genre?: string | null
+          id?: string
+          music_url?: string
+          name?: string
+          use_count?: number | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          full_name: string | null
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          full_name?: string | null
+          id: string
+          updated_at?: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          full_name?: string | null
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      scheduled_posts: {
+        Row: {
+          account_id: string
+          campaign_id: string | null
+          created_at: string
+          error_message: string | null
+          id: string
+          music_id: string
+          scheduled_at: string
+          status: string | null
+          user_id: string
+          video_id: string
+        }
+        Insert: {
+          account_id: string
+          campaign_id?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          music_id: string
+          scheduled_at: string
+          status?: string | null
+          user_id: string
+          video_id: string
+        }
+        Update: {
+          account_id?: string
+          campaign_id?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          music_id?: string
+          scheduled_at?: string
+          status?: string | null
+          user_id?: string
+          video_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scheduled_posts_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "tiktok_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scheduled_posts_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scheduled_posts_music_id_fkey"
+            columns: ["music_id"]
+            isOneToOne: false
+            referencedRelation: "musics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scheduled_posts_video_id_fkey"
+            columns: ["video_id"]
+            isOneToOne: false
+            referencedRelation: "videos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tiktok_accounts: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          display_name: string | null
+          id: string
+          next_post_at: string | null
+          status: string | null
+          user_id: string
+          username: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          next_post_at?: string | null
+          status?: string | null
+          user_id: string
+          username: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          next_post_at?: string | null
+          status?: string | null
+          user_id?: string
+          username?: string
+        }
+        Relationships: []
+      }
+      videos: {
+        Row: {
+          created_at: string
+          duration_seconds: number | null
+          id: string
+          last_account_id: string | null
+          last_used_at: string | null
+          name: string
+          niche: string | null
+          thumbnail_url: string | null
+          use_count: number | null
+          user_id: string
+          video_url: string
+        }
+        Insert: {
+          created_at?: string
+          duration_seconds?: number | null
+          id?: string
+          last_account_id?: string | null
+          last_used_at?: string | null
+          name: string
+          niche?: string | null
+          thumbnail_url?: string | null
+          use_count?: number | null
+          user_id: string
+          video_url: string
+        }
+        Update: {
+          created_at?: string
+          duration_seconds?: number | null
+          id?: string
+          last_account_id?: string | null
+          last_used_at?: string | null
+          name?: string
+          niche?: string | null
+          thumbnail_url?: string | null
+          use_count?: number | null
+          user_id?: string
+          video_url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "videos_last_account_id_fkey"
+            columns: ["last_account_id"]
+            isOneToOne: false
+            referencedRelation: "tiktok_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
