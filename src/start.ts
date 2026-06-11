@@ -6,11 +6,13 @@ import { attachSupabaseAuth } from "@/integrations/supabase/auth-attacher";
 const errorMiddleware = createMiddleware().server(async ({ next }) => {
   try {
     return await next();
-  } catch (error) {
+  } catch (error: any) {
     if (error != null && typeof error === "object" && "statusCode" in error) {
       throw error;
     }
-    console.error(error);
+    console.error("SSR Middleware Error:", error?.message || error);
+    if (error?.stack) console.error(error.stack);
+    
     return new Response(renderErrorPage(), {
       status: 500,
       headers: { "content-type": "text/html; charset=utf-8" },
