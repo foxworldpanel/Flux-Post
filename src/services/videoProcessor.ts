@@ -1,48 +1,41 @@
 import { FFmpeg } from '@ffmpeg/ffmpeg';
-import { fetchFile, toBlobURL } from '@ffmpeg/util';
+import { fetchFile } from '@ffmpeg/util';
 
 const ffmpeg = new FFmpeg();
 
+export async function loadFFmpeg() {
+  if (ffmpeg.loaded) return;
+  
+  try {
+    console.log('Iniciando carregamento do FFmpeg local...');
+    await ffmpeg.load();
+    console.log('FFmpeg carregado com sucesso!');
+  } catch (error) {
+    console.error('Erro ao carregar FFmpeg local:', error);
+    throw error;
+  }
+}
+
 export async function processVideo(
-  videoUrl: string, 
+  videoUrl: string,
   musicUrl: string,
   onLog?: (message: string) => void
 ): Promise<Blob> {
+  await loadFFmpeg();
+
   if (onLog) {
-    ffmpeg.on("log", ({ message }) => {
-      console.log('FFmpeg log:', message);
+    ffmpeg.on('log', ({ message }) => {
+      console.log('FFmpeg:', message);
       onLog(message);
     });
   }
 
   try {
-    if (!ffmpeg.loaded) {
-      console.log('1. Iniciando carregamento FFmpeg (Single-thread)...');
-      const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
-      await ffmpeg.load({
-        coreURL: await toBlobURL(
-          `${baseURL}/ffmpeg-core.js`, 
-          'text/javascript'
-        ),
-        wasmURL: await toBlobURL(
-          `${baseURL}/ffmpeg-core.wasm`, 
-          'application/wasm'
-        ),
-      });
-      console.log('2. FFmpeg carregado!');
-    } else {
-      console.log('FFmpeg já estava carregado.');
-    }
-
     console.log('3. Baixando vídeo:', videoUrl);
-    const videoData = await fetchFile(videoUrl);
-    await ffmpeg.writeFile('video.mp4', videoData);
-    console.log('4. Vídeo baixado e escrito no FS virtual!');
-
+    await ffmpeg.writeFile('video.mp4', await fetchFile(videoUrl));
+    
     console.log('5. Baixando música:', musicUrl);
-    const musicData = await fetchFile(musicUrl);
-    await ffmpeg.writeFile('music.mp3', musicData);
-    console.log('6. Música baixada e escrita no FS virtual!');
+    await ffmpeg.writeFile('music.mp3', await fetchFile(musicUrl));
 
     console.log('7. Executando FFmpeg...');
     const result = await ffmpeg.exec([
@@ -54,25 +47,15 @@ export async function processVideo(
       '-shortest',
       'output.mp4'
     ]);
-    
+
     if (result !== 0) {
-      throw new Error(`FFmpeg exec falhou com código ${result}`);
+      throw new Error(`FFmpeg falhou com código ${result}`);
     }
-    console.log('8. FFmpeg concluído!');
 
     const data = await ffmpeg.readFile('output.mp4');
-    console.log('9. Arquivo de saída lido com sucesso!');
-
-    return new Blob(
-      [data as any], 
-      { type: 'video/mp4' }
-    );
+    return new Blob([data as any], { type: 'video/mp4' });
   } catch (error: any) {
-    console.error('Erro completo no videoProcessor:', error);
-    throw new Error(
-      error?.message || 
-      JSON.stringify(error) || 
-      'Erro desconhecido durante o processamento de vídeo'
-    );
+    console.error('Erro no processVideo:', error);
+    throw new Error(error?.message || 'Erro durante o processamento do vídeo');
   }
 }
