@@ -64,6 +64,101 @@ export type Database = {
           },
         ]
       }
+      campanhas: {
+        Row: {
+          criado_em: string | null
+          data_fim: string | null
+          data_inicio: string | null
+          hora_fim: number | null
+          hora_inicio: number | null
+          id: string
+          intervalo_max: number | null
+          intervalo_min: number | null
+          music_track_id: string | null
+          nome: string
+          posts_por_dia: number | null
+          status: string | null
+          user_id: string | null
+        }
+        Insert: {
+          criado_em?: string | null
+          data_fim?: string | null
+          data_inicio?: string | null
+          hora_fim?: number | null
+          hora_inicio?: number | null
+          id?: string
+          intervalo_max?: number | null
+          intervalo_min?: number | null
+          music_track_id?: string | null
+          nome: string
+          posts_por_dia?: number | null
+          status?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          criado_em?: string | null
+          data_fim?: string | null
+          data_inicio?: string | null
+          hora_fim?: number | null
+          hora_inicio?: number | null
+          id?: string
+          intervalo_max?: number | null
+          intervalo_min?: number | null
+          music_track_id?: string | null
+          nome?: string
+          posts_por_dia?: number | null
+          status?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campanhas_music_track_id_fkey"
+            columns: ["music_track_id"]
+            isOneToOne: false
+            referencedRelation: "music_tracks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      music_tracks: {
+        Row: {
+          artista: string | null
+          campanha_ativa: boolean | null
+          criado_em: string | null
+          duracao_segundos: number | null
+          estilo: string | null
+          id: string
+          nome: string
+          storage_path: string | null
+          user_id: string | null
+          vezes_usada: number | null
+        }
+        Insert: {
+          artista?: string | null
+          campanha_ativa?: boolean | null
+          criado_em?: string | null
+          duracao_segundos?: number | null
+          estilo?: string | null
+          id?: string
+          nome: string
+          storage_path?: string | null
+          user_id?: string | null
+          vezes_usada?: number | null
+        }
+        Update: {
+          artista?: string | null
+          campanha_ativa?: boolean | null
+          criado_em?: string | null
+          duracao_segundos?: number | null
+          estilo?: string | null
+          id?: string
+          nome?: string
+          storage_path?: string | null
+          user_id?: string | null
+          vezes_usada?: number | null
+        }
+        Relationships: []
+      }
       musics: {
         Row: {
           artist: string | null
@@ -99,6 +194,80 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      posts_agendados: {
+        Row: {
+          agendado_para: string | null
+          campanha_id: string | null
+          criado_em: string | null
+          hashtags: string[] | null
+          id: string
+          legenda: string | null
+          music_track_id: string | null
+          postado_em: string | null
+          status: string | null
+          tiktok_account_id: string | null
+          user_id: string | null
+          video_id: string | null
+        }
+        Insert: {
+          agendado_para?: string | null
+          campanha_id?: string | null
+          criado_em?: string | null
+          hashtags?: string[] | null
+          id?: string
+          legenda?: string | null
+          music_track_id?: string | null
+          postado_em?: string | null
+          status?: string | null
+          tiktok_account_id?: string | null
+          user_id?: string | null
+          video_id?: string | null
+        }
+        Update: {
+          agendado_para?: string | null
+          campanha_id?: string | null
+          criado_em?: string | null
+          hashtags?: string[] | null
+          id?: string
+          legenda?: string | null
+          music_track_id?: string | null
+          postado_em?: string | null
+          status?: string | null
+          tiktok_account_id?: string | null
+          user_id?: string | null
+          video_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "posts_agendados_campanha_id_fkey"
+            columns: ["campanha_id"]
+            isOneToOne: false
+            referencedRelation: "campanhas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "posts_agendados_music_track_id_fkey"
+            columns: ["music_track_id"]
+            isOneToOne: false
+            referencedRelation: "music_tracks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "posts_agendados_tiktok_account_id_fkey"
+            columns: ["tiktok_account_id"]
+            isOneToOne: false
+            referencedRelation: "tiktok_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "posts_agendados_video_id_fkey"
+            columns: ["video_id"]
+            isOneToOne: false
+            referencedRelation: "videos"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
@@ -199,7 +368,9 @@ export type Database = {
           display_name: string | null
           id: string
           next_post_at: string | null
+          posts_hoje: number | null
           status: string | null
+          total_posts: number | null
           user_id: string
           username: string
         }
@@ -209,7 +380,9 @@ export type Database = {
           display_name?: string | null
           id?: string
           next_post_at?: string | null
+          posts_hoje?: number | null
           status?: string | null
+          total_posts?: number | null
           user_id: string
           username: string
         }
@@ -219,7 +392,9 @@ export type Database = {
           display_name?: string | null
           id?: string
           next_post_at?: string | null
+          posts_hoje?: number | null
           status?: string | null
+          total_posts?: number | null
           user_id?: string
           username?: string
         }
@@ -234,9 +409,11 @@ export type Database = {
           last_used_at: string | null
           name: string
           niche: string | null
+          storage_path: string | null
           thumbnail_url: string | null
           use_count: number | null
           user_id: string
+          vezes_usada: number | null
           video_url: string
         }
         Insert: {
@@ -247,9 +424,11 @@ export type Database = {
           last_used_at?: string | null
           name: string
           niche?: string | null
+          storage_path?: string | null
           thumbnail_url?: string | null
           use_count?: number | null
           user_id: string
+          vezes_usada?: number | null
           video_url: string
         }
         Update: {
@@ -260,9 +439,11 @@ export type Database = {
           last_used_at?: string | null
           name?: string
           niche?: string | null
+          storage_path?: string | null
           thumbnail_url?: string | null
           use_count?: number | null
           user_id?: string
+          vezes_usada?: number | null
           video_url?: string
         }
         Relationships: [
