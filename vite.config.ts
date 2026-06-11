@@ -9,6 +9,7 @@ export default defineConfig({
     tailwindcss(),
     tsconfigPaths(),
   ],
+  assetsInclude: ['**/*.wasm'],
   optimizeDeps: {
     exclude: ['@ffmpeg/ffmpeg', '@ffmpeg/util'],
   },
