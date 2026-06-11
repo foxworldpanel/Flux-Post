@@ -371,7 +371,7 @@ export type Database = {
           posts_hoje: number | null
           status: string | null
           total_posts: number | null
-          user_id: string
+          user_id: string | null
           username: string
         }
         Insert: {
@@ -383,7 +383,7 @@ export type Database = {
           posts_hoje?: number | null
           status?: string | null
           total_posts?: number | null
-          user_id: string
+          user_id?: string | null
           username: string
         }
         Update: {
@@ -395,7 +395,7 @@ export type Database = {
           posts_hoje?: number | null
           status?: string | null
           total_posts?: number | null
-          user_id?: string
+          user_id?: string | null
           username?: string
         }
         Relationships: []
@@ -412,7 +412,7 @@ export type Database = {
           storage_path: string | null
           thumbnail_url: string | null
           use_count: number | null
-          user_id: string
+          user_id: string | null
           vezes_usada: number | null
           video_url: string
         }
@@ -427,7 +427,7 @@ export type Database = {
           storage_path?: string | null
           thumbnail_url?: string | null
           use_count?: number | null
-          user_id: string
+          user_id?: string | null
           vezes_usada?: number | null
           video_url: string
         }
@@ -442,7 +442,7 @@ export type Database = {
           storage_path?: string | null
           thumbnail_url?: string | null
           use_count?: number | null
-          user_id?: string
+          user_id?: string | null
           vezes_usada?: number | null
           video_url?: string
         }
