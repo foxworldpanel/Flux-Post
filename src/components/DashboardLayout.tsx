@@ -42,14 +42,14 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
 
 
   return (
-    <div className="flex min-h-screen bg-background text-foreground overflow-hidden">
+    <div className="flex min-h-screen bg-slate-50 text-slate-900 overflow-hidden">
       {/* Sidebar */}
       <aside 
         className={`${
           isSidebarOpen ? "w-64" : "w-20"
-        } fixed left-0 top-0 z-40 h-screen flex flex-col border-r border-border bg-card transition-all duration-300 ease-in-out`}
+        } fixed left-0 top-0 z-40 h-screen flex flex-col border-r border-white/10 bg-[#0A0A0F] text-white transition-all duration-300 ease-in-out`}
       >
-        <div className="flex h-16 items-center justify-between px-4 shrink-0 border-b border-border">
+        <div className="flex h-16 items-center justify-between px-4 shrink-0 border-b border-white/5">
           {isSidebarOpen ? (
             <span className="text-xl font-bold tracking-tight text-primary font-display truncate">Flux Post</span>
           ) : (
@@ -70,7 +70,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
             <Link
               key={item.href}
               to={item.href}
-              className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all hover:bg-accent group active:scale-95 [&.active]:bg-primary [&.active]:text-primary-foreground"
+              className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all hover:bg-white/10 group active:scale-95 [&.active]:bg-primary [&.active]:text-white"
             >
               <item.icon size={22} className="shrink-0" />
               {isSidebarOpen && <span className="truncate">{item.label}</span>}
@@ -78,10 +78,10 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
           ))}
         </nav>
 
-        <div className="mt-auto p-4 border-t border-border shrink-0">
+        <div className="mt-auto p-4 border-t border-white/5 shrink-0">
           <Button
             variant="ghost"
-            className="flex w-full items-center justify-start gap-3 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+            className="flex w-full items-center justify-start gap-3 text-slate-400 hover:text-white hover:bg-white/5 transition-colors"
             onClick={handleLogout}
           >
             <LogOut size={22} className="shrink-0" />
@@ -91,7 +91,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
       </aside>
 
       {/* Main Content */}
-      <main className={`${isSidebarOpen ? "ml-64" : "ml-20"} flex-1 h-screen overflow-y-auto transition-all duration-300 ease-in-out bg-background`}>
+      <main className={`${isSidebarOpen ? "ml-64" : "ml-20"} flex-1 h-screen overflow-y-auto transition-all duration-300 ease-in-out bg-transparent`}>
         <div className="max-w-7xl mx-auto p-8">
           {children}
         </div>
