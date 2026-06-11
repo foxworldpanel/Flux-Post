@@ -42,6 +42,8 @@ export default function VideosPage() {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [selectedVideo, setSelectedVideo] = useState<VideoTrack | null>(null);
 
   // Form states
   const [nome, setNome] = useState("");
@@ -173,6 +175,11 @@ export default function VideosPage() {
     return data.publicUrl;
   };
 
+  const handlePreview = (video: VideoTrack) => {
+    setSelectedVideo(video);
+    setIsPreviewOpen(true);
+  };
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -267,22 +274,28 @@ export default function VideosPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {videos.map((video) => (
               <Card key={video.id} className="bg-[#13131F] border-white/5 hover:border-white/10 transition-all overflow-hidden group flex flex-col">
-                <div className="relative aspect-video bg-black flex items-center justify-center overflow-hidden">
+                <div 
+                  className="relative aspect-video bg-black flex items-center justify-center overflow-hidden cursor-pointer"
+                  onClick={() => handlePreview(video)}
+                >
                   {video.storage_path ? (
                     <video 
                       src={getPublicUrl(video.storage_path)} 
                       className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity"
-                      onMouseOver={(e) => e.currentTarget.play()}
-                      onMouseOut={(e) => {
-                        e.currentTarget.pause();
-                        e.currentTarget.currentTime = 0;
-                      }}
                       muted
                       playsInline
                     />
                   ) : (
                     <Video size={32} className="text-white/20" />
                   )}
+                  
+                  {/* Play button overlay */}
+                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/40">
+                    <div className="w-12 h-12 rounded-full bg-[#7C3AED] flex items-center justify-center text-white shadow-lg transform scale-90 group-hover:scale-100 transition-transform">
+                      <Play size={24} fill="currentColor" />
+                    </div>
+                  </div>
+
                   <div className="absolute bottom-2 right-2 bg-black/60 backdrop-blur-md px-1.5 py-0.5 rounded text-[10px] text-white flex items-center gap-1">
                     <Clock size={10} />
                     {formatDuration(video.duracao_segundos)}
@@ -317,8 +330,10 @@ export default function VideosPage() {
                       variant="ghost" 
                       size="sm"
                       className="flex-1 text-xs text-slate-400 hover:text-white hover:bg-white/5"
+                      onClick={() => handlePreview(video)}
                     >
-                      Ver Detalhes
+                      <Play size={12} className="mr-2" />
+                      Preview
                     </Button>
                     <Button 
                       variant="ghost" 
@@ -335,6 +350,43 @@ export default function VideosPage() {
           </div>
         )}
       </div>
+
+      <Dialog open={isPreviewOpen} onOpenChange={setIsPreviewOpen}>
+        <DialogContent className="bg-[#13131F] border-white/10 text-white max-w-4xl p-0 overflow-hidden">
+          {selectedVideo && (
+            <div className="flex flex-col">
+              <div className="relative aspect-video bg-black">
+                {selectedVideo.storage_path && (
+                  <video 
+                    src={getPublicUrl(selectedVideo.storage_path)} 
+                    className="w-full h-full"
+                    controls
+                    autoPlay
+                  />
+                )}
+              </div>
+              <div className="p-6 flex items-center justify-between">
+                <div className="space-y-1">
+                  <h2 className="text-xl font-bold font-display">{selectedVideo.nome}</h2>
+                  <Badge variant="secondary" className="bg-white/5 border-white/10 text-xs capitalize">
+                    {selectedVideo.nicho}
+                  </Badge>
+                </div>
+                <div className="flex items-center gap-4 text-sm text-slate-400">
+                  <div className="flex items-center gap-2">
+                    <Clock size={16} />
+                    {formatDuration(selectedVideo.duracao_segundos)}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Play size={16} />
+                    {selectedVideo.vezes_usada || 0} usos
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }
