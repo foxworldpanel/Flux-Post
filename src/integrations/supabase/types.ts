@@ -403,6 +403,7 @@ export type Database = {
       videos: {
         Row: {
           created_at: string
+          duracao_segundos: number | null
           duration_seconds: number | null
           id: string
           last_account_id: string | null
@@ -418,6 +419,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          duracao_segundos?: number | null
           duration_seconds?: number | null
           id?: string
           last_account_id?: string | null
@@ -433,6 +435,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          duracao_segundos?: number | null
           duration_seconds?: number | null
           id?: string
           last_account_id?: string | null
