@@ -115,11 +115,15 @@ export default function VideosPage() {
 
       const { error: uploadError } = await supabase.storage
         .from("videos")
-        .upload(filePath, file);
+        .upload(filePath, file, { upsert: true });
 
       if (uploadError) throw uploadError;
 
-      const { data: { publicUrl } } = supabase.storage.from("videos").getPublicUrl(filePath);
+      const { data: urlData } = supabase.storage
+        .from("videos")
+        .getPublicUrl(filePath);
+
+      const publicUrl = urlData.publicUrl;
 
       // 3. Save metadata
       const { error: dbError } = await supabase.from("videos").insert({

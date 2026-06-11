@@ -114,11 +114,15 @@ export default function MusicsPage() {
 
       const { error: uploadError } = await supabase.storage
         .from("musicas")
-        .upload(filePath, file);
+        .upload(filePath, file, { upsert: true });
 
       if (uploadError) throw uploadError;
 
-      const { data: { publicUrl } } = supabase.storage.from("musicas").getPublicUrl(filePath);
+      const { data: urlData } = supabase.storage
+        .from("musicas")
+        .getPublicUrl(filePath);
+      
+      const publicUrl = urlData.publicUrl;
 
       // 3. Save metadata
       const { error: dbError } = await supabase.from("music_tracks").insert({
