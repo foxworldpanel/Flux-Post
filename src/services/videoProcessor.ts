@@ -17,8 +17,8 @@ export async function processVideo(
 
   try {
     if (!ffmpeg.loaded) {
-      console.log('1. Iniciando carregamento FFmpeg (Multi-threaded)...');
-      const baseURL = 'https://unpkg.com/@ffmpeg/core-mt@0.12.6/dist/esm';
+      console.log('1. Iniciando carregamento FFmpeg (Single-thread)...');
+      const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
       await ffmpeg.load({
         coreURL: await toBlobURL(
           `${baseURL}/ffmpeg-core.js`, 
@@ -27,10 +27,6 @@ export async function processVideo(
         wasmURL: await toBlobURL(
           `${baseURL}/ffmpeg-core.wasm`, 
           'application/wasm'
-        ),
-        workerURL: await toBlobURL(
-          `${baseURL}/ffmpeg-core.worker.js`,
-          'text/javascript'
         ),
       });
       console.log('2. FFmpeg carregado!');
