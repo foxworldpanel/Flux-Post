@@ -68,7 +68,7 @@ export default function ProcessarPage() {
         (p) => setProgress(Math.round(p * 100))
       );
 
-      const blob = new Blob([uint8Array], { type: "video/mp4" });
+      const blob = new Blob([uint8Array.buffer], { type: "video/mp4" });
       setResultBlob(blob);
       toast.success("Vídeo processado com sucesso!");
     } catch (error: any) {
@@ -195,7 +195,7 @@ export default function ProcessarPage() {
                 <span>Progresso</span>
                 <span>{progress}%</span>
               </div>
-              <Progress value={progress} className="h-2 bg-white/5" indicatorClassName="bg-[#7C3AED]" />
+              <Progress value={progress} className="h-2 bg-white/5" />
             </div>
           )}
         </div>
