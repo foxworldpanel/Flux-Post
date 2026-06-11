@@ -110,7 +110,7 @@ export default function MusicsPage() {
       // 2. Upload to Storage
       const fileExt = file.name.split(".").pop();
       const fileName = `${Math.random()}.${fileExt}`;
-      const filePath = `${user?.id}/${fileName}`;
+      const filePath = `public/${fileName}`;
 
       const { error: uploadError } = await supabase.storage
         .from("musicas")
@@ -125,7 +125,6 @@ export default function MusicsPage() {
         estilo,
         duracao_segundos: duration,
         storage_path: filePath,
-        user_id: user?.id,
       });
 
       if (dbError) throw dbError;
