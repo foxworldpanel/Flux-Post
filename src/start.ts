@@ -4,7 +4,20 @@ import { renderErrorPage } from "./lib/error-page";
 // import { attachSupabaseAuth } from "@/integrations/supabase/auth-attacher";
 
 const errorMiddleware = createMiddleware().server(async ({ next }) => {
-  return await next();
+  try {
+    return await next();
+  } catch (error: any) {
+    if (error != null && typeof error === "object" && "statusCode" in error) {
+      throw error;
+    }
+    console.error("SSR Middleware Error details:", error);
+    if (error?.stack) console.error("Stack trace:", error.stack);
+    
+    return new Response(
+      `SSR Error: ${error?.message || "Unknown"}\n\n${error?.stack || ""}`,
+      { status: 500, headers: { "content-type": "text/plain" } }
+    );
+  }
 });
 
 export const startInstance = createStart(() => ({
