@@ -25,6 +25,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { useAuth } from "@/hooks/useAuth";
 
 interface VideoTrack {
   id: string;
@@ -44,6 +45,7 @@ export default function VideosPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [selectedVideo, setSelectedVideo] = useState<VideoTrack | null>(null);
+  const { user } = useAuth();
 
   // Form states
   const [nome, setNome] = useState("");
@@ -139,6 +141,7 @@ export default function VideosPage() {
         nicho,
         duracao_segundos: duration,
         storage_path: publicUrl,
+        user_id: user?.id,
       });
 
       if (dbError) throw dbError;
