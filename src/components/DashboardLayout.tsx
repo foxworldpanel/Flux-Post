@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 
-export function DashboardLayout() {
+export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const { user, loading } = useAuth();
   const navigate = useNavigate();
@@ -94,8 +94,9 @@ export function DashboardLayout() {
 
       {/* Main Content */}
       <main className={`${isSidebarOpen ? "ml-64" : "ml-20"} flex-1 p-8 transition-all duration-300`}>
-        <Outlet />
+        {children}
       </main>
+
     </div>
   );
 }
