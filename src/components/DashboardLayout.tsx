@@ -8,7 +8,8 @@ import {
   Calendar, 
   LogOut,
   Menu,
-  X
+  X,
+  Clapperboard
 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -23,6 +24,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
     { label: "Dashboard", icon: LayoutDashboard, href: "/" },
     { label: "Biblioteca de Vídeos", icon: Video, href: "/videos" },
     { label: "Biblioteca de Músicas", icon: Music, href: "/musics" },
+    { label: "Processar Vídeo", icon: Clapperboard, href: "/processar" },
     { label: "Contas TikTok", icon: Users, href: "/accounts" },
     { label: "Campanha Ativa", icon: Megaphone, href: "/campanha" },
     { label: "Agendamentos", icon: Calendar, href: "/schedule" },
