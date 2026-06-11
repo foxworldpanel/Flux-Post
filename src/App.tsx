@@ -6,6 +6,7 @@ import MusicsPage from "./routes/musics";
 import AccountsPage from "./routes/accounts";
 import CampanhaPage from "./routes/campanha";
 import SchedulePage from "./routes/schedule";
+import ProcessarPage from "./routes/processar";
 import { Toaster } from "sonner";
 
 function App() {
@@ -20,6 +21,7 @@ function App() {
           <Route path="/accounts" element={<AccountsPage />} />
           <Route path="/campanha" element={<CampanhaPage />} />
           <Route path="/schedule" element={<SchedulePage />} />
+          <Route path="/processar" element={<ProcessarPage />} />
         </Routes>
       </BrowserRouter>
       <Toaster position="top-right" />
