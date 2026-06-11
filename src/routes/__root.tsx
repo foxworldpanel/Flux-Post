@@ -1,4 +1,5 @@
-import { createRootRoute, Outlet, ScrollRestoration, Meta, Scripts, Head } from '@tanstack/react-router'
+import { createRootRoute, Outlet, ScrollRestoration, Scripts } from '@tanstack/react-router'
+import { Meta, Head } from '@tanstack/react-start'
 import '@/styles.css'
 
 export const Route = createRootRoute({
