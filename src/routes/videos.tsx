@@ -109,7 +109,6 @@ export default function VideosPage() {
       }
 
       // 2. Upload to Supabase Storage
-      // 2. Upload to Supabase Storage
       const fileName = `${Date.now()}-${file.name}`;
       
       console.log('Iniciando upload para o bucket videos:', fileName);
