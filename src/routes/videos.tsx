@@ -180,7 +180,6 @@ export default function VideosPage() {
     if (!path) return "";
     if (path.startsWith('http')) return path;
     
-    // Fallback for old Supabase relative paths
     const { data } = supabase.storage.from("videos").getPublicUrl(path);
     return data.publicUrl;
   };

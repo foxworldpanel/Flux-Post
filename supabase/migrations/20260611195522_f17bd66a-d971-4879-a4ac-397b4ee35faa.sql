@@ -1,0 +1,2 @@
+CREATE POLICY "Public Read Access for videos" ON storage.objects FOR SELECT USING (bucket_id = 'videos');
+CREATE POLICY "Public Read Access for musicas" ON storage.objects FOR SELECT USING (bucket_id = 'musicas');
