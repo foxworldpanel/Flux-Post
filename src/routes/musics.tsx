@@ -22,8 +22,7 @@ import {
 } from "@/components/ui/dialog";
 import { Music, Plus, Trash2, Play, CheckCircle2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { r2Client, BUCKETS, getR2PublicUrl } from "@/lib/r2Client";
-import { PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
+import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 
@@ -109,21 +108,18 @@ export default function MusicsPage() {
         console.warn("Could not get duration", e);
       }
 
-      // 2. Upload to R2
+      // 2. Upload to Supabase Storage
       const fileExt = file.name.split(".").pop();
       const fileName = `${crypto.randomUUID()}.${fileExt}`;
-      const fileKey = `musicas/${fileName}`;
+      const filePath = `public/${fileName}`;
 
-      const arrayBuffer = await file.arrayBuffer();
-      const uploadCommand = new PutObjectCommand({
-        Bucket: BUCKETS.musicas,
-        Key: fileKey,
-        Body: new Uint8Array(arrayBuffer),
-        ContentType: file.type,
-      });
+      const { error: uploadError } = await supabase.storage
+        .from("musicas")
+        .upload(filePath, file);
 
-      await r2Client.send(uploadCommand);
-      const publicUrl = getR2PublicUrl(BUCKETS.musicas, fileKey);
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage.from("musicas").getPublicUrl(filePath);
 
       // 3. Save metadata
       const { error: dbError } = await supabase.from("music_tracks").insert({
@@ -159,24 +155,12 @@ export default function MusicsPage() {
 
     try {
       if (storagePath) {
-        if (storagePath.includes('supabase.co') || storagePath.startsWith('public/')) {
-          // It's a Supabase Storage path
-          const cleanPath = storagePath.startsWith('http') 
-            ? storagePath.split('/storage/v1/object/public/musicas/')[1] 
-            : storagePath;
+        // Extract relative path from URL or use storagePath if it's already relative
+        const cleanPath = storagePath.includes('/storage/v1/object/public/musicas/')
+          ? storagePath.split('/storage/v1/object/public/musicas/')[1]
+          : storagePath;
           
-          if (cleanPath) {
-            await supabase.storage.from("musicas").remove([cleanPath]);
-          }
-        } else if (storagePath.includes('cloudflarestorage.com') || storagePath.includes(import.meta.env.VITE_R2_PUBLIC_URL || '')) {
-          // It's an R2 path
-          const key = storagePath.split('/').slice(-2).join('/'); // musicas/filename.mp3
-          const deleteCommand = new DeleteObjectCommand({
-            Bucket: BUCKETS.musicas,
-            Key: key,
-          });
-          await r2Client.send(deleteCommand);
-        }
+        await supabase.storage.from("musicas").remove([cleanPath]);
       }
       const { error } = await supabase.from("music_tracks").delete().eq("id", id);
       if (error) throw error;
