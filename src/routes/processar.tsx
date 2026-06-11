@@ -89,16 +89,29 @@ export default function ProcessarPage() {
 
     try {
       setSaving(true);
-      const fileName = `processed-${crypto.randomUUID()}.mp4`;
-      const filePath = `processed/${fileName}`;
+      const fileName = `processed-${Date.now()}.mp4`;
+      
+      console.log('Salvando vídeo processado:', fileName);
 
-      const { error: uploadError } = await supabase.storage
-        .from("videos")
-        .upload(filePath, resultBlob);
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('videos')
+        .upload(fileName, resultBlob, {
+          cacheControl: '3600',
+          upsert: true,
+          contentType: 'video/mp4'
+        });
 
-      if (uploadError) throw uploadError;
+      if (uploadError) {
+        console.error('Erro upload storage:', uploadError);
+        throw uploadError;
+      }
 
-      const { data: { publicUrl } } = supabase.storage.from("videos").getPublicUrl(filePath);
+      const { data: publicUrlData } = supabase.storage
+        .from('videos')
+        .getPublicUrl(fileName);
+      
+      const publicUrl = publicUrlData.publicUrl;
+      console.log('URL pública do vídeo processado:', publicUrl);
 
       const { error: dbError } = await supabase.from("videos_processados").insert({
         video_id: selectedVideo,
