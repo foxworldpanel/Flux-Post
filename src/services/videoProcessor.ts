@@ -49,7 +49,8 @@ export const processVideo = async (
   ]);
 
   const data = await ffmpeg.readFile("output.mp4");
-  // Ensure it's not a SharedArrayBuffer which Blob doesn't like in some environments
-  const buffer = data instanceof Uint8Array ? data : new Uint8Array(data as ArrayBuffer);
-  return buffer;
+  if (typeof data === "string") {
+    throw new Error("FFmpeg output is a string, expected buffer");
+  }
+  return data as Uint8Array;
 };

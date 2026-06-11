@@ -68,7 +68,7 @@ export default function ProcessarPage() {
         (p) => setProgress(Math.round(p * 100))
       );
 
-      const blob = new Blob([uint8Array], { type: "video/mp4" });
+      const blob = new Blob([uint8Array as any], { type: "video/mp4" });
       setResultBlob(blob);
       toast.success("Vídeo processado com sucesso!");
     } catch (error: any) {
