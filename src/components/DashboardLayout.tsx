@@ -24,7 +24,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
     { label: "Biblioteca de Vídeos", icon: Video, href: "/videos" },
     { label: "Biblioteca de Músicas", icon: Music, href: "/musics" },
     { label: "Contas TikTok", icon: Users, href: "/accounts" },
-    { label: "Campanha Ativa", icon: Megaphone, href: "/campaigns" },
+    { label: "Campanha Ativa", icon: Megaphone, href: "/campanha" },
     { label: "Agendamentos", icon: Calendar, href: "/schedule" },
   ];
 
