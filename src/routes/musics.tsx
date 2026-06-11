@@ -24,7 +24,6 @@ import { Music, Plus, Trash2, Play, CheckCircle2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
-import { toast } from "sonner";
 
 interface MusicTrack {
   id: string;
