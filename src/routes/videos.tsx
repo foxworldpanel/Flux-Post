@@ -22,8 +22,6 @@ import {
 } from "@/components/ui/dialog";
 import { Video, Plus, Trash2, Clock, Calendar, Play } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { r2Client, BUCKETS, getR2PublicUrl } from "@/lib/r2Client";
-import { PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -110,21 +108,18 @@ export default function VideosPage() {
         console.warn("Could not get duration", e);
       }
 
-      // 2. Upload to R2
+      // 2. Upload to Supabase Storage
       const fileExt = file.name.split(".").pop();
       const fileName = `${crypto.randomUUID()}.${fileExt}`;
-      const fileKey = `videos/${fileName}`;
+      const filePath = `public/${fileName}`;
 
-      const arrayBuffer = await file.arrayBuffer();
-      const uploadCommand = new PutObjectCommand({
-        Bucket: BUCKETS.videos,
-        Key: fileKey,
-        Body: new Uint8Array(arrayBuffer),
-        ContentType: file.type,
-      });
+      const { error: uploadError } = await supabase.storage
+        .from("videos")
+        .upload(filePath, file);
 
-      await r2Client.send(uploadCommand);
-      const publicUrl = getR2PublicUrl(BUCKETS.videos, fileKey);
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage.from("videos").getPublicUrl(filePath);
 
       // 3. Save metadata
       const { error: dbError } = await supabase.from("videos").insert({
@@ -158,24 +153,11 @@ export default function VideosPage() {
 
     try {
       if (storagePath) {
-        if (storagePath.includes('supabase.co') || storagePath.startsWith('public/')) {
-          // It's a Supabase Storage path
-          const cleanPath = storagePath.startsWith('http') 
-            ? storagePath.split('/storage/v1/object/public/videos/')[1] 
-            : storagePath;
-            
-          if (cleanPath) {
-            await supabase.storage.from("videos").remove([cleanPath]);
-          }
-        } else if (storagePath.includes('cloudflarestorage.com') || storagePath.includes(import.meta.env.VITE_R2_PUBLIC_URL || '')) {
-          // It's an R2 path
-          const key = storagePath.split('/').slice(-2).join('/'); // videos/filename.mp4
-          const deleteCommand = new DeleteObjectCommand({
-            Bucket: BUCKETS.videos,
-            Key: key,
-          });
-          await r2Client.send(deleteCommand);
-        }
+        const cleanPath = storagePath.includes('/storage/v1/object/public/videos/')
+          ? storagePath.split('/storage/v1/object/public/videos/')[1]
+          : storagePath;
+          
+        await supabase.storage.from("videos").remove([cleanPath]);
       }
       const { error } = await supabase.from("videos").delete().eq("id", id);
       if (error) throw error;
