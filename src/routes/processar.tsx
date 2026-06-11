@@ -14,7 +14,7 @@ import { Progress } from "@/components/ui/progress";
 import { supabase } from "@/integrations/supabase/client";
 import { processVideo } from "@/services/videoProcessor";
 import { toast } from "sonner";
-import { Play, Save, Loader2, Video as VideoIcon, Music } from "lucide-react";
+import { Play, Save, Loader2, Video as VideoIcon, Music, CheckCircle2 } from "lucide-react";
 
 interface LibraryItem {
   id: string;
@@ -22,13 +22,15 @@ interface LibraryItem {
   storage_path: string;
 }
 
+type ProcessStep = "idle" | "loading-ffmpeg" | "downloading" | "processing" | "completed";
+
 export default function ProcessarPage() {
   const [videos, setVideos] = useState<LibraryItem[]>([]);
   const [musics, setMusics] = useState<LibraryItem[]>([]);
   const [selectedVideo, setSelectedVideo] = useState<string>("");
   const [selectedMusic, setSelectedMusic] = useState<string>("");
   
-  const [processing, setProcessing] = useState(false);
+  const [step, setStep] = useState<ProcessStep>("idle");
   const [progress, setProgress] = useState(0);
   const [resultBlob, setResultBlob] = useState<Blob | null>(null);
   const [saving, setSaving] = useState(false);
@@ -58,24 +60,27 @@ export default function ProcessarPage() {
     if (!video || !music) return;
 
     try {
-      setProcessing(true);
-      setProgress(0);
+      setStep("loading-ffmpeg");
+      setProgress(10);
       setResultBlob(null);
 
-      const uint8Array = await processVideo(
+      const blob = await processVideo(
         video.storage_path,
         music.storage_path,
-        (p) => setProgress(Math.round(p * 100))
+        (message) => {
+          if (message.includes("Writing file")) setStep("downloading");
+          if (message.includes("Running command")) setStep("processing");
+        }
       );
 
-      const blob = new Blob([uint8Array as any], { type: "video/mp4" });
+      setStep("completed");
+      setProgress(100);
       setResultBlob(blob);
       toast.success("Vídeo processado com sucesso!");
     } catch (error: any) {
       console.error(error);
+      setStep("idle");
       toast.error("Erro no processamento: " + error.message);
-    } finally {
-      setProcessing(false);
     }
   };
 
@@ -108,6 +113,16 @@ export default function ProcessarPage() {
       toast.error("Erro ao salvar: " + error.message);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const getStepLabel = () => {
+    switch (step) {
+      case "loading-ffmpeg": return "Carregando FFmpeg... (isso pode levar alguns segundos)";
+      case "downloading": return "Baixando arquivos...";
+      case "processing": return "Processando vídeo...";
+      case "completed": return "Concluído!";
+      default: return "";
     }
   };
 
@@ -173,10 +188,10 @@ export default function ProcessarPage() {
           <Button
             size="lg"
             className="bg-[#7C3AED] hover:bg-[#6D28D9] text-white w-full md:w-auto px-12 h-14 text-lg font-bold gap-2"
-            disabled={processing || !selectedVideo || !selectedMusic}
+            disabled={step !== "idle" && step !== "completed" || !selectedVideo || !selectedMusic}
             onClick={handleProcess}
           >
-            {processing ? (
+            {step !== "idle" && step !== "completed" ? (
               <>
                 <Loader2 className="animate-spin" size={24} />
                 Processando...
@@ -189,11 +204,14 @@ export default function ProcessarPage() {
             )}
           </Button>
 
-          {processing && (
-            <div className="w-full space-y-2">
-              <div className="flex justify-between text-sm text-slate-400">
-                <span>Progresso</span>
-                <span>{progress}%</span>
+          {step !== "idle" && (
+            <div className="w-full space-y-3 animate-in fade-in duration-500">
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-slate-400 flex items-center gap-2">
+                  {step === "completed" ? <CheckCircle2 size={16} className="text-emerald-500" /> : <Loader2 size={16} className="animate-spin text-[#7C3AED]" />}
+                  {getStepLabel()}
+                </span>
+                <span className="text-white font-medium">{progress}%</span>
               </div>
               <Progress value={progress} className="h-2 bg-white/5" />
             </div>
