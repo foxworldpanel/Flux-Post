@@ -4,7 +4,7 @@ import AuthPage from "./routes/auth";
 import VideosPage from "./routes/videos";
 import MusicsPage from "./routes/musics";
 import AccountsPage from "./routes/accounts";
-import CampaignsPage from "./routes/campaigns";
+import CampanhaPage from "./routes/campanha";
 import SchedulePage from "./routes/schedule";
 import { Toaster } from "sonner";
 
@@ -18,7 +18,7 @@ function App() {
           <Route path="/videos" element={<VideosPage />} />
           <Route path="/musics" element={<MusicsPage />} />
           <Route path="/accounts" element={<AccountsPage />} />
-          <Route path="/campaigns" element={<CampaignsPage />} />
+          <Route path="/campanha" element={<CampanhaPage />} />
           <Route path="/schedule" element={<SchedulePage />} />
         </Routes>
       </BrowserRouter>
