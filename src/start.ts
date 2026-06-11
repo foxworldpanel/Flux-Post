@@ -13,10 +13,10 @@ const errorMiddleware = createMiddleware().server(async ({ next }) => {
     console.error("SSR Middleware Error details:", error);
     if (error?.stack) console.error("Stack trace:", error.stack);
     
-    return new Response(
-      `SSR Error: ${error?.message || "Unknown"}\n\n${error?.stack || ""}`,
-      { status: 500, headers: { "content-type": "text/plain" } }
-    );
+    return new Response(renderErrorPage(), {
+      status: 500,
+      headers: { "content-type": "text/html; charset=utf-8" },
+    });
   }
 });
 
