@@ -409,6 +409,7 @@ export type Database = {
           nome: string | null
           storage_path: string | null
           ultimo_uso: string | null
+          user_id: string | null
           vezes_usada: number | null
         }
         Insert: {
@@ -419,6 +420,7 @@ export type Database = {
           nome?: string | null
           storage_path?: string | null
           ultimo_uso?: string | null
+          user_id?: string | null
           vezes_usada?: number | null
         }
         Update: {
@@ -429,6 +431,7 @@ export type Database = {
           nome?: string | null
           storage_path?: string | null
           ultimo_uso?: string | null
+          user_id?: string | null
           vezes_usada?: number | null
         }
         Relationships: []
