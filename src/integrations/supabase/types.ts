@@ -402,62 +402,36 @@ export type Database = {
       }
       videos: {
         Row: {
-          created_at: string
+          criado_em: string | null
           duracao_segundos: number | null
-          duration_seconds: number | null
           id: string
-          last_account_id: string | null
-          last_used_at: string | null
-          name: string
-          niche: string | null
+          nicho: string | null
+          nome: string | null
           storage_path: string | null
-          thumbnail_url: string | null
-          use_count: number | null
-          user_id: string | null
+          ultimo_uso: string | null
           vezes_usada: number | null
-          video_url: string
         }
         Insert: {
-          created_at?: string
+          criado_em?: string | null
           duracao_segundos?: number | null
-          duration_seconds?: number | null
           id?: string
-          last_account_id?: string | null
-          last_used_at?: string | null
-          name: string
-          niche?: string | null
+          nicho?: string | null
+          nome?: string | null
           storage_path?: string | null
-          thumbnail_url?: string | null
-          use_count?: number | null
-          user_id?: string | null
+          ultimo_uso?: string | null
           vezes_usada?: number | null
-          video_url: string
         }
         Update: {
-          created_at?: string
+          criado_em?: string | null
           duracao_segundos?: number | null
-          duration_seconds?: number | null
           id?: string
-          last_account_id?: string | null
-          last_used_at?: string | null
-          name?: string
-          niche?: string | null
+          nicho?: string | null
+          nome?: string | null
           storage_path?: string | null
-          thumbnail_url?: string | null
-          use_count?: number | null
-          user_id?: string | null
+          ultimo_uso?: string | null
           vezes_usada?: number | null
-          video_url?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "videos_last_account_id_fkey"
-            columns: ["last_account_id"]
-            isOneToOne: false
-            referencedRelation: "tiktok_accounts"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
     }
     Views: {
