@@ -66,7 +66,9 @@ export async function processVideo(
   ]);
 
   const data = await ff.readFile('output.mp4');
-  const blob = new Blob([data], { type: 'video/mp4' });
+  // Handle potential SharedArrayBuffer incompatibility by copying to a new Uint8Array
+  const uint8Data = new Uint8Array(data as Uint8Array);
+  const blob = new Blob([uint8Data], { type: 'video/mp4' });
   const fileName = `processed_${Date.now()}.mp4`;
 
   const { data: uploadData, error } = await supabase.storage
