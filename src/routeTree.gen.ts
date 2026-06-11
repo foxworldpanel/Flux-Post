@@ -10,43 +10,33 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as AuthTsxMockRouteImport } from './routes/auth.tsx.mock'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthTsxMockRoute = AuthTsxMockRouteImport.update({
-  id: '/auth/tsx/mock',
-  path: '/auth/tsx/mock',
-  getParentRoute: () => rootRouteImport,
-} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/auth/tsx/mock': typeof AuthTsxMockRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/auth/tsx/mock': typeof AuthTsxMockRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/auth/tsx/mock': typeof AuthTsxMockRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/auth/tsx/mock'
+  fullPaths: '/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/auth/tsx/mock'
-  id: '__root__' | '/' | '/auth/tsx/mock'
+  to: '/'
+  id: '__root__' | '/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  AuthTsxMockRoute: typeof AuthTsxMockRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -58,20 +48,22 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/auth/tsx/mock': {
-      id: '/auth/tsx/mock'
-      path: '/auth/tsx/mock'
-      fullPath: '/auth/tsx/mock'
-      preLoaderRoute: typeof AuthTsxMockRouteImport
-      parentRoute: typeof rootRouteImport
-    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  AuthTsxMockRoute: AuthTsxMockRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
