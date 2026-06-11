@@ -10,7 +10,7 @@ export const Route = createFileRoute('/')({
 function DashboardPage() {
   // Login bypass requested by user
   const { loading } = useAuth()
-  if (loading) return null
+  if (loading) return <div className="flex h-screen items-center justify-center bg-background text-primary">Carregando...</div>
 
   return (
     <DashboardLayout>
