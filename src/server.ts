@@ -43,12 +43,18 @@ export default {
       const handler = await getServerEntry();
       const response = await handler.fetch(request, env, ctx);
       return await normalizeCatastrophicSsrResponse(response);
-    } catch (error) {
-      console.error(error);
-      return new Response(renderErrorPage(), {
-        status: 500,
-        headers: { "content-type": "text/html; charset=utf-8" },
-      });
+    } catch (error: any) {
+      console.error("Catastrophic error caught in server.ts:", error);
+      const errorMessage = error?.message || "Unknown error";
+      const errorStack = error?.stack || "No stack trace available";
+      
+      return new Response(
+        `<!DOCTYPE html><html><body><h1>Critical Server Error</h1><pre>${errorMessage}</pre><pre>${errorStack}</pre></body></html>`,
+        {
+          status: 500,
+          headers: { "content-type": "text/html; charset=utf-8" },
+        }
+      );
     }
   },
 };
