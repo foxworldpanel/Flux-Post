@@ -29,8 +29,8 @@
 }
 
 :root {
-  --background: #0A0A0F;
-  --foreground: #F8FAFC;
+  --background: #FFFFFF;
+  --foreground: #0A0A0F;
   --card: #13131F;
   --card-foreground: #F8FAFC;
   --popover: #13131F;
@@ -60,7 +60,7 @@
   }
   body {
     @apply bg-background text-foreground font-sans antialiased;
-    background-color: #0A0A0F !important;
+    background: radial-gradient(circle at top right, #F8FAFC, #FFFFFF) !important;
   }
   h1, h2, h3, h4, h5, h6 {
     @apply font-display;

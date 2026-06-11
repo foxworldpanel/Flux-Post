@@ -42,14 +42,14 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
 
 
   return (
-    <div className="flex min-h-screen bg-background text-foreground overflow-hidden">
+    <div className="flex min-h-screen bg-slate-50 text-slate-900 overflow-hidden">
       {/* Sidebar */}
       <aside 
         className={`${
           isSidebarOpen ? "w-64" : "w-20"
-        } fixed left-0 top-0 z-40 h-screen flex flex-col border-r border-border bg-card transition-all duration-300 ease-in-out`}
+        } fixed left-0 top-0 z-40 h-screen flex flex-col border-r border-white/10 bg-[#0A0A0F] text-white transition-all duration-300 ease-in-out`}
       >
-        <div className="flex h-16 items-center justify-between px-4 shrink-0 border-b border-border">
+        <div className="flex h-16 items-center justify-between px-4 shrink-0 border-b border-white/5">
           {isSidebarOpen ? (
             <span className="text-xl font-bold tracking-tight text-primary font-display truncate">Flux Post</span>
           ) : (
@@ -70,7 +70,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
             <Link
               key={item.href}
               to={item.href}
-              className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all hover:bg-accent group active:scale-95 [&.active]:bg-primary [&.active]:text-primary-foreground"
+              className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all hover:bg-white/10 group active:scale-95 [&.active]:bg-primary [&.active]:text-white"
             >
               <item.icon size={22} className="shrink-0" />
               {isSidebarOpen && <span className="truncate">{item.label}</span>}
