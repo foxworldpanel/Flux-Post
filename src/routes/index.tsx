@@ -8,7 +8,8 @@ export const Route = createFileRoute('/')({
 })
 
 function DashboardPage() {
-  const { user } = useAuth()
+  const { user, loading } = useAuth()
+  if (loading) return null
   if (!user) return <Navigate to="/auth" />
 
   return (
@@ -36,3 +37,4 @@ function DashboardPage() {
     </DashboardLayout>
   )
 }
+
