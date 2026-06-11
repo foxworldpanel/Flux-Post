@@ -164,19 +164,32 @@ export default function VideosPage() {
     if (!confirm("Tem certeza que deseja excluir este vídeo?")) return;
 
     try {
+      console.log('Iniciando deleção do vídeo:', id, storagePath);
+      
       if (storagePath) {
-        const cleanPath = storagePath.includes('/storage/v1/object/public/videos/')
-          ? storagePath.split('/storage/v1/object/public/videos/')[1]
-          : storagePath;
+        let cleanPath = storagePath;
+        if (storagePath.includes('/storage/v1/object/public/videos/')) {
+          cleanPath = storagePath.split('/storage/v1/object/public/videos/')[1];
+        } else if (storagePath.startsWith('http')) {
+          // Fallback: take the last part of the URL
+          cleanPath = storagePath.split('/').pop() || storagePath;
+        }
           
-        await supabase.storage.from("videos").remove([cleanPath]);
+        console.log('Removendo do storage:', cleanPath);
+        const { error: storageError } = await supabase.storage.from("videos").remove([cleanPath]);
+        if (storageError) {
+          console.warn('Erro ao remover do storage (prosseguindo):', storageError);
+        }
       }
+      
+      console.log('Removendo do banco de dados:', id);
       const { error } = await supabase.from("videos").delete().eq("id", id);
       if (error) throw error;
       
       toast.success("Vídeo removido.");
       fetchVideos();
     } catch (error: any) {
+      console.error('Erro completo na deleção:', error);
       toast.error("Erro ao deletar: " + error.message);
     }
   };

@@ -139,6 +139,7 @@ export default function MusicsPage() {
         estilo,
         duracao_segundos: duration,
         storage_path: publicUrl,
+        user_id: user?.id
       });
 
       if (dbError) throw dbError;
@@ -165,20 +166,33 @@ export default function MusicsPage() {
     if (!confirm("Tem certeza que deseja excluir esta música?")) return;
 
     try {
+      console.log('Iniciando deleção da música:', id, storagePath);
+      
       if (storagePath) {
         // Extract relative path from URL or use storagePath if it's already relative
-        const cleanPath = storagePath.includes('/storage/v1/object/public/musicas/')
-          ? storagePath.split('/storage/v1/object/public/musicas/')[1]
-          : storagePath;
-          
-        await supabase.storage.from("musicas").remove([cleanPath]);
+        let cleanPath = storagePath;
+        if (storagePath.includes('/storage/v1/object/public/musicas/')) {
+          cleanPath = storagePath.split('/storage/v1/object/public/musicas/')[1];
+        } else if (storagePath.startsWith('http')) {
+          // Fallback: take the last part of the URL
+          cleanPath = storagePath.split('/').pop() || storagePath;
+        }
+        
+        console.log('Removendo do storage:', cleanPath);
+        const { error: storageError } = await supabase.storage.from("musicas").remove([cleanPath]);
+        if (storageError) {
+          console.warn('Erro ao remover do storage (prosseguindo):', storageError);
+        }
       }
+      
+      console.log('Removendo do banco de dados:', id);
       const { error } = await supabase.from("music_tracks").delete().eq("id", id);
       if (error) throw error;
       
       toast.success("Música removida.");
       fetchMusics();
     } catch (error: any) {
+      console.error('Erro completo na deleção:', error);
       toast.error("Erro ao deletar: " + error.message);
     }
   };
