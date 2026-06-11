@@ -108,21 +108,30 @@ export default function MusicsPage() {
       }
 
       // 2. Upload to Supabase Storage
-      const fileExt = file.name.split(".").pop();
-      const fileName = `${crypto.randomUUID()}.${fileExt}`;
-      const filePath = `${fileName}`; // Upload directly to bucket root
-
-      const { error: uploadError } = await supabase.storage
-        .from("musicas")
-        .upload(filePath, file, { upsert: true });
-
-      if (uploadError) throw uploadError;
-
-      const { data: urlData } = supabase.storage
-        .from("musicas")
-        .getPublicUrl(filePath);
+      // 2. Upload to Supabase Storage
+      const fileName = `${Date.now()}-${file.name}`;
       
-      const publicUrl = urlData.publicUrl;
+      console.log('Iniciando upload para o bucket musicas:', fileName);
+
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('musicas')
+        .upload(fileName, file, {
+          cacheControl: '3600',
+          upsert: true,
+          contentType: file.type
+        });
+
+      if (uploadError) {
+        console.error('Erro upload storage:', uploadError);
+        throw uploadError;
+      }
+
+      const { data: publicUrlData } = supabase.storage
+        .from('musicas')
+        .getPublicUrl(fileName);
+      
+      const publicUrl = publicUrlData.publicUrl;
+      console.log('URL pública gerada:', publicUrl);
 
       // 3. Save metadata
       const { error: dbError } = await supabase.from("music_tracks").insert({

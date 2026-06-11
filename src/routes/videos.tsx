@@ -109,21 +109,30 @@ export default function VideosPage() {
       }
 
       // 2. Upload to Supabase Storage
-      const fileExt = file.name.split(".").pop();
-      const fileName = `${crypto.randomUUID()}.${fileExt}`;
-      const filePath = `${fileName}`; // Upload directly to bucket root
+      // 2. Upload to Supabase Storage
+      const fileName = `${Date.now()}-${file.name}`;
+      
+      console.log('Iniciando upload para o bucket videos:', fileName);
 
-      const { error: uploadError } = await supabase.storage
-        .from("videos")
-        .upload(filePath, file, { upsert: true });
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('videos')
+        .upload(fileName, file, {
+          cacheControl: '3600',
+          upsert: true,
+          contentType: file.type
+        });
 
-      if (uploadError) throw uploadError;
+      if (uploadError) {
+        console.error('Erro upload storage:', uploadError);
+        throw uploadError;
+      }
 
-      const { data: urlData } = supabase.storage
-        .from("videos")
-        .getPublicUrl(filePath);
+      const { data: publicUrlData } = supabase.storage
+        .from('videos')
+        .getPublicUrl(fileName);
 
-      const publicUrl = urlData.publicUrl;
+      const publicUrl = publicUrlData.publicUrl;
+      console.log('URL pública gerada:', publicUrl);
 
       // 3. Save metadata
       const { error: dbError } = await supabase.from("videos").insert({
