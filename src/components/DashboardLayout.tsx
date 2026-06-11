@@ -1,4 +1,4 @@
-import { Link, useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate } from "react-router-dom";
 import { 
   LayoutDashboard, 
   Video, 
@@ -29,7 +29,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   ];
 
   const handleLogout = () => {
-    navigate({ to: "/auth" });
+    navigate("/auth");
   };
 
   if (loading) return <div className="flex h-screen items-center justify-center bg-background text-primary">Carregando...</div>;

@@ -1,14 +1,9 @@
-import { createFileRoute } from '@tanstack/react-router'
 import { DashboardLayout } from '@/components/DashboardLayout'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useAuth } from '@/hooks/useAuth'
 import '@/styles.css'
 
-export const Route = createFileRoute('/')({
-  component: DashboardPage,
-})
-
-function DashboardPage() {
+export default function DashboardPage() {
   // Login bypass requested by user
   const { loading } = useAuth()
   if (loading) return <div className="flex h-screen items-center justify-center bg-background text-primary">Carregando...</div>
