@@ -9,8 +9,10 @@ export const Route = createFileRoute('/')({
 
 function DashboardPage() {
   const { user, loading } = useAuth()
-  if (loading) return null
-  if (!user) return <Navigate to="/auth" />
+  if (loading) return <div>Carregando...</div>
+  if (!user) {
+    return <Navigate to="/auth" />
+  }
 
   return (
     <DashboardLayout>
