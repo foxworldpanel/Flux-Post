@@ -10,13 +10,18 @@ const errorMiddleware = createMiddleware().server(async ({ next }) => {
     if (error != null && typeof error === "object" && "statusCode" in error) {
       throw error;
     }
-    console.error("SSR Middleware Error:", error?.message || error);
-    if (error?.stack) console.error(error.stack);
     
-    return new Response(renderErrorPage(), {
-      status: 500,
-      headers: { "content-type": "text/html; charset=utf-8" },
-    });
+    // For debugging, returning the error message in the response
+    const errorMessage = error?.message || "Unknown error";
+    const errorStack = error?.stack || "No stack trace available";
+    
+    return new Response(
+      `<!DOCTYPE html><html><body><h1>SSR Middleware Error</h1><pre>${errorMessage}</pre><pre>${errorStack}</pre></body></html>`,
+      {
+        status: 500,
+        headers: { "content-type": "text/html; charset=utf-8" },
+      }
+    );
   }
 });
 
