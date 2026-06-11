@@ -22,6 +22,8 @@ import {
 } from "@/components/ui/dialog";
 import { Music, Plus, Trash2, Play, CheckCircle2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { r2Client, BUCKETS, getR2PublicUrl } from "@/lib/r2Client";
+import { PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 
@@ -107,16 +109,21 @@ export default function MusicsPage() {
         console.warn("Could not get duration", e);
       }
 
-      // 2. Upload to Storage
+      // 2. Upload to R2
       const fileExt = file.name.split(".").pop();
-      const fileName = `${Math.random()}.${fileExt}`;
-      const filePath = `public/${fileName}`;
+      const fileName = `${crypto.randomUUID()}.${fileExt}`;
+      const fileKey = `musicas/${fileName}`;
 
-      const { error: uploadError } = await supabase.storage
-        .from("musicas")
-        .upload(filePath, file);
+      const arrayBuffer = await file.arrayBuffer();
+      const uploadCommand = new PutObjectCommand({
+        Bucket: BUCKETS.musicas,
+        Key: fileKey,
+        Body: new Uint8Array(arrayBuffer),
+        ContentType: file.type,
+      });
 
-      if (uploadError) throw uploadError;
+      await r2Client.send(uploadCommand);
+      const publicUrl = getR2PublicUrl(BUCKETS.musicas, fileKey);
 
       // 3. Save metadata
       const { error: dbError } = await supabase.from("music_tracks").insert({
@@ -124,7 +131,7 @@ export default function MusicsPage() {
         artista,
         estilo,
         duracao_segundos: duration,
-        storage_path: filePath,
+        storage_path: publicUrl,
       });
 
       if (dbError) throw dbError;
@@ -152,7 +159,14 @@ export default function MusicsPage() {
 
     try {
       if (storagePath) {
-        await supabase.storage.from("musicas").remove([storagePath]);
+        // Extract key from public URL if needed, or assume it's just the key
+        // For now, let's assume we need to delete from R2
+        const key = storagePath.split('/').slice(-2).join('/'); // musicas/filename.mp3
+        const deleteCommand = new DeleteObjectCommand({
+          Bucket: BUCKETS.musicas,
+          Key: key,
+        });
+        await r2Client.send(deleteCommand);
       }
       const { error } = await supabase.from("music_tracks").delete().eq("id", id);
       if (error) throw error;

@@ -22,6 +22,8 @@ import {
 } from "@/components/ui/dialog";
 import { Video, Plus, Trash2, Clock, Calendar, Play } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { r2Client, BUCKETS, getR2PublicUrl } from "@/lib/r2Client";
+import { PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -108,23 +110,28 @@ export default function VideosPage() {
         console.warn("Could not get duration", e);
       }
 
-      // 2. Upload to Storage
+      // 2. Upload to R2
       const fileExt = file.name.split(".").pop();
-      const fileName = `${Math.random()}.${fileExt}`;
-      const filePath = `public/${fileName}`;
+      const fileName = `${crypto.randomUUID()}.${fileExt}`;
+      const fileKey = `videos/${fileName}`;
 
-      const { error: uploadError } = await supabase.storage
-        .from("videos")
-        .upload(filePath, file);
+      const arrayBuffer = await file.arrayBuffer();
+      const uploadCommand = new PutObjectCommand({
+        Bucket: BUCKETS.videos,
+        Key: fileKey,
+        Body: new Uint8Array(arrayBuffer),
+        ContentType: file.type,
+      });
 
-      if (uploadError) throw uploadError;
+      await r2Client.send(uploadCommand);
+      const publicUrl = getR2PublicUrl(BUCKETS.videos, fileKey);
 
       // 3. Save metadata
       const { error: dbError } = await supabase.from("videos").insert({
         nome,
         nicho,
         duracao_segundos: duration,
-        storage_path: filePath,
+        storage_path: publicUrl,
       });
 
       if (dbError) throw dbError;
@@ -151,7 +158,12 @@ export default function VideosPage() {
 
     try {
       if (storagePath) {
-        await supabase.storage.from("videos").remove([storagePath]);
+        const key = storagePath.split('/').slice(-2).join('/'); // videos/filename.mp4
+        const deleteCommand = new DeleteObjectCommand({
+          Bucket: BUCKETS.videos,
+          Key: key,
+        });
+        await r2Client.send(deleteCommand);
       }
       const { error } = await supabase.from("videos").delete().eq("id", id);
       if (error) throw error;
@@ -171,8 +183,7 @@ export default function VideosPage() {
   };
 
   const getPublicUrl = (path: string) => {
-    const { data } = supabase.storage.from("videos").getPublicUrl(path);
-    return data.publicUrl;
+    return path; // Now storing full public URL
   };
 
   const handlePreview = (video: VideoTrack) => {
