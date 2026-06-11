@@ -28,7 +28,7 @@ export default function AuthPage() {
         const { error } = await supabase.auth.signUp({ email, password });
         if (error) throw error;
       }
-      navigate({ to: '/' });
+      navigate('/');
     } catch (err: any) {
       setError(err.message);
     } finally {
