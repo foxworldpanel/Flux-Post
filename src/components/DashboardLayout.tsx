@@ -78,10 +78,10 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
           ))}
         </nav>
 
-        <div className="mt-auto p-4 border-t border-border shrink-0">
+        <div className="mt-auto p-4 border-t border-white/5 shrink-0">
           <Button
             variant="ghost"
-            className="flex w-full items-center justify-start gap-3 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+            className="flex w-full items-center justify-start gap-3 text-slate-400 hover:text-white hover:bg-white/5 transition-colors"
             onClick={handleLogout}
           >
             <LogOut size={22} className="shrink-0" />
@@ -91,7 +91,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
       </aside>
 
       {/* Main Content */}
-      <main className={`${isSidebarOpen ? "ml-64" : "ml-20"} flex-1 h-screen overflow-y-auto transition-all duration-300 ease-in-out bg-background`}>
+      <main className={`${isSidebarOpen ? "ml-64" : "ml-20"} flex-1 h-screen overflow-y-auto transition-all duration-300 ease-in-out bg-transparent`}>
         <div className="max-w-7xl mx-auto p-8">
           {children}
         </div>
