@@ -17,14 +17,12 @@ import { useAuth } from "@/hooks/useAuth";
 
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const { user, loading } = useAuth();
+  const { loading } = useAuth();
   const navigate = useNavigate();
 
-  useEffect(() => {
-    if (!loading && !user) {
-      navigate({ to: "/auth" });
-    }
-  }, [user, loading, navigate]);
+  // Temporary bypass for testing
+  const user = { email: "dev@fluxpost.com" }; 
+
 
   const navItems = [
     { label: "Dashboard", icon: LayoutDashboard, href: "/" },
@@ -41,7 +39,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   };
 
   if (loading) return <div className="flex h-screen items-center justify-center bg-background text-primary">Carregando...</div>;
-  if (!user) return null;
+
 
   return (
     <div className="flex min-h-screen bg-background text-foreground">
