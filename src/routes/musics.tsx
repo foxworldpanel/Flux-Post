@@ -159,14 +159,24 @@ export default function MusicsPage() {
 
     try {
       if (storagePath) {
-        // Extract key from public URL if needed, or assume it's just the key
-        // For now, let's assume we need to delete from R2
-        const key = storagePath.split('/').slice(-2).join('/'); // musicas/filename.mp3
-        const deleteCommand = new DeleteObjectCommand({
-          Bucket: BUCKETS.musicas,
-          Key: key,
-        });
-        await r2Client.send(deleteCommand);
+        if (storagePath.includes('supabase.co') || storagePath.startsWith('public/')) {
+          // It's a Supabase Storage path
+          const cleanPath = storagePath.startsWith('http') 
+            ? storagePath.split('/storage/v1/object/public/musicas/')[1] 
+            : storagePath;
+          
+          if (cleanPath) {
+            await supabase.storage.from("musicas").remove([cleanPath]);
+          }
+        } else if (storagePath.includes('cloudflarestorage.com') || storagePath.includes(import.meta.env.VITE_R2_PUBLIC_URL || '')) {
+          // It's an R2 path
+          const key = storagePath.split('/').slice(-2).join('/'); // musicas/filename.mp3
+          const deleteCommand = new DeleteObjectCommand({
+            Bucket: BUCKETS.musicas,
+            Key: key,
+          });
+          await r2Client.send(deleteCommand);
+        }
       }
       const { error } = await supabase.from("music_tracks").delete().eq("id", id);
       if (error) throw error;

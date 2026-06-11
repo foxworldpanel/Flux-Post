@@ -158,12 +158,24 @@ export default function VideosPage() {
 
     try {
       if (storagePath) {
-        const key = storagePath.split('/').slice(-2).join('/'); // videos/filename.mp4
-        const deleteCommand = new DeleteObjectCommand({
-          Bucket: BUCKETS.videos,
-          Key: key,
-        });
-        await r2Client.send(deleteCommand);
+        if (storagePath.includes('supabase.co') || storagePath.startsWith('public/')) {
+          // It's a Supabase Storage path
+          const cleanPath = storagePath.startsWith('http') 
+            ? storagePath.split('/storage/v1/object/public/videos/')[1] 
+            : storagePath;
+            
+          if (cleanPath) {
+            await supabase.storage.from("videos").remove([cleanPath]);
+          }
+        } else if (storagePath.includes('cloudflarestorage.com') || storagePath.includes(import.meta.env.VITE_R2_PUBLIC_URL || '')) {
+          // It's an R2 path
+          const key = storagePath.split('/').slice(-2).join('/'); // videos/filename.mp4
+          const deleteCommand = new DeleteObjectCommand({
+            Bucket: BUCKETS.videos,
+            Key: key,
+          });
+          await r2Client.send(deleteCommand);
+        }
       }
       const { error } = await supabase.from("videos").delete().eq("id", id);
       if (error) throw error;
@@ -183,7 +195,12 @@ export default function VideosPage() {
   };
 
   const getPublicUrl = (path: string) => {
-    return path; // Now storing full public URL
+    if (!path) return "";
+    if (path.startsWith('http')) return path;
+    
+    // Fallback for old Supabase relative paths
+    const { data } = supabase.storage.from("videos").getPublicUrl(path);
+    return data.publicUrl;
   };
 
   const handlePreview = (video: VideoTrack) => {
