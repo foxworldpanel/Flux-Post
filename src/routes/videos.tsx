@@ -111,7 +111,7 @@ export default function VideosPage() {
       // 2. Upload to Supabase Storage
       const fileExt = file.name.split(".").pop();
       const fileName = `${crypto.randomUUID()}.${fileExt}`;
-      const filePath = `public/${fileName}`;
+      const filePath = `${fileName}`; // Upload directly to bucket root
 
       const { error: uploadError } = await supabase.storage
         .from("videos")
