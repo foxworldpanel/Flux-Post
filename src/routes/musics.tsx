@@ -189,7 +189,7 @@ export default function MusicsPage() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div className="flex items-center justify-between bg-white p-4 rounded-xl shadow-sm border border-slate-100">
+        <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-3xl font-bold text-[#0A0A0F] font-display">Biblioteca de Músicas</h1>
             <p className="text-muted-foreground">Gerencie suas trilhas sonoras para automação.</p>
