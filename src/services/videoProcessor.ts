@@ -42,7 +42,7 @@ export async function processVideo(
 
   const data = await ffmpeg.readFile('output.mp4');
   return new Blob(
-    [data], 
+    [data as any], 
     { type: 'video/mp4' }
   );
 }
