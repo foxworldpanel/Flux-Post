@@ -9,8 +9,15 @@ export default defineConfig({
     tailwindcss(),
     tsconfigPaths(),
   ],
+  optimizeDeps: {
+    exclude: ['@ffmpeg/ffmpeg', '@ffmpeg/util'],
+  },
   server: {
     host: "::",
     port: 8080,
+    headers: {
+      'Cross-Origin-Opener-Policy': 'same-origin',
+      'Cross-Origin-Embedder-Policy': 'require-corp',
+    },
   },
 });
