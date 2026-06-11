@@ -1,21 +1,18 @@
-import { createRootRoute, Outlet, ScrollRestoration, Scripts } from '@tanstack/react-router'
-import { Meta, Head } from '@tanstack/react-start'
+import { createRootRoute, Outlet, ScrollRestoration, Scripts, Meta, Head } from '@tanstack/react-router'
 import '@/styles.css'
 
 export const Route = createRootRoute({
+  head: () => (
+    <>
+      <Meta />
+      <title>Flux Post</title>
+    </>
+  ),
   component: () => (
-    <html lang="pt-BR" className="dark">
-      <Head>
-        <Meta />
-        <title>Flux Post</title>
-      </Head>
-      <body className="bg-background text-foreground font-sans antialiased">
-        <div id="root-layout">
-          <Outlet />
-        </div>
-        <ScrollRestoration />
-        <Scripts />
-      </body>
-    </html>
+    <div id="root-layout" className="dark bg-background text-foreground min-h-screen font-sans antialiased">
+      <Outlet />
+      <ScrollRestoration />
+      <Scripts />
+    </div>
   ),
 })
