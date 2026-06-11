@@ -8,9 +8,9 @@ export const Route = createFileRoute('/')({
 })
 
 function DashboardPage() {
-  const { user, loading } = useAuth()
+  // Login bypass requested by user
+  const { loading } = useAuth()
   if (loading) return null
-  if (!user) return <Navigate to="/auth" />
 
   return (
     <DashboardLayout>
