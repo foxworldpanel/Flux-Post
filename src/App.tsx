@@ -6,20 +6,24 @@ import MusicsPage from "./routes/musics";
 import AccountsPage from "./routes/accounts";
 import CampaignsPage from "./routes/campaigns";
 import SchedulePage from "./routes/schedule";
+import { Toaster } from "sonner";
 
 function App() {
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<DashboardPage />} />
-        <Route path="/auth" element={<AuthPage />} />
-        <Route path="/videos" element={<VideosPage />} />
-        <Route path="/musics" element={<MusicsPage />} />
-        <Route path="/accounts" element={<AccountsPage />} />
-        <Route path="/campaigns" element={<CampaignsPage />} />
-        <Route path="/schedule" element={<SchedulePage />} />
-      </Routes>
-    </BrowserRouter>
+    <>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/" element={<DashboardPage />} />
+          <Route path="/auth" element={<AuthPage />} />
+          <Route path="/videos" element={<VideosPage />} />
+          <Route path="/musics" element={<MusicsPage />} />
+          <Route path="/accounts" element={<AccountsPage />} />
+          <Route path="/campaigns" element={<CampaignsPage />} />
+          <Route path="/schedule" element={<SchedulePage />} />
+        </Routes>
+      </BrowserRouter>
+      <Toaster position="top-right" />
+    </>
   );
 }
 

@@ -35,7 +35,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   if (loading) return <div className="flex h-screen items-center justify-center bg-background text-primary">Carregando...</div>;
 
   return (
-    <div className="flex min-h-screen bg-slate-50 text-slate-900 overflow-hidden">
+    <div className="flex min-h-screen bg-white text-slate-900 overflow-hidden">
       {/* Sidebar */}
       <aside 
         className={`${
