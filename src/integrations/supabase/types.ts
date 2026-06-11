@@ -436,6 +436,45 @@ export type Database = {
         }
         Relationships: []
       }
+      videos_processados: {
+        Row: {
+          criado_em: string
+          id: string
+          music_track_id: string | null
+          storage_path: string
+          video_id: string | null
+        }
+        Insert: {
+          criado_em?: string
+          id?: string
+          music_track_id?: string | null
+          storage_path: string
+          video_id?: string | null
+        }
+        Update: {
+          criado_em?: string
+          id?: string
+          music_track_id?: string | null
+          storage_path?: string
+          video_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "videos_processados_music_track_id_fkey"
+            columns: ["music_track_id"]
+            isOneToOne: false
+            referencedRelation: "music_tracks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "videos_processados_video_id_fkey"
+            columns: ["video_id"]
+            isOneToOne: false
+            referencedRelation: "videos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
