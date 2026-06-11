@@ -1,11 +1,6 @@
-import { createFileRoute } from '@tanstack/react-router'
 import { DashboardLayout } from '@/components/DashboardLayout'
 
-export const Route = createFileRoute('/accounts')({
-  component: AccountsPage,
-})
-
-function AccountsPage() {
+export default function AccountsPage() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
