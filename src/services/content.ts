@@ -31,8 +31,6 @@ export const contentService = {
 
     const fileName = `${user.id}/${Date.now()}-${file.name.replace(/\s+/g, '_')}`;
     
-    // Upload with progress would be nice but supabase-js doesn't expose it easily without XMLHttpRequest
-    // For now we use the standard upload
     const { error: uploadError } = await supabase.storage
       .from("content-library")
       .upload(fileName, file, {
@@ -56,9 +54,21 @@ export const contentService = {
       if (error) throw error;
       return data;
     } catch (dbError) {
-      // Cleanup orphan file if DB insert fails
       await supabase.storage.from("content-library").remove([fileName]);
       throw dbError;
     }
+  },
+
+  async getSignedUrl(path: string): Promise<string> {
+    const { data, error } = await supabase.storage
+      .from("content-library")
+      .createSignedUrl(path, 3600); // 1 hour expiry
+
+    if (error) {
+      console.error("Erro ao gerar signed URL:", error.message);
+      throw error;
+    }
+
+    return data.signedUrl;
   }
 };
