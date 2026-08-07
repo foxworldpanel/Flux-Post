@@ -67,11 +67,20 @@ function selectBestVideoFile(files: PexelsVideoFile[]): PexelsVideoFile | null {
 
 serve(async (req) => {
   console.log(`[IMPORT] Request received: ${req.method} ${req.url}`);
+  console.log(`[IMPORT] SECRETS CHECK: PEXELS_API_KEY=${!!PEXELS_API_KEY}, SUPABASE_URL=${!!SUPABASE_URL}, SUPABASE_SERVICE_ROLE_KEY=${!!SUPABASE_SERVICE_ROLE_KEY}`);
 
   if (req.method === 'OPTIONS') {
     return new Response(null, { 
       status: 204, 
       headers: corsHeaders 
+    });
+  }
+
+  // PING TEST: Confirm function is reachable
+  const url = new URL(req.url);
+  if (url.searchParams.has('ping')) {
+    return new Response(JSON.stringify({ message: 'pong', status: 'ready' }), { 
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
     });
   }
 
