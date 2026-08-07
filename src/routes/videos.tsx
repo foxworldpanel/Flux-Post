@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,58 +20,48 @@ import {
   DialogTrigger,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Video, Plus, Trash2, Clock, Calendar, Play, User } from "lucide-react";
+import { Video, Plus, Trash2, Clock, Calendar, Play, ExternalLink, Loader2, Search, Filter } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useAuth } from "@/hooks/useAuth";
-import { artistService } from "@/services/artists";
+import { contentService } from "@/services/content";
 
-interface VideoTrack {
+interface ContentLibrary {
   id: string;
-  nome: string;
-  nicho: string | null;
-  artist_id: string | null;
+  title: string;
+  file_path: string;
+  file_type: string;
   category: string | null;
-  duracao_segundos: number | null;
-  storage_path: string | null;
-  vezes_usada: number | null;
-  ultimo_uso: string | null;
-  criado_em: string | null;
-  artists?: { name: string };
+  status: string | null;
+  source: string | null;
+  author: string | null;
+  original_url: string | null;
+  credit: string | null;
+  usage_count: number | null;
+  created_at: string | null;
 }
 
 export default function VideosPage() {
-  const [videos, setVideos] = useState<VideoTrack[]>([]);
-  const [artists, setArtists] = useState<any[]>([]);
+  const [items, setItems] = useState<ContentLibrary[]>([]);
   const [loading, setLoading] = useState(true);
-  const [uploading, setUploading] = useState(false);
-  const [isModalOpen, setIsModalOpen] = useState(false);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
-  const [selectedVideo, setSelectedVideo] = useState<VideoTrack | null>(null);
-  const { user } = useAuth();
-
-  // Form states
-  const [nome, setNome] = useState("");
-  const [artistId, setArtistId] = useState("");
-  const [category, setCategory] = useState("raw");
-  const [nicho, setNicho] = useState("outro");
-  const [file, setFile] = useState<File | null>(null);
+  const [selectedItem, setSelectedItem] = useState<ContentLibrary | null>(null);
+  const [signedUrl, setSignedUrl] = useState<string | null>(null);
+  const [loadingUrl, setLoadingUrl] = useState(false);
+  
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterCategory, setFilterCategory] = useState("all");
+  const [filterSource, setFilterSource] = useState("all");
 
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [videosRes, artistsRes] = await Promise.all([
-        supabase.from("videos").select("*, artists(name)").order("criado_em", { ascending: false }),
-        artistService.getArtists()
-      ]);
-
-      if (videosRes.error) throw videosRes.error;
-      setVideos(videosRes.data || []);
-      setArtists(artistsRes || []);
+      const data = await contentService.getLibrary();
+      setItems(data as any[]);
     } catch (error: any) {
-      toast.error("Erro ao carregar dados: " + error.message);
+      toast.error("Erro ao carregar biblioteca: " + error.message);
     } finally {
       setLoading(false);
     }
@@ -81,328 +71,190 @@ export default function VideosPage() {
     fetchData();
   }, []);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const selectedFile = e.target.files[0];
-      if (selectedFile.type !== "video/mp4") {
-        toast.error("Por favor, selecione um arquivo MP4.");
-        return;
-      }
-      setFile(selectedFile);
-      if (!nome) setNome(selectedFile.name.replace(/\.[^/.]+$/, ""));
-    }
-  };
-
-  const handleSave = async () => {
-    if (!file || !nome) {
-      toast.error("Por favor, preencha o nome e selecione um arquivo.");
-      return;
-    }
-
-    try {
-      setUploading(true);
-      
-      // 1. Get video duration
-      let duration = 0;
-      try {
-        const video = document.createElement('video');
-        video.preload = 'metadata';
-        video.src = URL.createObjectURL(file);
-        await new Promise((resolve) => {
-          video.onloadedmetadata = () => {
-            duration = Math.round(video.duration);
-            resolve(null);
-          };
-        });
-      } catch (e) {
-        console.warn("Could not get duration", e);
-      }
-
-      // 2. Upload to Supabase Storage
-      const fileName = `${Date.now()}-${file.name}`;
-      
-      console.log('Iniciando upload para o bucket videos:', fileName);
-
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('videos')
-        .upload(fileName, file, {
-          cacheControl: '3600',
-          upsert: true,
-          contentType: file.type
-        });
-
-      if (uploadError) {
-        console.error('Erro upload storage:', uploadError);
-        throw uploadError;
-      }
-
-      const { data: publicUrlData } = supabase.storage
-        .from('videos')
-        .getPublicUrl(fileName);
-
-      const publicUrl = publicUrlData.publicUrl;
-      console.log('URL pública gerada:', publicUrl);
-
-      // 3. Save metadata
-      const { error: dbError } = await supabase.from("videos").insert({
-        nome,
-        nicho,
-        artist_id: artistId || null,
-        duracao_segundos: duration,
-        storage_path: publicUrl,
-        user_id: user?.id,
-      });
-
-      if (dbError) throw dbError;
-
-      toast.success("Vídeo adicionado com sucesso!");
-      setIsModalOpen(false);
-      resetForm();
-      fetchData();
-    } catch (error: any) {
-      toast.error("Erro ao salvar: " + error.message);
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  const resetForm = () => {
-    setNome("");
-    setArtistId("");
-    setNicho("outro");
-    setFile(null);
-  };
-
-  const handleDelete = async (id: string, storagePath: string | null) => {
-    if (!confirm("Tem certeza que deseja excluir este vídeo?")) return;
-
-    try {
-      console.log('Iniciando deleção do vídeo:', id, storagePath);
-      
-      if (storagePath) {
-        let cleanPath = storagePath;
-        if (storagePath.includes('/storage/v1/object/public/videos/')) {
-          cleanPath = storagePath.split('/storage/v1/object/public/videos/')[1];
-        } else if (storagePath.startsWith('http')) {
-          // Fallback: take the last part of the URL
-          cleanPath = storagePath.split('/').pop() || storagePath;
-        }
-          
-        console.log('Removendo do storage:', cleanPath);
-        const { error: storageError } = await supabase.storage.from("videos").remove([cleanPath]);
-        if (storageError) {
-          console.warn('Erro ao remover do storage (prosseguindo):', storageError);
-        }
-      }
-      
-      console.log('Removendo do banco de dados:', id);
-      const { error } = await supabase.from("videos").delete().eq("id", id);
-      if (error) throw error;
-      
-      toast.success("Vídeo removido.");
-      fetchData();
-    } catch (error: any) {
-      console.error('Erro completo na deleção:', error);
-      toast.error("Erro ao deletar: " + error.message);
-    }
-  };
-
-  const formatDuration = (seconds: number | null) => {
-    if (!seconds) return "0:00";
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, "0")}`;
-  };
-
-  const getPublicUrl = (path: string) => {
-    if (!path) return "";
-    if (path.startsWith('http')) return path;
-    
-    const { data } = supabase.storage.from("videos").getPublicUrl(path);
-    return data.publicUrl;
-  };
-
-  const handlePreview = (video: VideoTrack) => {
-    setSelectedVideo(video);
+  const handlePreview = async (item: ContentLibrary) => {
+    setSelectedItem(item);
     setIsPreviewOpen(true);
+    setLoadingUrl(true);
+    try {
+      const url = await contentService.getSignedUrl(item.file_path);
+      setSignedUrl(url);
+    } catch (error) {
+      toast.error("Erro ao carregar preview");
+    } finally {
+      setLoadingUrl(false);
+    }
   };
+
+  const handleDelete = async (item: ContentLibrary) => {
+    if (!confirm("Deseja realmente remover este conteúdo da biblioteca?")) return;
+
+    try {
+      // 1. Storage
+      const { error: storageError } = await supabase.storage
+        .from("content-library")
+        .remove([item.file_path]);
+      
+      if (storageError) console.warn("Erro ao remover arquivo (prosseguindo):", storageError);
+
+      // 2. Database
+      const { error } = await supabase
+        .from("content_library")
+        .delete()
+        .eq("id", item.id);
+      
+      if (error) throw error;
+
+      toast.success("Conteúdo removido");
+      fetchData();
+    } catch (error: any) {
+      toast.error("Erro ao remover: " + error.message);
+    }
+  };
+
+  const filteredItems = items.filter(item => {
+    const matchesSearch = item.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                         (item.author?.toLowerCase().includes(searchTerm.toLowerCase()));
+    const matchesCategory = filterCategory === "all" || item.category === filterCategory;
+    const matchesSource = filterSource === "all" || item.source === filterSource;
+    return matchesSearch && matchesCategory && matchesSource;
+  });
+
+  const categories = Array.from(new Set(items.map(i => i.category).filter(Boolean)));
+  const sources = Array.from(new Set(items.map(i => i.source).filter(Boolean)));
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
+      <div className="space-y-8 animate-in fade-in duration-500">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-[#0A0A0F] font-display">Biblioteca de Vídeos</h1>
-            <p className="text-muted-foreground">Gerencie seus clipes para postagem automática.</p>
+            <h1 className="text-4xl font-space font-bold text-white mb-2">Biblioteca de Conteúdo</h1>
+            <p className="text-slate-400">Gerencie seus vídeos importados e processados para campanhas.</p>
           </div>
+          <Button onClick={() => window.location.href = '/garimpo'} className="bg-[#7C3AED] hover:bg-[#6D28D9] gap-2 h-12 px-6 font-bold shadow-lg shadow-purple-500/20">
+            <Search size={18} />
+            Garimpar Conteúdo
+          </Button>
+        </div>
 
-          <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-            <DialogTrigger asChild>
-              <Button className="bg-[#7C3AED] hover:bg-[#6D28D9] text-white gap-2">
-                <Plus size={18} />
-                Adicionar Vídeo
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="bg-[#13131F] border-white/10 text-white sm:max-w-[425px]">
-              <DialogHeader>
-                <DialogTitle className="text-xl font-bold font-display">Novo Vídeo</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <Label htmlFor="file">Arquivo MP4</Label>
-                  <Input
-                    id="file"
-                    type="file"
-                    accept="video/mp4"
-                    onChange={handleFileChange}
-                    className="bg-[#0A0A0F] border-white/10"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="nome">Nome do Vídeo</Label>
-                  <Input
-                    id="nome"
-                    value={nome}
-                    onChange={(e) => setNome(e.target.value)}
-                    placeholder="Ex: Por do sol na praia"
-                    className="bg-[#0A0A0F] border-white/10"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="artista">Artista Vinculado</Label>
-                  <Select value={artistId} onValueChange={setArtistId}>
-                    <SelectTrigger className="bg-[#0A0A0F] border-white/10 w-full">
-                      <SelectValue placeholder="Selecione um artista" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-[#13131F] border-white/10 text-white">
-                      {artists.map((a) => (
-                        <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="nicho">Nicho</Label>
-                  <Select value={nicho} onValueChange={setNicho}>
-                    <SelectTrigger className="bg-[#0A0A0F] border-white/10 w-full">
-                      <SelectValue placeholder="Selecione o nicho" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-[#13131F] border-white/10 text-white">
-                      <SelectItem value="viagem">Viagem</SelectItem>
-                      <SelectItem value="comida">Comida</SelectItem>
-                      <SelectItem value="natureza">Natureza</SelectItem>
-                      <SelectItem value="dança">Dança</SelectItem>
-                      <SelectItem value="motivação">Motivação</SelectItem>
-                      <SelectItem value="humor">Humor</SelectItem>
-                      <SelectItem value="outro">Outro</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <DialogFooter>
-                <Button
-                  onClick={handleSave}
-                  disabled={uploading}
-                  className="bg-[#7C3AED] hover:bg-[#6D28D9] text-white w-full"
-                >
-                  {uploading ? "Fazendo upload..." : "Salvar Vídeo"}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+        {/* Filtros */}
+        <div className="bg-[#13131F] p-4 rounded-2xl border border-white/5 grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+            <Input 
+              placeholder="Buscar por título ou autor..." 
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="bg-white/5 border-white/10 pl-10"
+            />
+          </div>
+          <Select value={filterCategory} onValueChange={setFilterCategory}>
+            <SelectTrigger className="bg-white/5 border-white/10">
+              <SelectValue placeholder="Filtrar Categoria" />
+            </SelectTrigger>
+            <SelectContent className="bg-[#13131F] border-white/10">
+              <SelectItem value="all">Todas as Categorias</SelectItem>
+              {categories.map(c => <SelectItem key={c} value={c!}>{c}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Select value={filterSource} onValueChange={setFilterSource}>
+            <SelectTrigger className="bg-white/5 border-white/10">
+              <SelectValue placeholder="Filtrar Fonte" />
+            </SelectTrigger>
+            <SelectContent className="bg-[#13131F] border-white/10">
+              <SelectItem value="all">Todas as Fontes</SelectItem>
+              {sources.map(s => <SelectItem key={s} value={s!}>{s === 'pexels' ? 'Pexels' : s}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <div className="flex items-center justify-end">
+            <p className="text-xs text-slate-500 font-medium">{filteredItems.length} itens encontrados</p>
+          </div>
         </div>
 
         {loading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="h-64 rounded-xl bg-[#13131F] animate-pulse border border-white/5" />
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+              <div key={i} className="aspect-[9/16] rounded-2xl bg-[#13131F] animate-pulse border border-white/5" />
             ))}
           </div>
-        ) : videos.length === 0 ? (
-          <Card className="bg-[#13131F] border-white/5 border-dashed py-12">
-            <CardContent className="flex flex-col items-center justify-center space-y-4">
-              <div className="p-4 rounded-full bg-white/5">
-                <Video size={40} className="text-muted-foreground" />
-              </div>
-              <div className="text-center">
-                <p className="text-lg font-medium text-white">Nenhum vídeo encontrado</p>
-                <p className="text-muted-foreground">Adicione vídeos MP4 para começar a postar.</p>
-              </div>
-            </CardContent>
-          </Card>
+        ) : filteredItems.length === 0 ? (
+          <div className="min-h-[400px] flex flex-col items-center justify-center border-2 border-dashed border-white/5 rounded-3xl bg-[#13131F]/30 text-center px-6">
+            <div className="w-20 h-20 bg-white/5 rounded-full flex items-center justify-center mb-6">
+              <Video className="w-10 h-10 text-slate-700" />
+            </div>
+            <h3 className="text-white font-space font-bold text-xl mb-2">Biblioteca Vazia</h3>
+            <p className="text-slate-500 max-w-sm mb-8">Você ainda não importou nenhum conteúdo. Vá para o Garimpo para encontrar vídeos virais.</p>
+            <Button onClick={() => window.location.href = '/garimpo'} variant="outline" className="border-white/10 hover:bg-white/5">
+              Abrir Garimpo
+            </Button>
+          </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {videos.map((video) => (
-              <Card key={video.id} className="bg-[#13131F] border-white/5 hover:border-white/10 transition-all overflow-hidden group flex flex-col">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {filteredItems.map((item) => (
+              <Card key={item.id} className="bg-[#13131F] border-white/5 hover:border-purple-500/30 transition-all duration-300 overflow-hidden group flex flex-col">
                 <div 
-                  className="relative aspect-video bg-black flex items-center justify-center overflow-hidden cursor-pointer"
-                  onClick={() => handlePreview(video)}
+                  className="relative aspect-[9/16] bg-black cursor-pointer overflow-hidden"
+                  onClick={() => handlePreview(item)}
                 >
-                  {video.storage_path ? (
-                    <video 
-                      src={getPublicUrl(video.storage_path)} 
-                      className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity"
-                      muted
-                      playsInline
-                    />
-                  ) : (
-                    <Video size={32} className="text-white/20" />
-                  )}
+                  <div className="absolute inset-0 flex items-center justify-center bg-white/5 group-hover:bg-transparent transition-colors">
+                    <Video className="w-12 h-12 text-white/10 group-hover:scale-110 transition-transform duration-500" />
+                  </div>
                   
-                  {/* Play button overlay */}
-                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/40">
-                    <div className="w-12 h-12 rounded-full bg-[#7C3AED] flex items-center justify-center text-white shadow-lg transform scale-90 group-hover:scale-100 transition-transform">
-                      <Play size={24} fill="currentColor" />
+                  {/* Overlay */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-transparent opacity-60 group-hover:opacity-100 transition-opacity" />
+                  
+                  <div className="absolute bottom-4 left-4 right-4 space-y-2">
+                    <Badge className="bg-purple-500/20 text-purple-400 border-purple-500/30 text-[10px] backdrop-blur-md">
+                      {item.category || 'Sem Categoria'}
+                    </Badge>
+                    <h3 className="text-white font-bold text-sm line-clamp-2 leading-snug group-hover:text-purple-400 transition-colors">
+                      {item.title}
+                    </h3>
+                  </div>
+
+                  {/* Play Button Overlay */}
+                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="w-14 h-14 rounded-full bg-purple-600 flex items-center justify-center text-white shadow-2xl transform scale-90 group-hover:scale-100 transition-transform">
+                      <Play size={24} fill="currentColor" className="ml-1" />
                     </div>
                   </div>
 
-                  <div className="absolute bottom-2 right-2 bg-black/60 backdrop-blur-md px-1.5 py-0.5 rounded text-[10px] text-white flex items-center gap-1">
-                    <Clock size={10} />
-                    {formatDuration(video.duracao_segundos)}
-                  </div>
-                  <div className="absolute top-2 left-2">
+                  <div className="absolute top-4 right-4">
                     <Badge variant="secondary" className="bg-black/60 backdrop-blur-md border-white/10 text-[10px] capitalize">
-                      {video.nicho}
+                      {item.source === 'pexels' ? 'Pexels' : 'Manual'}
                     </Badge>
                   </div>
                 </div>
                 
-                <CardHeader className="p-4 pb-2">
-                  <CardTitle className="text-white text-base font-bold font-display line-clamp-1">
-                    {video.nome}
-                  </CardTitle>
-                  <p className="text-[11px] text-slate-500">{video.artists?.name || "Sem artista"}</p>
-                </CardHeader>
-                
-                <CardContent className="p-4 pt-0 space-y-4 flex-1 flex flex-col justify-between">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2 text-[11px] text-slate-400">
-                      <Play size={10} />
-                      Usado {video.vezes_usada || 0} vezes
+                <CardContent className="p-4 bg-[#0A0A0F]/50 flex-1 flex flex-col justify-between">
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 text-[11px] text-slate-500">
+                      <Calendar size={12} />
+                      {item.created_at ? format(new Date(item.created_at), "dd/MM/yy", { locale: ptBR }) : '-'}
                     </div>
-                    <div className="flex items-center gap-2 text-[11px] text-slate-400">
-                      <Calendar size={10} />
-                      Último uso: {video.ultimo_uso ? format(new Date(video.ultimo_uso), "dd/MM/yy 'às' HH:mm", { locale: ptBR }) : "Nunca usado"}
-                    </div>
+                    {item.author && (
+                      <div className="text-[11px] text-slate-400 font-medium truncate">
+                        Por: {item.author}
+                      </div>
+                    )}
                   </div>
                   
-                  <div className="flex gap-2 pt-3 border-t border-white/5">
+                  <div className="flex gap-2 pt-4 mt-4 border-t border-white/5">
                     <Button 
                       variant="ghost" 
                       size="sm"
                       className="flex-1 text-xs text-slate-400 hover:text-white hover:bg-white/5"
-                      onClick={() => handlePreview(video)}
+                      onClick={() => handlePreview(item)}
                     >
-                      <Play size={12} className="mr-2" />
+                      <Play size={14} className="mr-2" />
                       Preview
                     </Button>
                     <Button 
                       variant="ghost" 
                       size="icon" 
-                      className="h-8 w-8 text-slate-400 hover:text-red-500 hover:bg-red-500/10"
-                      onClick={() => handleDelete(video.id, video.storage_path)}
+                      className="h-9 w-9 text-slate-400 hover:text-red-500 hover:bg-red-500/10 transition-colors"
+                      onClick={() => handleDelete(item)}
                     >
-                      <Trash2 size={14} />
+                      <Trash2 size={16} />
                     </Button>
                   </div>
                 </CardContent>
@@ -412,36 +264,80 @@ export default function VideosPage() {
         )}
       </div>
 
-      <Dialog open={isPreviewOpen} onOpenChange={setIsPreviewOpen}>
-        <DialogContent className="bg-[#13131F] border-white/10 text-white max-w-4xl p-0 overflow-hidden">
-          {selectedVideo && (
-            <div className="flex flex-col">
-              <div className="relative aspect-video bg-black">
-                {selectedVideo.storage_path && (
+      <Dialog open={isPreviewOpen} onOpenChange={(open) => {
+        setIsPreviewOpen(open);
+        if (!open) setSignedUrl(null);
+      }}>
+        <DialogContent className="max-w-4xl bg-[#0A0A0F] border-white/10 p-0 overflow-hidden shadow-2xl">
+          {selectedItem && (
+            <div className="grid grid-cols-1 md:grid-cols-3">
+              <div className="md:col-span-2 bg-black flex items-center justify-center min-h-[500px]">
+                {loadingUrl ? (
+                  <Loader2 className="w-10 h-10 animate-spin text-purple-500" />
+                ) : signedUrl ? (
                   <video 
-                    src={getPublicUrl(selectedVideo.storage_path)} 
-                    className="w-full h-full"
+                    src={signedUrl} 
+                    className="max-h-[85vh] w-full"
                     controls
                     autoPlay
                   />
+                ) : (
+                  <p className="text-slate-500">Falha ao carregar vídeo</p>
                 )}
               </div>
-              <div className="p-6 flex items-center justify-between">
-                <div className="space-y-1">
-                  <h2 className="text-xl font-bold font-display">{selectedVideo.nome}</h2>
-                  <Badge variant="secondary" className="bg-white/5 border-white/10 text-xs capitalize">
-                    {selectedVideo.nicho}
-                  </Badge>
+              <div className="p-8 space-y-8 bg-[#13131F]/80 backdrop-blur-xl border-l border-white/5">
+                <div className="space-y-4">
+                  <div className="space-y-1">
+                    <Badge className="bg-purple-500/10 text-purple-400 border-purple-500/20">{selectedItem.category}</Badge>
+                    <h2 className="text-2xl font-space font-bold text-white pt-2 leading-tight">{selectedItem.title}</h2>
+                  </div>
+                  
+                  <div className="space-y-4 pt-4">
+                    <div className="flex flex-col gap-1">
+                      <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Fonte</span>
+                      <span className="text-white font-medium flex items-center gap-2">
+                        {selectedItem.source === 'pexels' ? 'Pexels' : 'Importação Manual'}
+                        {selectedItem.original_url && (
+                          <a href={selectedItem.original_url} target="_blank" rel="noopener noreferrer" className="text-purple-400 hover:text-purple-300">
+                            <ExternalLink size={14} />
+                          </a>
+                        )}
+                      </span>
+                    </div>
+                    {selectedItem.author && (
+                      <div className="flex flex-col gap-1">
+                        <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Criador</span>
+                        <span className="text-white font-medium">{selectedItem.author}</span>
+                      </div>
+                    )}
+                    <div className="flex flex-col gap-1">
+                      <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Data de Importação</span>
+                      <span className="text-white font-medium">
+                        {selectedItem.created_at ? format(new Date(selectedItem.created_at), "PPPP", { locale: ptBR }) : '-'}
+                      </span>
+                    </div>
+                  </div>
                 </div>
-                <div className="flex items-center gap-4 text-sm text-slate-400">
-                  <div className="flex items-center gap-2">
-                    <Clock size={16} />
-                    {formatDuration(selectedVideo.duracao_segundos)}
+
+                {selectedItem.credit && (
+                  <div className="p-4 bg-white/5 rounded-xl border border-white/5">
+                    <p className="text-[10px] text-slate-500 uppercase font-bold mb-2">Créditos</p>
+                    <p className="text-xs text-slate-400 leading-relaxed">{selectedItem.credit}</p>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Play size={16} />
-                    {selectedVideo.vezes_usada || 0} usos
-                  </div>
+                )}
+
+                <div className="pt-8">
+                  <Button 
+                    variant="outline" 
+                    className="w-full h-12 border-white/10 hover:bg-red-500/10 hover:text-red-500 transition-all group"
+                    onClick={() => {
+                      handleDelete(selectedItem);
+                      setIsPreviewOpen(false);
+                    }}
+                  >
+                    <Trash2 className="w-4 h-4 mr-2 group-hover:scale-110 transition-transform" />
+                    Remover da Biblioteca
+                  </Button>
                 </div>
               </div>
             </div>
