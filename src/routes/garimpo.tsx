@@ -124,6 +124,19 @@ export default function GarimpoPage() {
 
     try {
       setImportingId(video.id);
+      
+      // Ping test to verify connectivity
+      console.log("[GARIMPO] Performing ping test...");
+      try {
+        const ping = await supabase.functions.invoke("import-pexels-content", {
+          method: 'GET',
+          queryParams: { ping: '1' }
+        });
+        console.log("[GARIMPO] Ping result:", ping);
+      } catch (e) {
+        console.warn("[GARIMPO] Ping failed, but attempting import anyway:", e);
+      }
+
       toast.loading("Iniciando importação segura...", { id: "import-pexels" });
 
       const response = await contentService.importPexelsVideo({
