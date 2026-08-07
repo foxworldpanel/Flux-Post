@@ -243,14 +243,20 @@ serve(async (req) => {
       )
     } catch (dbError) {
       // --- CLEANUP ORPHAN STORAGE FILE ---
-      console.error('[import-pexels-content] DB Insert failed, cleaning up storage:', dbError)
+      console.error('[import-pexels-content] DB Insert failed, cleaning up storage:', dbError.message || dbError)
       await supabase.storage.from('content-library').remove([fileName])
-      throw dbError
+      return new Response(
+        JSON.stringify({ error: 'Erro ao salvar no banco de dados', details: dbError.message }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
     }
   } catch (error) {
-    console.error('[import-pexels-content]', error)
+    console.error('[import-pexels-content] GLOBAL ERROR:', error.message || error)
     return new Response(
-      JSON.stringify({ error: error.message || 'Erro interno na importação' }),
+      JSON.stringify({ 
+        error: error.message || 'Erro interno na importação',
+        stack: error.stack
+      }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
