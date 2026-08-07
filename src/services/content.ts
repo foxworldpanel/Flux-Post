@@ -108,7 +108,7 @@ export const contentService = {
       const errObj = error as any;
       throw {
         message: errObj.message || "Erro na importação",
-        status: errObj.status || 500
+        status: errObj.status || 500,
       };
     }
     return data;

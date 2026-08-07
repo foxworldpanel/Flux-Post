@@ -136,8 +136,12 @@ export default function GarimpoPage() {
       setSelectedVideo(null);
     } catch (err: any) {
       console.error("Erro na importação:", err);
-      
-      if (err.status === 409 || err.message?.includes("duplicate") || err.message?.includes("Biblioteca")) {
+
+      if (
+        err.status === 409 ||
+        err.message?.includes("duplicate") ||
+        err.message?.includes("Biblioteca")
+      ) {
         setImportedIds((prev) => new Set([...prev, video.id]));
         toast.info("Este conteúdo já está na sua Biblioteca.", {
           id: "import-pexels",
@@ -147,7 +151,9 @@ export default function GarimpoPage() {
           },
         });
       } else if (err.status === 429 || err.message?.includes("rate limit")) {
-        toast.error("Limite temporário da API Pexels. Tente novamente em instantes.", { id: "import-pexels" });
+        toast.error("Limite temporário da API Pexels. Tente novamente em instantes.", {
+          id: "import-pexels",
+        });
       } else {
         toast.error(err.message || "Erro ao importar vídeo", { id: "import-pexels" });
       }
