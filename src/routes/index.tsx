@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
-export default function Dashboard() {
+export default function Index() {
   const [loading, setLoading] = useState(true);
   const [activeCampaign, setActiveCampaign] = useState<any>(null);
   const [stats, setStats] = useState({
@@ -209,4 +209,3 @@ export default function Dashboard() {
     </DashboardLayout>
   );
 }
-

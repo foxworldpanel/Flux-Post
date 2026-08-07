@@ -66,25 +66,43 @@ function selectBestVideoFile(files: PexelsVideoFile[]): PexelsVideoFile | null {
 }
 
 serve(async (req) => {
+  console.log(`[IMPORT] Request received: ${req.method} ${req.url}`);
+
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response(null, { 
+      status: 204, 
+      headers: corsHeaders 
+    });
   }
 
   try {
     const authHeader = req.headers.get('Authorization')
     if (!authHeader) {
-      return new Response(JSON.stringify({ error: 'No authorization header' }), { status: 401, headers: corsHeaders })
+      console.error('[IMPORT] No authorization header');
+      return new Response(JSON.stringify({ error: 'No authorization header' }), { 
+        status: 401, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      });
     }
 
-    if (!PEXELS_API_KEY) throw new Error('PEXELS_API_KEY not configured')
+    if (!PEXELS_API_KEY) {
+      console.error('[IMPORT] PEXELS_API_KEY not configured');
+      throw new Error('PEXELS_API_KEY not configured');
+    }
 
     const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!)
     const token = authHeader.replace('Bearer ', '')
     const { data: { user }, error: userError } = await supabase.auth.getUser(token)
 
     if (userError || !user) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: corsHeaders })
+      console.error('[IMPORT] Auth failed:', userError?.message);
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), { 
+        status: 401, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      });
     }
+
+    console.log(`[IMPORT] User authenticated: ${user.id}`);
 
     const { videoId, category } = await req.json()
 
