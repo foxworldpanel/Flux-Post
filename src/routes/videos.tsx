@@ -20,26 +20,31 @@ import {
   DialogTrigger,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Video, Plus, Trash2, Clock, Calendar, Play } from "lucide-react";
+import { Video, Plus, Trash2, Clock, Calendar, Play, User } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useAuth } from "@/hooks/useAuth";
+import { artistService } from "@/services/artists";
 
 interface VideoTrack {
   id: string;
   nome: string;
   nicho: string | null;
+  artist_id: string | null;
+  category: string | null;
   duracao_segundos: number | null;
   storage_path: string | null;
   vezes_usada: number | null;
   ultimo_uso: string | null;
   criado_em: string | null;
+  artists?: { name: string };
 }
 
 export default function VideosPage() {
   const [videos, setVideos] = useState<VideoTrack[]>([]);
+  const [artists, setArtists] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -49,28 +54,31 @@ export default function VideosPage() {
 
   // Form states
   const [nome, setNome] = useState("");
+  const [artistId, setArtistId] = useState("");
+  const [category, setCategory] = useState("raw");
   const [nicho, setNicho] = useState("outro");
   const [file, setFile] = useState<File | null>(null);
 
-  const fetchVideos = async () => {
+  const fetchData = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
-        .from("videos")
-        .select("*")
-        .order("criado_em", { ascending: false });
+      const [videosRes, artistsRes] = await Promise.all([
+        supabase.from("videos").select("*, artists(name)").order("criado_em", { ascending: false }),
+        artistService.getArtists()
+      ]);
 
-      if (error) throw error;
-      setVideos(data || []);
+      if (videosRes.error) throw videosRes.error;
+      setVideos(videosRes.data || []);
+      setArtists(artistsRes || []);
     } catch (error: any) {
-      toast.error("Erro ao carregar vídeos: " + error.message);
+      toast.error("Erro ao carregar dados: " + error.message);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchVideos();
+    fetchData();
   }, []);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -139,6 +147,7 @@ export default function VideosPage() {
       const { error: dbError } = await supabase.from("videos").insert({
         nome,
         nicho,
+        artist_id: artistId || null,
         duracao_segundos: duration,
         storage_path: publicUrl,
         user_id: user?.id,
@@ -149,7 +158,7 @@ export default function VideosPage() {
       toast.success("Vídeo adicionado com sucesso!");
       setIsModalOpen(false);
       resetForm();
-      fetchVideos();
+      fetchData();
     } catch (error: any) {
       toast.error("Erro ao salvar: " + error.message);
     } finally {
@@ -159,6 +168,7 @@ export default function VideosPage() {
 
   const resetForm = () => {
     setNome("");
+    setArtistId("");
     setNicho("outro");
     setFile(null);
   };
@@ -190,7 +200,7 @@ export default function VideosPage() {
       if (error) throw error;
       
       toast.success("Vídeo removido.");
-      fetchVideos();
+      fetchData();
     } catch (error: any) {
       console.error('Erro completo na deleção:', error);
       toast.error("Erro ao deletar: " + error.message);
