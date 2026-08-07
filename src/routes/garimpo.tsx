@@ -206,7 +206,7 @@ export default function GarimpoPage() {
               <label className="text-sm font-medium text-slate-400 flex items-center gap-2">
                 <Filter className="w-4 h-4" /> Orientação
               </label>
-              <Select value={orientation} onValueChange={(v: any) => setOrientation(v)}>
+              <Select value={orientation} onValueChange={(v: 'landscape' | 'portrait' | 'square' | 'all') => setOrientation(v)}>
                 <SelectTrigger className="bg-white/5 border-white/10 h-11">
                   <SelectValue placeholder="Orientação" />
                 </SelectTrigger>
