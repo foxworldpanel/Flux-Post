@@ -269,6 +269,19 @@ export default function VideosPage() {
                   />
                 </div>
                 <div className="space-y-2">
+                  <Label htmlFor="artista">Artista Vinculado</Label>
+                  <Select value={artistId} onValueChange={setArtistId}>
+                    <SelectTrigger className="bg-[#0A0A0F] border-white/10 w-full">
+                      <SelectValue placeholder="Selecione um artista" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-[#13131F] border-white/10 text-white">
+                      {artists.map((a) => (
+                        <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
                   <Label htmlFor="nicho">Nicho</Label>
                   <Select value={nicho} onValueChange={setNicho}>
                     <SelectTrigger className="bg-[#0A0A0F] border-white/10 w-full">
@@ -358,6 +371,7 @@ export default function VideosPage() {
                   <CardTitle className="text-white text-base font-bold font-display line-clamp-1">
                     {video.nome}
                   </CardTitle>
+                  <p className="text-[11px] text-slate-500">{video.artists?.name || "Sem artista"}</p>
                 </CardHeader>
                 
                 <CardContent className="p-4 pt-0 space-y-4 flex-1 flex flex-col justify-between">
