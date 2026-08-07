@@ -106,12 +106,13 @@ export default function GarimpoPage() {
 
       setResults(data.videos || []);
       setTotalResults(data.total_results || 0);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      if (err.message?.includes("PEXELS_API_KEY")) {
+      const errorMessage = err instanceof Error ? err.message : "Erro desconhecido";
+      if (errorMessage.includes("PEXELS_API_KEY")) {
         toast.error("PEXELS_API_KEY não configurada no backend");
       } else {
-        toast.error("Erro ao buscar vídeos: " + err.message);
+        toast.error("Erro ao buscar vídeos: " + errorMessage);
       }
     } finally {
       setLoading(false);
@@ -146,9 +147,10 @@ export default function GarimpoPage() {
       setImportedIds((prev) => new Set([...prev, video.id]));
       toast.success("Vídeo importado com sucesso para a Biblioteca!", { id: "import-pexels" });
       setSelectedVideo(null);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      toast.error("Erro ao importar vídeo: " + err.message, { id: "import-pexels" });
+      const errorMessage = err instanceof Error ? err.message : "Erro desconhecido";
+      toast.error("Erro ao importar vídeo: " + errorMessage, { id: "import-pexels" });
     } finally {
       setImportingId(null);
     }
@@ -163,7 +165,10 @@ export default function GarimpoPage() {
   };
 
   useEffect(() => {
-    if (page > 1) handleSearch(false);
+    if (page > 1) {
+      handleSearch(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page]);
 
   return (
