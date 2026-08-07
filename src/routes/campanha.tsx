@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -9,9 +9,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Megaphone, Music, Calendar, Clock, RotateCcw, Play, Pause, Square, User, Check, X, Filter } from "lucide-react";
+import { Megaphone, Music, Calendar, Clock, RotateCcw, Play, Pause, Square, User, Check, X, Filter, Loader2 } from "lucide-react";
 import { format, addDays, differenceInDays } from "date-fns";
 import { artistService } from "@/services/artists";
+import { contentService } from "@/services/content";
 
 type MusicTrack = {
   id: string;
