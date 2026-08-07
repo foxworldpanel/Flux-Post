@@ -52,6 +52,8 @@ export default function CampanhaPage() {
   const [biblioteca, setBiblioteca] = useState<any[]>([]);
   const [selectedContentIds, setSelectedContentIds] = useState<string[]>([]);
   const [contentFilter, setContentFilter] = useState("todos");
+  const [signedUrls, setSignedUrls] = useState<Record<string, string>>({});
+  const [loadingUrls, setLoadingUrls] = useState<Record<string, boolean>>({});
   const [totalPosts, setTotalPosts] = useState(0);
 
   // Form states
@@ -120,10 +122,31 @@ export default function CampanhaPage() {
       setArtistas(artistsRes || []);
       setMusicas(tracksRes.data || []);
       setBiblioteca(libraryRes.data || []);
+
+      // Pre-fetch signed URLs for library items
+      if (libraryRes.data) {
+        libraryRes.data.forEach(item => {
+          loadSignedUrl(item.id, item.storage_path);
+        });
+      }
     } catch (error: any) {
       toast.error("Erro ao carregar dados: " + error.message);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function loadSignedUrl(id: string, path: string) {
+    if (signedUrls[id] || loadingUrls[id]) return;
+    
+    setLoadingUrls(prev => ({ ...prev, [id]: true }));
+    try {
+      const url = await contentService.getSignedUrl(path);
+      setSignedUrls(prev => ({ ...prev, [id]: url }));
+    } catch (error) {
+      console.error(`Falha ao carregar URL para ${id}:`, error);
+    } finally {
+      setLoadingUrls(prev => ({ ...prev, [id]: false }));
     }
   }
 
@@ -436,7 +459,17 @@ export default function CampanhaPage() {
                             isSelected ? 'border-primary' : 'border-transparent hover:border-white/20'
                           }`}
                         >
-                          <video src={supabase.storage.from('content-library').getPublicUrl(item.storage_path).data.publicUrl} className="w-full h-full object-cover" />
+                          {loadingUrls[item.id] ? (
+                            <div className="w-full h-full flex items-center justify-center bg-white/5">
+                              <Loader2 className="w-4 h-4 text-primary animate-spin" />
+                            </div>
+                          ) : signedUrls[item.id] ? (
+                            <video src={signedUrls[item.id]} className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center bg-white/5">
+                              <X className="w-4 h-4 text-red-500/50" />
+                            </div>
+                          )}
                           <div className="absolute inset-0 bg-black/40 flex flex-col justify-end p-2">
                             <p className="text-[10px] text-white font-medium truncate">{item.title}</p>
                             <Badge className="w-fit text-[8px] h-3 px-1 mt-1 bg-white/20 hover:bg-white/20 border-none">
