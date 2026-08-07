@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Megaphone, Music, Calendar, Clock, RotateCcw, Play, Pause, Square, User } from "lucide-react";
+import { Megaphone, Music, Calendar, Clock, RotateCcw, Play, Pause, Square, User, Check, X, Filter } from "lucide-react";
 import { format, addDays, differenceInDays } from "date-fns";
 import { artistService } from "@/services/artists";
 
@@ -48,6 +48,9 @@ export default function CampanhaPage() {
   const [campanhaAtiva, setCampanhaAtiva] = useState<Campanha | null>(null);
   const [musicas, setMusicas] = useState<MusicTrack[]>([]);
   const [artistas, setArtistas] = useState<Artist[]>([]);
+  const [biblioteca, setBiblioteca] = useState<any[]>([]);
+  const [selectedContentIds, setSelectedContentIds] = useState<string[]>([]);
+  const [contentFilter, setContentFilter] = useState("todos");
   const [totalPosts, setTotalPosts] = useState(0);
 
   // Form states
@@ -91,17 +94,31 @@ export default function CampanhaPage() {
           .eq("status", "postado");
         
         if (!countError) setTotalPosts(count || 0);
-      } else {
-        // Fetch data for new campaign
-        const [artistsRes, tracksRes] = await Promise.all([
-          artistService.getArtists(),
-          supabase.from("music_tracks").select("id, nome, artista, artist_id")
-        ]);
 
-        if (tracksRes.error) throw tracksRes.error;
-        setArtistas(artistsRes || []);
-        setMusicas(tracksRes.data || []);
+        // Fetch campaign contents
+        const { data: campaignContents, error: contentsError } = await supabase
+          .from("campaign_contents")
+          .select("content_id")
+          .eq("campaign_id", campanhas.id);
+        
+        if (!contentsError && campaignContents) {
+          setSelectedContentIds(campaignContents.map(c => c.content_id));
+        }
       }
+
+      // Fetch data for new/existing campaign
+      const [artistsRes, tracksRes, libraryRes] = await Promise.all([
+        artistService.getArtists(),
+        supabase.from("music_tracks").select("id, nome, artista, artist_id"),
+        supabase.from("content_library").select("*").order("created_at", { ascending: false })
+      ]);
+
+      if (tracksRes.error) throw tracksRes.error;
+      if (libraryRes.error) throw libraryRes.error;
+
+      setArtistas(artistsRes || []);
+      setMusicas(tracksRes.data || []);
+      setBiblioteca(libraryRes.data || []);
     } catch (error: any) {
       toast.error("Erro ao carregar dados: " + error.message);
     } finally {
@@ -115,8 +132,16 @@ export default function CampanhaPage() {
       return;
     }
 
+    if (selectedContentIds.length === 0) {
+      toast.error("Selecione pelo menos um conteúdo para a campanha");
+      return;
+    }
+
     setSaving(true);
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Usuário não autenticado");
+
       // Parse hours to integers
       const startHour = parseInt(formData.hora_inicio.split(":")[0]);
       const endHour = parseInt(formData.hora_fim.split(":")[0]);
@@ -134,12 +159,25 @@ export default function CampanhaPage() {
           intervalo_max: formData.intervalo_max,
           data_inicio: formData.data_inicio,
           data_fim: formData.data_fim,
-          status: "ativo"
+          status: "ativo",
+          user_id: user.id
         })
         .select()
         .single();
 
       if (campError) throw campError;
+
+      // Create campaign contents
+      const contentInserts = selectedContentIds.map(contentId => ({
+        campaign_id: newCamp.id,
+        content_id: contentId
+      }));
+
+      const { error: contentError } = await supabase
+        .from("campaign_contents")
+        .insert(contentInserts);
+
+      if (contentError) throw contentError;
 
       // Update music track
       const { error: trackError } = await supabase
@@ -351,6 +389,75 @@ export default function CampanhaPage() {
                 </div>
               </div>
 
+              <div className="space-y-4 pt-4 border-t border-white/5">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-1">
+                    <Label className="text-white text-base font-semibold">CONTEÚDOS DA CAMPANHA</Label>
+                    <p className="text-white/40 text-xs">{selectedContentIds.length} selecionados</p>
+                  </div>
+                  <Select value={contentFilter} onValueChange={setContentFilter}>
+                    <SelectTrigger className="w-[150px] bg-white/5 border-white/10 text-white text-xs h-8">
+                      <div className="flex items-center gap-2">
+                        <Filter size={12} />
+                        <SelectValue placeholder="Filtrar" />
+                      </div>
+                    </SelectTrigger>
+                    <SelectContent className="bg-[#13131F] border-white/10 text-white">
+                      <SelectItem value="todos">Todos</SelectItem>
+                      <SelectItem value="raw">Raw</SelectItem>
+                      <SelectItem value="processed">Processados</SelectItem>
+                      <SelectItem value="artist">Do Artista</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                  {biblioteca
+                    .filter(c => c.status !== 'arquivado' && c.status !== 'descartado')
+                    .filter(c => {
+                      if (contentFilter === 'todos') return true;
+                      if (contentFilter === 'artist') return c.artist_id === formData.artist_id;
+                      return c.category === contentFilter;
+                    })
+                    .map((item) => {
+                      const isSelected = selectedContentIds.includes(item.id);
+                      return (
+                        <div 
+                          key={item.id}
+                          onClick={() => {
+                            if (isSelected) {
+                              setSelectedContentIds(prev => prev.filter(id => id !== item.id));
+                            } else {
+                              setSelectedContentIds(prev => [...prev, item.id]);
+                            }
+                          }}
+                          className={`relative aspect-video rounded-lg overflow-hidden border-2 cursor-pointer transition-all ${
+                            isSelected ? 'border-primary' : 'border-transparent hover:border-white/20'
+                          }`}
+                        >
+                          <video src={supabase.storage.from('content-library').getPublicUrl(item.storage_path).data.publicUrl} className="w-full h-full object-cover" />
+                          <div className="absolute inset-0 bg-black/40 flex flex-col justify-end p-2">
+                            <p className="text-[10px] text-white font-medium truncate">{item.title}</p>
+                            <Badge className="w-fit text-[8px] h-3 px-1 mt-1 bg-white/20 hover:bg-white/20 border-none">
+                              {item.category}
+                            </Badge>
+                          </div>
+                          {isSelected && (
+                            <div className="absolute top-1 right-1 bg-primary rounded-full p-0.5">
+                              <Check size={10} className="text-white" />
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  {biblioteca.length === 0 && (
+                    <div className="col-span-full py-8 text-center border border-dashed border-white/10 rounded-xl">
+                      <p className="text-white/40 text-sm">Biblioteca vazia. Faça upload em Biblioteca primeiro.</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
               <Button 
                 onClick={handleIniciar} 
                 disabled={saving}
@@ -472,18 +579,62 @@ export default function CampanhaPage() {
                 </CardContent>
               </Card>
 
-              <div className="bg-primary/10 rounded-2xl p-6 border border-primary/20 space-y-4">
-                <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center text-primary">
-                  <RotateCcw size={24} />
-                </div>
-                <div className="space-y-1">
-                  <h3 className="text-white font-semibold text-lg">Conteúdos</h3>
-                  <p className="text-white/60 text-sm">Selecione conteúdos da biblioteca para esta campanha.</p>
-                </div>
-                <Button variant="outline" className="w-full border-primary/50 text-primary hover:bg-primary/20">
-                  Gerenciar Conteúdos
-                </Button>
-              </div>
+              <Card className="bg-[#13131F] border-white/10">
+                <CardHeader className="pb-2">
+                  <div className="flex justify-between items-center">
+                    <CardTitle className="text-sm font-medium text-white/60">Conteúdos Ativos</CardTitle>
+                    <Badge variant="outline" className="text-[10px] h-5 border-white/10 text-white/40">
+                      {selectedContentIds.length} Itens
+                    </Badge>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="grid grid-cols-2 gap-2 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+                    {biblioteca
+                      .filter(item => selectedContentIds.includes(item.id))
+                      .map((item) => (
+                        <div key={item.id} className="relative aspect-video rounded-md overflow-hidden group">
+                          <video 
+                            src={supabase.storage.from('content-library').getPublicUrl(item.storage_path).data.publicUrl} 
+                            className="w-full h-full object-cover" 
+                          />
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                            <Button 
+                              size="icon" 
+                              variant="ghost" 
+                              className="h-6 w-6 text-white hover:text-red-400 hover:bg-transparent"
+                              onClick={async () => {
+                                if (!campanhaAtiva) return;
+                                try {
+                                  const { error } = await supabase
+                                    .from("campaign_contents")
+                                    .delete()
+                                    .eq("campaign_id", campanhaAtiva.id)
+                                    .eq("content_id", item.id);
+                                  
+                                  if (error) throw error;
+                                  setSelectedContentIds(prev => prev.filter(id => id !== item.id));
+                                  toast.success("Conteúdo removido da campanha");
+                                } catch (err: any) {
+                                  toast.error("Erro ao remover: " + err.message);
+                                }
+                              }}
+                            >
+                              <X size={14} />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                  <Button 
+                    variant="outline" 
+                    className="w-full border-primary/20 text-primary text-xs h-8 hover:bg-primary/10"
+                    onClick={() => toast.info("Funcionalidade de adição rápida em breve")}
+                  >
+                    Adicionar Conteúdo
+                  </Button>
+                </CardContent>
+              </Card>
             </div>
           </div>
         )}
