@@ -17,8 +17,13 @@ export const contentService = {
     return data || [];
   },
 
-  async uploadContent(file: File, metadata: Omit<ContentInsert, "storage_path" | "user_id">): Promise<Content> {
-    const { data: { user } } = await supabase.auth.getUser();
+  async uploadContent(
+    file: File,
+    metadata: Omit<ContentInsert, "storage_path" | "user_id">,
+  ): Promise<Content> {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
     if (!user) throw new Error("Usuário não autenticado");
 
     // Validation
@@ -29,13 +34,13 @@ export const contentService = {
       throw new Error("Formato de vídeo não suportado. Use MP4, MOV ou AVI.");
     }
 
-    const fileName = `${user.id}/${Date.now()}-${file.name.replace(/\s+/g, '_')}`;
-    
+    const fileName = `${user.id}/${Date.now()}-${file.name.replace(/\s+/g, "_")}`;
+
     const { error: uploadError } = await supabase.storage
       .from("content-library")
       .upload(fileName, file, {
-        cacheControl: '3600',
-        upsert: false
+        cacheControl: "3600",
+        upsert: false,
       });
 
     if (uploadError) throw uploadError;
@@ -46,7 +51,7 @@ export const contentService = {
         .insert({
           ...metadata,
           storage_path: fileName,
-          user_id: user.id
+          user_id: user.id,
         } as ContentInsert)
         .select()
         .single();
@@ -70,5 +75,5 @@ export const contentService = {
     }
 
     return data.signedUrl;
-  }
+  },
 };
