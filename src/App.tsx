@@ -11,6 +11,7 @@ import ArtistasPage from "./routes/artistas";
 import GarimpoPage from "./routes/garimpo";
 import PublicacoesPage from "./routes/publicacoes";
 import AnalyticsPage from "./routes/analytics";
+import SecurityReportPage from "./routes/security-report";
 import { Toaster } from "sonner";
 
 function App() {
