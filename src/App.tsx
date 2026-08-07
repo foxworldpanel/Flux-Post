@@ -7,6 +7,10 @@ import AccountsPage from "./routes/accounts";
 import CampanhaPage from "./routes/campanha";
 import SchedulePage from "./routes/schedule";
 import ProcessarPage from "./routes/processar";
+import ArtistasPage from "./routes/artistas";
+import GarimpoPage from "./routes/garimpo";
+import PublicacoesPage from "./routes/publicacoes";
+import AnalyticsPage from "./routes/analytics";
 import { Toaster } from "sonner";
 
 function App() {
@@ -22,6 +26,10 @@ function App() {
           <Route path="/campanha" element={<CampanhaPage />} />
           <Route path="/schedule" element={<SchedulePage />} />
           <Route path="/processar" element={<ProcessarPage />} />
+          <Route path="/artistas" element={<ArtistasPage />} />
+          <Route path="/garimpo" element={<GarimpoPage />} />
+          <Route path="/publicacoes" element={<PublicacoesPage />} />
+          <Route path="/analytics" element={<AnalyticsPage />} />
         </Routes>
       </BrowserRouter>
       <Toaster position="top-right" />
