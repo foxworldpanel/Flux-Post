@@ -70,9 +70,10 @@ export default function VideosPage() {
     try {
       setLoading(true);
       const data = await contentService.getLibrary();
-      setItems(data as any[]);
-    } catch (error: any) {
-      toast.error("Erro ao carregar biblioteca: " + error.message);
+      setItems(data as ContentLibrary[]);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
+      toast.error("Erro ao carregar biblioteca: " + errorMessage);
     } finally {
       setLoading(false);
     }
