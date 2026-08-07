@@ -1,42 +1,64 @@
 import { supabase } from "@/integrations/supabase/client";
+import { Database } from "@/integrations/supabase/types";
+
+type Content = Database["public"]["Tables"]["content_library"]["Row"];
+type ContentInsert = Database["public"]["Tables"]["content_library"]["Insert"];
+
+const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
+const ALLOWED_MIME_TYPES = ["video/mp4", "video/quicktime", "video/x-msvideo"];
 
 export const contentService = {
-  async getLibrary() {
+  async getLibrary(): Promise<Content[]> {
     const { data, error } = await supabase
       .from("content_library")
       .select("*")
       .order("created_at", { ascending: false });
     if (error) throw error;
-    return data;
+    return data || [];
   },
 
-  async uploadContent(file: File, metadata: any) {
+  async uploadContent(file: File, metadata: Omit<ContentInsert, "storage_path" | "user_id">): Promise<Content> {
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error("Not authenticated");
+    if (!user) throw new Error("Usuário não autenticado");
 
-    const fileName = `${user.id}/${Date.now()}-${file.name}`;
+    // Validation
+    if (file.size > MAX_FILE_SIZE) {
+      throw new Error("Arquivo excede o limite de 100MB");
+    }
+    if (!ALLOWED_MIME_TYPES.includes(file.type)) {
+      throw new Error("Formato de vídeo não suportado. Use MP4, MOV ou AVI.");
+    }
+
+    const fileName = `${user.id}/${Date.now()}-${file.name.replace(/\s+/g, '_')}`;
+    
+    // Upload with progress would be nice but supabase-js doesn't expose it easily without XMLHttpRequest
+    // For now we use the standard upload
     const { error: uploadError } = await supabase.storage
       .from("content-library")
-      .upload(fileName, file);
+      .upload(fileName, file, {
+        cacheControl: '3600',
+        upsert: false
+      });
 
     if (uploadError) throw uploadError;
 
-    const { data, error } = await supabase
-      .from("content_library")
-      .insert({
-        ...metadata,
-        storage_path: fileName,
-        user_id: user.id
-      })
-      .select()
-      .single();
+    try {
+      const { data, error } = await supabase
+        .from("content_library")
+        .insert({
+          ...metadata,
+          storage_path: fileName,
+          user_id: user.id
+        } as ContentInsert)
+        .select()
+        .single();
 
-    if (error) {
-      // Cleanup orphan file
+      if (error) throw error;
+      return data;
+    } catch (dbError) {
+      // Cleanup orphan file if DB insert fails
       await supabase.storage.from("content-library").remove([fileName]);
-      throw error;
+      throw dbError;
     }
-
-    return data;
   }
 };

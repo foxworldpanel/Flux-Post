@@ -22,10 +22,10 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [activeCampaign, setActiveCampaign] = useState<any>(null);
   const [stats, setStats] = useState({
-    views: "1.2M",
-    likes: "85K",
-    comments: "4.2K",
-    shares: "12K"
+    views: "0",
+    likes: "0",
+    comments: "0",
+    shares: "0"
   });
 
   useEffect(() => {
@@ -102,16 +102,16 @@ export default function Dashboard() {
                         <div className="grid grid-cols-2 gap-4">
                           <div className="bg-white/5 p-4 rounded-2xl border border-white/5 text-center min-w-[120px]">
                             <p className="text-slate-400 text-xs mb-1">Posts Hoje</p>
-                            <p className="text-2xl font-space font-bold text-white">12</p>
+                            <p className="text-2xl font-space font-bold text-white">0</p>
                           </div>
                           <div className="bg-white/5 p-4 rounded-2xl border border-white/5 text-center min-w-[120px]">
                             <p className="text-slate-400 text-xs mb-1">Total</p>
-                            <p className="text-2xl font-space font-bold text-white">142</p>
+                            <p className="text-2xl font-space font-bold text-white">0</p>
                           </div>
                         </div>
                       </div>
                       <div className="pt-6 border-t border-white/5 flex items-center justify-between text-sm">
-                        <span className="text-slate-400">Próxima publicação em <span className="text-white font-medium">14 minutos</span></span>
+                        <span className="text-slate-400">Aguardando <span className="text-white font-medium">automação</span></span>
                         <div className="flex items-center gap-2 text-emerald-400">
                           <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                           TikTok / Instagram / Shorts
@@ -159,7 +159,7 @@ export default function Dashboard() {
                       </div>
                       <div className="flex items-center gap-1 text-[10px] text-emerald-400 font-bold">
                         <ArrowUpRight className="w-3 h-3" />
-                        +12.5%
+                        0%
                       </div>
                     </CardContent>
                   </Card>
@@ -182,12 +182,7 @@ export default function Dashboard() {
                   <div className="space-y-4">
                     <div className="p-4 bg-purple-500/10 rounded-2xl border border-purple-500/20">
                       <p className="text-purple-300 text-sm leading-relaxed italic">
-                        "O artista <span className="font-bold">Sourcee</span> está performando 25% acima da média em nichos de 'Viagem'. Recomendamos aumentar a frequência de posts nesse segmento."
-                      </p>
-                    </div>
-                    <div className="p-4 bg-blue-500/10 rounded-2xl border border-blue-500/20">
-                      <p className="text-blue-300 text-sm leading-relaxed italic">
-                        "Horário nobre detectado: Terças-feiras entre 19:00 e 21:00 apresentam maior taxa de retenção."
+                        "Aguardando dados suficientes para gerar recomendações."
                       </p>
                     </div>
                   </div>
@@ -204,24 +199,9 @@ export default function Dashboard() {
             <section>
               <h2 className="text-xl font-space font-semibold text-white mb-6">Contas Conectadas</h2>
               <div className="space-y-3">
-                {[
-                  { name: "Sourcee Official", platform: "TikTok", status: "online", followers: "45.2K" },
-                  { name: "Flux Label", platform: "Instagram", status: "online", followers: "12.8K" },
-                  { name: "Sourcee Music", platform: "YouTube", status: "online", followers: "8.4K" },
-                ].map((account, i) => (
-                  <div key={i} className="flex items-center justify-between p-4 bg-[#13131F] rounded-2xl border border-white/5 hover:border-white/10 transition-colors cursor-pointer">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-slate-500 font-bold text-xs">
-                        {account.name.charAt(0)}
-                      </div>
-                      <div>
-                        <p className="text-white text-sm font-semibold leading-none mb-1">{account.name}</p>
-                        <p className="text-slate-500 text-[11px] uppercase tracking-tighter">{account.platform} • {account.followers}</p>
-                      </div>
-                    </div>
-                    <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
-                  </div>
-                ))}
+                <div className="py-8 text-center border border-dashed border-white/10 rounded-2xl">
+                  <p className="text-white/40 text-sm">Nenhuma conta conectada</p>
+                </div>
               </div>
             </section>
           </div>

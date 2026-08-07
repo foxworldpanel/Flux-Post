@@ -1,27 +1,32 @@
 import { supabase } from "@/integrations/supabase/client";
+import { Database } from "@/integrations/supabase/types";
+
+type Artist = Database["public"]["Tables"]["artists"]["Row"];
+type ArtistInsert = Database["public"]["Tables"]["artists"]["Insert"];
+type ArtistUpdate = Database["public"]["Tables"]["artists"]["Update"];
 
 export const artistService = {
-  async getArtists() {
+  async getArtists(): Promise<Artist[]> {
     const { data, error } = await supabase
       .from("artists")
       .select("*")
       .order("name");
     if (error) throw error;
-    return data;
+    return data || [];
   },
 
-  async createArtist(artist: any) {
+  async createArtist(artist: Omit<ArtistInsert, "user_id">): Promise<Artist> {
     const { data: { user } } = await supabase.auth.getUser();
     const { data, error } = await supabase
       .from("artists")
-      .insert({ ...artist, user_id: user?.id })
+      .insert({ ...artist, user_id: user?.id } as ArtistInsert)
       .select()
       .single();
     if (error) throw error;
     return data;
   },
 
-  async updateArtist(id: string, updates: any) {
+  async updateArtist(id: string, updates: ArtistUpdate): Promise<Artist> {
     const { data, error } = await supabase
       .from("artists")
       .update(updates)
@@ -32,27 +37,17 @@ export const artistService = {
     return data;
   },
 
-  async ensureSourceeAssociated() {
+  async ensureSourceeAssociated(): Promise<void> {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
-    // Check if user already has Sourcee
-    const { data: existing } = await supabase
-      .from("artists")
-      .select("id")
-      .eq("slug", "sourcee")
-      .eq("user_id", user.id)
-      .maybeSingle();
-
-    if (existing) return;
-
-    // Try to claim the seed Sourcee (one with NULL user_id)
-    const { error } = await supabase
-      .from("artists")
-      .update({ user_id: user.id })
-      .eq("slug", "sourcee")
-      .is("user_id", null);
-      
-    if (error) console.error("Could not auto-associate Sourcee:", error.message);
+    // Use RPC to safely claim Sourcee seed
+    const { data, error } = await supabase.rpc('claim_sourcee_seed');
+    
+    if (error) {
+      console.error("Erro ao associar Sourcee via RPC:", error.message);
+    } else {
+      console.log("Resultado da associação Sourcee:", data);
+    }
   }
 };
