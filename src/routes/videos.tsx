@@ -115,8 +115,9 @@ export default function VideosPage() {
 
       toast.success("Conteúdo removido");
       fetchData();
-    } catch (error: any) {
-      toast.error("Erro ao remover: " + error.message);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
+      toast.error("Erro ao remover: " + errorMessage);
     }
   };
 
