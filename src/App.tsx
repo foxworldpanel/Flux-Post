@@ -31,6 +31,7 @@ function App() {
           <Route path="/garimpo" element={<GarimpoPage />} />
           <Route path="/publicacoes" element={<PublicacoesPage />} />
           <Route path="/analytics" element={<AnalyticsPage />} />
+          <Route path="/security-report" element={<SecurityReportPage />} />
         </Routes>
       </BrowserRouter>
       <Toaster position="top-right" />
