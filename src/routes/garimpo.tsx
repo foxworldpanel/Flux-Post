@@ -134,13 +134,14 @@ export default function GarimpoPage() {
       setImportedIds((prev) => new Set([...prev, video.id]));
       toast.success("Vídeo importado com sucesso para a Biblioteca!", { id: "import-pexels" });
       setSelectedVideo(null);
-    } catch (err: any) {
-      console.error("Erro na importação:", err);
+    } catch (err: unknown) {
+      const error = err as { message?: string; status?: number };
+      console.error("Erro na importação:", error);
 
       if (
-        err.status === 409 ||
-        err.message?.includes("duplicate") ||
-        err.message?.includes("Biblioteca")
+        error.status === 409 ||
+        error.message?.includes("duplicate") ||
+        error.message?.includes("Biblioteca")
       ) {
         setImportedIds((prev) => new Set([...prev, video.id]));
         toast.info("Este conteúdo já está na sua Biblioteca.", {
