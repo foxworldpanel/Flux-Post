@@ -8,6 +8,7 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
 interface PexelsVideoFile {
@@ -88,10 +89,17 @@ serve(async (req) => {
     const { videoId, category } = await req.json()
 
     if (!videoId) {
-      return new Response(JSON.stringify({ error: 'videoId is required' }), { status: 400, headers: corsHeaders })
+      console.error('[IMPORT] videoId is missing');
+      return new Response(JSON.stringify({ error: 'videoId is required' }), { 
+        status: 400, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      });
     }
 
+    console.log(`[IMPORT] Processing videoId: ${videoId}`);
+
     // --- DUPLICATE CHECK BEFORE DOWNLOAD ---
+    console.log('[IMPORT] Checking duplicate');
     const { data: existing } = await supabase
       .from('content_library')
       .select('id')
@@ -113,6 +121,7 @@ serve(async (req) => {
     }
 
     // 1. Fetch video info from Pexels
+    console.log(`[IMPORT] Fetching Pexels metadata for ${videoId}`);
     const pexelsRes = await fetch(`https://api.pexels.com/videos/videos/${videoId}`, {
       headers: { 'Authorization': PEXELS_API_KEY }
     })
@@ -124,28 +133,44 @@ serve(async (req) => {
     }
 
     const videoData: PexelsVideo = await pexelsRes.json()
+    console.log('[IMPORT] Selecting best video file');
     const selectedFile = selectBestVideoFile(videoData.video_files);
 
     if (!selectedFile) {
-      return new Response(JSON.stringify({ error: 'No suitable video file found' }), { status: 404, headers: corsHeaders })
+      console.error('[IMPORT] No suitable video file found');
+      return new Response(JSON.stringify({ error: 'No suitable video file found' }), { 
+        status: 404, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      });
     }
 
     // 2. Head check for size if possible
+    console.log(`[IMPORT] HEAD check for: ${selectedFile.link}`);
     const headRes = await fetch(selectedFile.link, { method: 'HEAD' });
     const contentLength = headRes.headers.get('content-length');
     if (contentLength && parseInt(contentLength) > MAX_STORAGE_SIZE) {
-      return new Response(JSON.stringify({ error: 'Arquivo muito grande (> 100MB)' }), { status: 400, headers: corsHeaders })
+      console.error('[IMPORT] File too large (HEAD):', contentLength);
+      return new Response(JSON.stringify({ error: 'Arquivo muito grande (> 100MB)' }), { 
+        status: 400, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      });
     }
 
     // 3. Download the video
+    console.log('[IMPORT] Downloading video file');
     const videoRes = await fetch(selectedFile.link)
     const blob = await videoRes.blob()
 
     if (blob.size > MAX_STORAGE_SIZE) {
-      return new Response(JSON.stringify({ error: 'Arquivo baixado excede o limite de 100MB' }), { status: 400, headers: corsHeaders })
+      console.error('[IMPORT] File too large (Blob):', blob.size);
+      return new Response(JSON.stringify({ error: 'Arquivo baixado excede o limite de 100MB' }), { 
+        status: 400, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      });
     }
 
     // 4. Upload to Supabase Storage - DETERMINISTIC PATH
+    console.log('[IMPORT] Uploading to Storage');
     const fileName = `${user.id}/pexels/${videoId}/original.mp4`
     
     const { error: uploadError } = await supabase.storage
@@ -160,6 +185,7 @@ serve(async (req) => {
     let recordId = null
     try {
       // 5. Create record in content_library
+      console.log('[IMPORT] Inserting database record');
       const { data: record, error: dbError } = await supabase
         .from('content_library')
         .insert({
@@ -183,6 +209,7 @@ serve(async (req) => {
       if (dbError) throw dbError
       recordId = record.id
 
+      console.log('[IMPORT] Success:', recordId);
       return new Response(
         JSON.stringify({ success: true, record }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
