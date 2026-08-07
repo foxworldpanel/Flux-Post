@@ -71,6 +71,42 @@ export type Database = {
         }
         Relationships: []
       }
+      campaign_contents: {
+        Row: {
+          campaign_id: string
+          content_id: string
+          created_at: string | null
+          id: string
+        }
+        Insert: {
+          campaign_id: string
+          content_id: string
+          created_at?: string | null
+          id?: string
+        }
+        Update: {
+          campaign_id?: string
+          content_id?: string
+          created_at?: string | null
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campaign_contents_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campanhas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campaign_contents_content_id_fkey"
+            columns: ["content_id"]
+            isOneToOne: false
+            referencedRelation: "content_library"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       campaigns: {
         Row: {
           created_at: string
