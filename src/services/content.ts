@@ -1,7 +1,14 @@
 import { supabase } from "@/integrations/supabase/client";
 import { Database } from "@/integrations/supabase/types";
 
-type Content = Database["public"]["Tables"]["content_library"]["Row"];
+type Content = Database["public"]["Tables"]["content_library"]["Row"] & {
+  source?: string;
+  external_id?: string;
+  author?: string;
+  original_url?: string;
+  credit?: string;
+  license_info?: string;
+};
 type ContentInsert = Database["public"]["Tables"]["content_library"]["Insert"];
 
 const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
