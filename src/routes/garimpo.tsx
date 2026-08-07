@@ -26,6 +26,7 @@ import { contentService } from "@/services/content";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
 
 interface PexelsVideo {
   id: number;
@@ -124,6 +125,18 @@ export default function GarimpoPage() {
 
     try {
       setImportingId(video.id);
+      
+      // Ping test to verify connectivity
+      console.log("[GARIMPO] Performing ping test...");
+      try {
+        const ping = await supabase.functions.invoke("import-pexels-content?ping=1", {
+          method: 'GET'
+        });
+        console.log("[GARIMPO] Ping result:", ping);
+      } catch (e) {
+        console.warn("[GARIMPO] Ping failed, but attempting import anyway:", e);
+      }
+
       toast.loading("Iniciando importação segura...", { id: "import-pexels" });
 
       const response = await contentService.importPexelsVideo({

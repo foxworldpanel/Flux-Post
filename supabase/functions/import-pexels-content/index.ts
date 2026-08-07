@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from 'https://esm.sh/@supabase/supabase-client@2'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0'
 
 const PEXELS_API_KEY = Deno.env.get('PEXELS_API_KEY')
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')
@@ -67,11 +67,20 @@ function selectBestVideoFile(files: PexelsVideoFile[]): PexelsVideoFile | null {
 
 serve(async (req) => {
   console.log(`[IMPORT] Request received: ${req.method} ${req.url}`);
+  console.log(`[IMPORT] SECRETS CHECK: PEXELS_API_KEY=${!!PEXELS_API_KEY}, SUPABASE_URL=${!!SUPABASE_URL}, SUPABASE_SERVICE_ROLE_KEY=${!!SUPABASE_SERVICE_ROLE_KEY}`);
 
   if (req.method === 'OPTIONS') {
     return new Response(null, { 
       status: 204, 
       headers: corsHeaders 
+    });
+  }
+
+  // PING TEST: Confirm function is reachable
+  const url = new URL(req.url);
+  if (url.searchParams.has('ping')) {
+    return new Response(JSON.stringify({ message: 'pong', status: 'ready' }), { 
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
     });
   }
 
@@ -234,14 +243,20 @@ serve(async (req) => {
       )
     } catch (dbError) {
       // --- CLEANUP ORPHAN STORAGE FILE ---
-      console.error('[import-pexels-content] DB Insert failed, cleaning up storage:', dbError)
+      console.error('[import-pexels-content] DB Insert failed, cleaning up storage:', dbError.message || dbError)
       await supabase.storage.from('content-library').remove([fileName])
-      throw dbError
+      return new Response(
+        JSON.stringify({ error: 'Erro ao salvar no banco de dados', details: dbError.message }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
     }
   } catch (error) {
-    console.error('[import-pexels-content]', error)
+    console.error('[import-pexels-content] GLOBAL ERROR:', error.message || error)
     return new Response(
-      JSON.stringify({ error: error.message || 'Erro interno na importação' }),
+      JSON.stringify({ 
+        error: error.message || 'Erro interno na importação',
+        stack: error.stack
+      }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
