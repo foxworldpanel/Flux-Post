@@ -9,18 +9,26 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Megaphone, Music, Calendar, Clock, RotateCcw, Play, Pause, Square } from "lucide-react";
+import { Megaphone, Music, Calendar, Clock, RotateCcw, Play, Pause, Square, User } from "lucide-react";
 import { format, addDays, differenceInDays } from "date-fns";
+import { artistService } from "@/services/artists";
 
 type MusicTrack = {
   id: string;
   nome: string;
   artista: string;
+  artist_id: string;
+};
+
+type Artist = {
+  id: string;
+  name: string;
 };
 
 type Campanha = {
   id: string;
   nome: string;
+  artist_id: string;
   music_track_id: string;
   posts_por_dia: number;
   intervalo_min: number;
@@ -31,6 +39,7 @@ type Campanha = {
   data_fim: string;
   status: string;
   music_tracks?: MusicTrack;
+  artists?: Artist;
 };
 
 export default function CampanhaPage() {
@@ -38,11 +47,13 @@ export default function CampanhaPage() {
   const [saving, setSaving] = useState(false);
   const [campanhaAtiva, setCampanhaAtiva] = useState<Campanha | null>(null);
   const [musicas, setMusicas] = useState<MusicTrack[]>([]);
+  const [artistas, setArtistas] = useState<Artist[]>([]);
   const [totalPosts, setTotalPosts] = useState(0);
 
   // Form states
   const [formData, setFormData] = useState({
     nome: "",
+    artist_id: "",
     music_track_id: "",
     posts_por_dia: 3,
     hora_inicio: "09:00",
@@ -63,7 +74,7 @@ export default function CampanhaPage() {
       // 1. Check for active campaign
       const { data: campanhas, error: campError } = await supabase
         .from("campanhas")
-        .select("*, music_tracks(id, nome, artista)")
+        .select("*, music_tracks(id, nome, artista), artists(id, name)")
         .eq("status", "ativo")
         .maybeSingle();
 
@@ -81,13 +92,15 @@ export default function CampanhaPage() {
         
         if (!countError) setTotalPosts(count || 0);
       } else {
-        // Fetch music tracks for selection
-        const { data: tracks, error: tracksError } = await supabase
-          .from("music_tracks")
-          .select("id, nome, artista");
-        
-        if (tracksError) throw tracksError;
-        setMusicas(tracks || []);
+        // Fetch data for new campaign
+        const [artistsRes, tracksRes] = await Promise.all([
+          artistService.getArtists(),
+          supabase.from("music_tracks").select("id, nome, artista, artist_id")
+        ]);
+
+        if (tracksRes.error) throw tracksRes.error;
+        setArtistas(artistsRes || []);
+        setMusicas(tracksRes.data || []);
       }
     } catch (error: any) {
       toast.error("Erro ao carregar dados: " + error.message);
@@ -97,8 +110,8 @@ export default function CampanhaPage() {
   }
 
   async function handleIniciar() {
-    if (!formData.nome || !formData.music_track_id) {
-      toast.error("Preencha o nome e escolha uma música");
+    if (!formData.nome || !formData.music_track_id || !formData.artist_id) {
+      toast.error("Preencha o nome, escolha um artista e uma música");
       return;
     }
 
@@ -112,6 +125,7 @@ export default function CampanhaPage() {
         .from("campanhas")
         .insert({
           nome: formData.nome,
+          artist_id: formData.artist_id,
           music_track_id: formData.music_track_id,
           posts_por_dia: formData.posts_por_dia,
           hora_inicio: startHour,
