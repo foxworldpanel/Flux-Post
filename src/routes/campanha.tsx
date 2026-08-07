@@ -9,18 +9,26 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Megaphone, Music, Calendar, Clock, RotateCcw, Play, Pause, Square } from "lucide-react";
+import { Megaphone, Music, Calendar, Clock, RotateCcw, Play, Pause, Square, User } from "lucide-react";
 import { format, addDays, differenceInDays } from "date-fns";
+import { artistService } from "@/services/artists";
 
 type MusicTrack = {
   id: string;
   nome: string;
   artista: string;
+  artist_id: string;
+};
+
+type Artist = {
+  id: string;
+  name: string;
 };
 
 type Campanha = {
   id: string;
   nome: string;
+  artist_id: string;
   music_track_id: string;
   posts_por_dia: number;
   intervalo_min: number;
@@ -31,6 +39,7 @@ type Campanha = {
   data_fim: string;
   status: string;
   music_tracks?: MusicTrack;
+  artists?: Artist;
 };
 
 export default function CampanhaPage() {
@@ -38,11 +47,13 @@ export default function CampanhaPage() {
   const [saving, setSaving] = useState(false);
   const [campanhaAtiva, setCampanhaAtiva] = useState<Campanha | null>(null);
   const [musicas, setMusicas] = useState<MusicTrack[]>([]);
+  const [artistas, setArtistas] = useState<Artist[]>([]);
   const [totalPosts, setTotalPosts] = useState(0);
 
   // Form states
   const [formData, setFormData] = useState({
     nome: "",
+    artist_id: "",
     music_track_id: "",
     posts_por_dia: 3,
     hora_inicio: "09:00",
@@ -63,7 +74,7 @@ export default function CampanhaPage() {
       // 1. Check for active campaign
       const { data: campanhas, error: campError } = await supabase
         .from("campanhas")
-        .select("*, music_tracks(id, nome, artista)")
+        .select("*, music_tracks(id, nome, artista), artists(id, name)")
         .eq("status", "ativo")
         .maybeSingle();
 
@@ -81,13 +92,15 @@ export default function CampanhaPage() {
         
         if (!countError) setTotalPosts(count || 0);
       } else {
-        // Fetch music tracks for selection
-        const { data: tracks, error: tracksError } = await supabase
-          .from("music_tracks")
-          .select("id, nome, artista");
-        
-        if (tracksError) throw tracksError;
-        setMusicas(tracks || []);
+        // Fetch data for new campaign
+        const [artistsRes, tracksRes] = await Promise.all([
+          artistService.getArtists(),
+          supabase.from("music_tracks").select("id, nome, artista, artist_id")
+        ]);
+
+        if (tracksRes.error) throw tracksRes.error;
+        setArtistas(artistsRes || []);
+        setMusicas(tracksRes.data || []);
       }
     } catch (error: any) {
       toast.error("Erro ao carregar dados: " + error.message);
@@ -97,8 +110,8 @@ export default function CampanhaPage() {
   }
 
   async function handleIniciar() {
-    if (!formData.nome || !formData.music_track_id) {
-      toast.error("Preencha o nome e escolha uma música");
+    if (!formData.nome || !formData.music_track_id || !formData.artist_id) {
+      toast.error("Preencha o nome, escolha um artista e uma música");
       return;
     }
 
@@ -112,6 +125,7 @@ export default function CampanhaPage() {
         .from("campanhas")
         .insert({
           nome: formData.nome,
+          artist_id: formData.artist_id,
           music_track_id: formData.music_track_id,
           posts_por_dia: formData.posts_por_dia,
           hora_inicio: startHour,
@@ -220,23 +234,47 @@ export default function CampanhaPage() {
                   />
                 </div>
                 
-                <div className="space-y-2">
-                  <Label className="text-white/80">Escolher Música</Label>
-                  <Select 
-                    value={formData.music_track_id} 
-                    onValueChange={(v) => setFormData({ ...formData, music_track_id: v })}
-                  >
-                    <SelectTrigger className="bg-white/5 border-white/10 text-white">
-                      <SelectValue placeholder="Selecione uma música" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-[#13131F] border-white/10 text-white">
-                      {musicas.map((m) => (
-                        <SelectItem key={m.id} value={m.id}>
-                          {m.nome} - {m.artista}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label className="text-white/80">Escolher Artista</Label>
+                    <Select 
+                      value={formData.artist_id} 
+                      onValueChange={(v) => {
+                        setFormData({ ...formData, artist_id: v, music_track_id: "" });
+                      }}
+                    >
+                      <SelectTrigger className="bg-white/5 border-white/10 text-white">
+                        <SelectValue placeholder="Selecione um artista" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-[#13131F] border-white/10 text-white">
+                        {artistas.map((a) => (
+                          <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label className="text-white/80">Escolher Música</Label>
+                    <Select 
+                      value={formData.music_track_id} 
+                      onValueChange={(v) => setFormData({ ...formData, music_track_id: v })}
+                      disabled={!formData.artist_id}
+                    >
+                      <SelectTrigger className="bg-white/5 border-white/10 text-white">
+                        <SelectValue placeholder={formData.artist_id ? "Selecione uma música" : "Selecione um artista primeiro"} />
+                      </SelectTrigger>
+                      <SelectContent className="bg-[#13131F] border-white/10 text-white">
+                        {musicas
+                          .filter(m => m.artist_id === formData.artist_id)
+                          .map((m) => (
+                            <SelectItem key={m.id} value={m.id}>
+                              {m.nome}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
 
                 <div className="space-y-2">
@@ -327,10 +365,16 @@ export default function CampanhaPage() {
             <Card className="md:col-span-2 bg-[#13131F] border-white/10">
               <CardHeader>
                 <CardTitle className="text-2xl text-white">{campanhaAtiva.nome}</CardTitle>
-                <div className="flex items-center gap-2 text-white/60">
-                  <Music size={16} />
-                  <span>{campanhaAtiva.music_tracks?.nome} - {campanhaAtiva.music_tracks?.artista}</span>
-                </div>
+                  <div className="flex items-center gap-4 text-white/60">
+                    <div className="flex items-center gap-2">
+                      <User size={16} />
+                      <span>{campanhaAtiva.artists?.name}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Music size={16} />
+                      <span>{campanhaAtiva.music_tracks?.nome}</span>
+                    </div>
+                  </div>
               </CardHeader>
               <CardContent className="space-y-8">
                 <div className="space-y-4">
@@ -433,9 +477,12 @@ export default function CampanhaPage() {
                   <RotateCcw size={24} />
                 </div>
                 <div className="space-y-1">
-                  <h3 className="text-white font-semibold text-lg">Próximo Post</h3>
-                  <p className="text-white/60 text-sm">Calculando próximo horário ideal baseado no intervalo configurado.</p>
+                  <h3 className="text-white font-semibold text-lg">Conteúdos</h3>
+                  <p className="text-white/60 text-sm">Selecione conteúdos da biblioteca para esta campanha.</p>
                 </div>
+                <Button variant="outline" className="w-full border-primary/50 text-primary hover:bg-primary/20">
+                  Gerenciar Conteúdos
+                </Button>
               </div>
             </div>
           </div>

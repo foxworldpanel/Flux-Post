@@ -20,25 +20,29 @@ import {
   DialogTrigger,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Music, Plus, Trash2, Play, CheckCircle2 } from "lucide-react";
+import { Music, Plus, Trash2, Play, CheckCircle2, User } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
+import { artistService } from "@/services/artists";
 
 interface MusicTrack {
   id: string;
   nome: string;
   artista: string | null;
+  artist_id: string | null;
   estilo: string | null;
   duracao_segundos: number | null;
   storage_path: string | null;
   vezes_usada: number | null;
   campanha_ativa: boolean | null;
   criado_em: string | null;
+  artists?: { name: string };
 }
 
 export default function MusicsPage() {
   const [musics, setMusics] = useState<MusicTrack[]>([]);
+  const [artists, setArtists] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [isModalOpen, setIsSidebarOpen] = useState(false);
@@ -46,29 +50,30 @@ export default function MusicsPage() {
 
   // Form states
   const [nome, setNome] = useState("");
-  const [artista, setArtista] = useState("");
+  const [artistId, setArtistId] = useState<string>("");
   const [estilo, setEstilo] = useState("lofi");
   const [file, setFile] = useState<File | null>(null);
 
-  const fetchMusics = async () => {
+  const fetchData = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
-        .from("music_tracks")
-        .select("*")
-        .order("criado_em", { ascending: false });
+      const [musicsRes, artistsRes] = await Promise.all([
+        supabase.from("music_tracks").select("*, artists(name)").order("criado_em", { ascending: false }),
+        artistService.getArtists()
+      ]);
 
-      if (error) throw error;
-      setMusics(data || []);
+      if (musicsRes.error) throw musicsRes.error;
+      setMusics(musicsRes.data || []);
+      setArtists(artistsRes || []);
     } catch (error: any) {
-      toast.error("Erro ao carregar músicas: " + error.message);
+      toast.error("Erro ao carregar dados: " + error.message);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchMusics();
+    fetchData();
   }, []);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -135,7 +140,7 @@ export default function MusicsPage() {
       // 3. Save metadata
       const { error: dbError } = await supabase.from("music_tracks").insert({
         nome,
-        artista,
+        artist_id: artistId || null,
         estilo,
         duracao_segundos: duration,
         storage_path: publicUrl,
@@ -147,7 +152,7 @@ export default function MusicsPage() {
       toast.success("Música adicionada com sucesso!");
       setIsSidebarOpen(false);
       resetForm();
-      fetchMusics();
+      fetchData();
     } catch (error: any) {
       toast.error("Erro ao salvar: " + error.message);
     } finally {
@@ -157,7 +162,7 @@ export default function MusicsPage() {
 
   const resetForm = () => {
     setNome("");
-    setArtista("");
+    setArtistId("");
     setEstilo("lofi");
     setFile(null);
   };
@@ -190,7 +195,7 @@ export default function MusicsPage() {
       if (error) throw error;
       
       toast.success("Música removida.");
-      fetchMusics();
+      fetchData();
     } catch (error: any) {
       console.error('Erro completo na deleção:', error);
       toast.error("Erro ao deletar: " + error.message);
@@ -205,7 +210,7 @@ export default function MusicsPage() {
         .eq("id", id);
 
       if (error) throw error;
-      fetchMusics();
+      fetchData();
     } catch (error: any) {
       toast.error("Erro ao atualizar status: " + error.message);
     }
@@ -260,14 +265,17 @@ export default function MusicsPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="artista">Artista</Label>
-                  <Input
-                    id="artista"
-                    value={artista}
-                    onChange={(e) => setArtista(e.target.value)}
-                    placeholder="Nome do artista"
-                    className="bg-[#0A0A0F] border-white/10"
-                  />
+                  <Label htmlFor="artista">Artista Vinculado</Label>
+                  <Select value={artistId} onValueChange={setArtistId}>
+                    <SelectTrigger className="bg-[#0A0A0F] border-white/10 w-full">
+                      <SelectValue placeholder="Selecione um artista" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-[#13131F] border-white/10 text-white">
+                      {artists.map((a) => (
+                        <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="estilo">Estilo</Label>
@@ -339,7 +347,7 @@ export default function MusicsPage() {
                   <CardTitle className="text-white text-lg font-bold font-display line-clamp-1">
                     {music.nome}
                   </CardTitle>
-                  <p className="text-sm text-slate-400">{music.artista || "Artista desconhecido"}</p>
+                  <p className="text-sm text-slate-400">{music.artists?.name || "Artista desconhecido"}</p>
                 </CardHeader>
                 <CardContent className="pt-0 space-y-4">
                   <div className="flex justify-between text-xs text-slate-500 font-medium">
