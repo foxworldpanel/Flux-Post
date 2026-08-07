@@ -433,9 +433,12 @@ export default function CampanhaPage() {
                   <RotateCcw size={24} />
                 </div>
                 <div className="space-y-1">
-                  <h3 className="text-white font-semibold text-lg">Próximo Post</h3>
-                  <p className="text-white/60 text-sm">Calculando próximo horário ideal baseado no intervalo configurado.</p>
+                  <h3 className="text-white font-semibold text-lg">Conteúdos</h3>
+                  <p className="text-white/60 text-sm">Selecione conteúdos da biblioteca para esta campanha.</p>
                 </div>
+                <Button variant="outline" className="w-full border-primary/50 text-primary hover:bg-primary/20">
+                  Gerenciar Conteúdos
+                </Button>
               </div>
             </div>
           </div>
