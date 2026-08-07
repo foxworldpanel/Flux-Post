@@ -1,17 +1,38 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Megaphone, Music, Calendar, Clock, RotateCcw, Play, Pause, Square, User, Check, X, Filter } from "lucide-react";
+import {
+  Megaphone,
+  Music,
+  Calendar,
+  Clock,
+  RotateCcw,
+  Play,
+  Pause,
+  Square,
+  User,
+  Check,
+  X,
+  Filter,
+  Loader2,
+} from "lucide-react";
 import { format, addDays, differenceInDays } from "date-fns";
 import { artistService } from "@/services/artists";
+import { contentService } from "@/services/content";
 
 type MusicTrack = {
   id: string;
@@ -51,6 +72,8 @@ export default function CampanhaPage() {
   const [biblioteca, setBiblioteca] = useState<any[]>([]);
   const [selectedContentIds, setSelectedContentIds] = useState<string[]>([]);
   const [contentFilter, setContentFilter] = useState("todos");
+  const [signedUrls, setSignedUrls] = useState<Record<string, string>>({});
+  const [loadingUrls, setLoadingUrls] = useState<Record<string, boolean>>({});
   const [totalPosts, setTotalPosts] = useState(0);
 
   // Form states
@@ -85,14 +108,14 @@ export default function CampanhaPage() {
 
       if (campanhas) {
         setCampanhaAtiva(campanhas as any);
-        
+
         // Count posts realized
         const { count, error: countError } = await supabase
           .from("posts_agendados")
           .select("*", { count: "exact", head: true })
           .eq("campanha_id", campanhas.id)
           .eq("status", "postado");
-        
+
         if (!countError) setTotalPosts(count || 0);
 
         // Fetch campaign contents
@@ -100,9 +123,9 @@ export default function CampanhaPage() {
           .from("campaign_contents")
           .select("content_id")
           .eq("campaign_id", campanhas.id);
-        
+
         if (!contentsError && campaignContents) {
-          setSelectedContentIds(campaignContents.map(c => c.content_id));
+          setSelectedContentIds(campaignContents.map((c) => c.content_id));
         }
       }
 
@@ -110,7 +133,7 @@ export default function CampanhaPage() {
       const [artistsRes, tracksRes, libraryRes] = await Promise.all([
         artistService.getArtists(),
         supabase.from("music_tracks").select("id, nome, artista, artist_id"),
-        supabase.from("content_library").select("*").order("created_at", { ascending: false })
+        supabase.from("content_library").select("*").order("created_at", { ascending: false }),
       ]);
 
       if (tracksRes.error) throw tracksRes.error;
@@ -119,10 +142,31 @@ export default function CampanhaPage() {
       setArtistas(artistsRes || []);
       setMusicas(tracksRes.data || []);
       setBiblioteca(libraryRes.data || []);
+
+      // Pre-fetch signed URLs for library items
+      if (libraryRes.data) {
+        libraryRes.data.forEach((item) => {
+          loadSignedUrl(item.id, item.storage_path);
+        });
+      }
     } catch (error: any) {
       toast.error("Erro ao carregar dados: " + error.message);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function loadSignedUrl(id: string, path: string) {
+    if (signedUrls[id] || loadingUrls[id]) return;
+
+    setLoadingUrls((prev) => ({ ...prev, [id]: true }));
+    try {
+      const url = await contentService.getSignedUrl(path);
+      setSignedUrls((prev) => ({ ...prev, [id]: url }));
+    } catch (error) {
+      console.error(`Falha ao carregar URL para ${id}:`, error);
+    } finally {
+      setLoadingUrls((prev) => ({ ...prev, [id]: false }));
     }
   }
 
@@ -139,7 +183,9 @@ export default function CampanhaPage() {
 
     setSaving(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) throw new Error("Usuário não autenticado");
 
       // Parse hours to integers
@@ -160,7 +206,7 @@ export default function CampanhaPage() {
           data_inicio: formData.data_inicio,
           data_fim: formData.data_fim,
           status: "ativo",
-          user_id: user.id
+          user_id: user.id,
         })
         .select()
         .single();
@@ -168,9 +214,9 @@ export default function CampanhaPage() {
       if (campError) throw campError;
 
       // Create campaign contents
-      const contentInserts = selectedContentIds.map(contentId => ({
+      const contentInserts = selectedContentIds.map((contentId) => ({
         campaign_id: newCamp.id,
-        content_id: contentId
+        content_id: contentId,
       }));
 
       const { error: contentError } = await supabase
@@ -198,7 +244,7 @@ export default function CampanhaPage() {
 
   async function handleUpdateStatus(status: string) {
     if (!campanhaAtiva) return;
-    
+
     setSaving(true);
     try {
       const { error } = await supabase
@@ -214,11 +260,13 @@ export default function CampanhaPage() {
           .from("music_tracks")
           .update({ campanha_ativa: false })
           .eq("id", campanhaAtiva.music_track_id);
-          
+
         setCampanhaAtiva(null);
       }
 
-      toast.success(`Campanha ${status === "ativo" ? "retomada" : status === "pausado" ? "pausada" : "encerrada"}!`);
+      toast.success(
+        `Campanha ${status === "ativo" ? "retomada" : status === "pausado" ? "pausada" : "encerrada"}!`,
+      );
       fetchData();
     } catch (error: any) {
       toast.error("Erro ao atualizar campanha: " + error.message);
@@ -231,7 +279,9 @@ export default function CampanhaPage() {
     return (
       <DashboardLayout>
         <div className="flex h-[60vh] items-center justify-center">
-          <div className="text-xl font-medium text-white/50">Carregando informações da campanha...</div>
+          <div className="text-xl font-medium text-white/50">
+            Carregando informações da campanha...
+          </div>
         </div>
       </DashboardLayout>
     );
@@ -264,19 +314,19 @@ export default function CampanhaPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <Label className="text-white/80">Nome da Campanha</Label>
-                  <Input 
-                    placeholder="Ex: Lançamento Verão" 
+                  <Input
+                    placeholder="Ex: Lançamento Verão"
                     className="bg-white/5 border-white/10 text-white"
                     value={formData.nome}
                     onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
                   />
                 </div>
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label className="text-white/80">Escolher Artista</Label>
-                    <Select 
-                      value={formData.artist_id} 
+                    <Select
+                      value={formData.artist_id}
                       onValueChange={(v) => {
                         setFormData({ ...formData, artist_id: v, music_track_id: "" });
                       }}
@@ -286,25 +336,33 @@ export default function CampanhaPage() {
                       </SelectTrigger>
                       <SelectContent className="bg-[#13131F] border-white/10 text-white">
                         {artistas.map((a) => (
-                          <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
+                          <SelectItem key={a.id} value={a.id}>
+                            {a.name}
+                          </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
-                  
+
                   <div className="space-y-2">
                     <Label className="text-white/80">Escolher Música</Label>
-                    <Select 
-                      value={formData.music_track_id} 
+                    <Select
+                      value={formData.music_track_id}
                       onValueChange={(v) => setFormData({ ...formData, music_track_id: v })}
                       disabled={!formData.artist_id}
                     >
                       <SelectTrigger className="bg-white/5 border-white/10 text-white">
-                        <SelectValue placeholder={formData.artist_id ? "Selecione uma música" : "Selecione um artista primeiro"} />
+                        <SelectValue
+                          placeholder={
+                            formData.artist_id
+                              ? "Selecione uma música"
+                              : "Selecione um artista primeiro"
+                          }
+                        />
                       </SelectTrigger>
                       <SelectContent className="bg-[#13131F] border-white/10 text-white">
                         {musicas
-                          .filter(m => m.artist_id === formData.artist_id)
+                          .filter((m) => m.artist_id === formData.artist_id)
                           .map((m) => (
                             <SelectItem key={m.id} value={m.id}>
                               {m.nome}
@@ -317,21 +375,23 @@ export default function CampanhaPage() {
 
                 <div className="space-y-2">
                   <Label className="text-white/80">Posts por dia (máx 3)</Label>
-                  <Input 
-                    type="number" 
-                    min={1} 
-                    max={3} 
+                  <Input
+                    type="number"
+                    min={1}
+                    max={3}
                     className="bg-white/5 border-white/10 text-white"
                     value={formData.posts_por_dia}
-                    onChange={(e) => setFormData({ ...formData, posts_por_dia: parseInt(e.target.value) })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, posts_por_dia: parseInt(e.target.value) })
+                    }
                   />
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label className="text-white/80">Horário Início</Label>
-                    <Input 
-                      type="time" 
+                    <Input
+                      type="time"
                       className="bg-white/5 border-white/10 text-white"
                       value={formData.hora_inicio}
                       onChange={(e) => setFormData({ ...formData, hora_inicio: e.target.value })}
@@ -339,8 +399,8 @@ export default function CampanhaPage() {
                   </div>
                   <div className="space-y-2">
                     <Label className="text-white/80">Horário Fim</Label>
-                    <Input 
-                      type="time" 
+                    <Input
+                      type="time"
                       className="bg-white/5 border-white/10 text-white"
                       value={formData.hora_fim}
                       onChange={(e) => setFormData({ ...formData, hora_fim: e.target.value })}
@@ -350,28 +410,32 @@ export default function CampanhaPage() {
 
                 <div className="space-y-2">
                   <Label className="text-white/80">Intervalo Mínimo (minutos)</Label>
-                  <Input 
-                    type="number" 
+                  <Input
+                    type="number"
                     className="bg-white/5 border-white/10 text-white"
                     value={formData.intervalo_min}
-                    onChange={(e) => setFormData({ ...formData, intervalo_min: parseInt(e.target.value) })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, intervalo_min: parseInt(e.target.value) })
+                    }
                   />
                 </div>
 
                 <div className="space-y-2">
                   <Label className="text-white/80">Intervalo Máximo (minutos)</Label>
-                  <Input 
-                    type="number" 
+                  <Input
+                    type="number"
                     className="bg-white/5 border-white/10 text-white"
                     value={formData.intervalo_max}
-                    onChange={(e) => setFormData({ ...formData, intervalo_max: parseInt(e.target.value) })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, intervalo_max: parseInt(e.target.value) })
+                    }
                   />
                 </div>
 
                 <div className="space-y-2">
                   <Label className="text-white/80">Data Início</Label>
-                  <Input 
-                    type="date" 
+                  <Input
+                    type="date"
                     className="bg-white/5 border-white/10 text-white"
                     value={formData.data_inicio}
                     onChange={(e) => setFormData({ ...formData, data_inicio: e.target.value })}
@@ -380,8 +444,8 @@ export default function CampanhaPage() {
 
                 <div className="space-y-2">
                   <Label className="text-white/80">Data Fim</Label>
-                  <Input 
-                    type="date" 
+                  <Input
+                    type="date"
                     className="bg-white/5 border-white/10 text-white"
                     value={formData.data_fim}
                     onChange={(e) => setFormData({ ...formData, data_fim: e.target.value })}
@@ -392,8 +456,12 @@ export default function CampanhaPage() {
               <div className="space-y-4 pt-4 border-t border-white/5">
                 <div className="flex items-center justify-between">
                   <div className="space-y-1">
-                    <Label className="text-white text-base font-semibold">CONTEÚDOS DA CAMPANHA</Label>
-                    <p className="text-white/40 text-xs">{selectedContentIds.length} selecionados</p>
+                    <Label className="text-white text-base font-semibold">
+                      CONTEÚDOS DA CAMPANHA
+                    </Label>
+                    <p className="text-white/40 text-xs">
+                      {selectedContentIds.length} selecionados
+                    </p>
                   </div>
                   <Select value={contentFilter} onValueChange={setContentFilter}>
                     <SelectTrigger className="w-[150px] bg-white/5 border-white/10 text-white text-xs h-8">
@@ -413,31 +481,48 @@ export default function CampanhaPage() {
 
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
                   {biblioteca
-                    .filter(c => c.status !== 'arquivado' && c.status !== 'descartado')
-                    .filter(c => {
-                      if (contentFilter === 'todos') return true;
-                      if (contentFilter === 'artist') return c.artist_id === formData.artist_id;
+                    .filter((c) => c.status !== "arquivado" && c.status !== "descartado")
+                    .filter((c) => {
+                      if (contentFilter === "todos") return true;
+                      if (contentFilter === "artist") return c.artist_id === formData.artist_id;
                       return c.category === contentFilter;
                     })
                     .map((item) => {
                       const isSelected = selectedContentIds.includes(item.id);
                       return (
-                        <div 
+                        <div
                           key={item.id}
                           onClick={() => {
                             if (isSelected) {
-                              setSelectedContentIds(prev => prev.filter(id => id !== item.id));
+                              setSelectedContentIds((prev) => prev.filter((id) => id !== item.id));
                             } else {
-                              setSelectedContentIds(prev => [...prev, item.id]);
+                              setSelectedContentIds((prev) => [...prev, item.id]);
                             }
                           }}
                           className={`relative aspect-video rounded-lg overflow-hidden border-2 cursor-pointer transition-all ${
-                            isSelected ? 'border-primary' : 'border-transparent hover:border-white/20'
+                            isSelected
+                              ? "border-primary"
+                              : "border-transparent hover:border-white/20"
                           }`}
                         >
-                          <video src={supabase.storage.from('content-library').getPublicUrl(item.storage_path).data.publicUrl} className="w-full h-full object-cover" />
+                          {loadingUrls[item.id] ? (
+                            <div className="w-full h-full flex items-center justify-center bg-white/5">
+                              <Loader2 className="w-4 h-4 text-primary animate-spin" />
+                            </div>
+                          ) : signedUrls[item.id] ? (
+                            <video
+                              src={signedUrls[item.id]}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center bg-white/5">
+                              <X className="w-4 h-4 text-red-500/50" />
+                            </div>
+                          )}
                           <div className="absolute inset-0 bg-black/40 flex flex-col justify-end p-2">
-                            <p className="text-[10px] text-white font-medium truncate">{item.title}</p>
+                            <p className="text-[10px] text-white font-medium truncate">
+                              {item.title}
+                            </p>
                             <Badge className="w-fit text-[8px] h-3 px-1 mt-1 bg-white/20 hover:bg-white/20 border-none">
                               {item.category}
                             </Badge>
@@ -452,14 +537,16 @@ export default function CampanhaPage() {
                     })}
                   {biblioteca.length === 0 && (
                     <div className="col-span-full py-8 text-center border border-dashed border-white/10 rounded-xl">
-                      <p className="text-white/40 text-sm">Biblioteca vazia. Faça upload em Biblioteca primeiro.</p>
+                      <p className="text-white/40 text-sm">
+                        Biblioteca vazia. Faça upload em Biblioteca primeiro.
+                      </p>
                     </div>
                   )}
                 </div>
               </div>
 
-              <Button 
-                onClick={handleIniciar} 
+              <Button
+                onClick={handleIniciar}
                 disabled={saving}
                 className="w-full bg-[#7C3AED] hover:bg-[#6D28D9] text-white py-6 text-lg font-semibold"
               >
@@ -472,16 +559,16 @@ export default function CampanhaPage() {
             <Card className="md:col-span-2 bg-[#13131F] border-white/10">
               <CardHeader>
                 <CardTitle className="text-2xl text-white">{campanhaAtiva.nome}</CardTitle>
-                  <div className="flex items-center gap-4 text-white/60">
-                    <div className="flex items-center gap-2">
-                      <User size={16} />
-                      <span>{campanhaAtiva.artists?.name}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Music size={16} />
-                      <span>{campanhaAtiva.music_tracks?.nome}</span>
-                    </div>
+                <div className="flex items-center gap-4 text-white/60">
+                  <div className="flex items-center gap-2">
+                    <User size={16} />
+                    <span>{campanhaAtiva.artists?.name}</span>
                   </div>
+                  <div className="flex items-center gap-2">
+                    <Music size={16} />
+                    <span>{campanhaAtiva.music_tracks?.nome}</span>
+                  </div>
+                </div>
               </CardHeader>
               <CardContent className="space-y-8">
                 <div className="space-y-4">
@@ -489,20 +576,34 @@ export default function CampanhaPage() {
                     <span className="text-white/60">Progresso da Campanha</span>
                     <span className="text-white font-medium">
                       {(() => {
-                        const total = differenceInDays(new Date(campanhaAtiva.data_fim), new Date(campanhaAtiva.data_inicio)) || 1;
-                        const passados = differenceInDays(new Date(), new Date(campanhaAtiva.data_inicio));
+                        const total =
+                          differenceInDays(
+                            new Date(campanhaAtiva.data_fim),
+                            new Date(campanhaAtiva.data_inicio),
+                          ) || 1;
+                        const passados = differenceInDays(
+                          new Date(),
+                          new Date(campanhaAtiva.data_inicio),
+                        );
                         const r = Math.min(100, Math.max(0, (passados / total) * 100));
                         return `${Math.round(r)}%`;
                       })()}
                     </span>
                   </div>
-                  <Progress 
+                  <Progress
                     value={(() => {
-                      const total = differenceInDays(new Date(campanhaAtiva.data_fim), new Date(campanhaAtiva.data_inicio)) || 1;
-                      const passados = differenceInDays(new Date(), new Date(campanhaAtiva.data_inicio));
+                      const total =
+                        differenceInDays(
+                          new Date(campanhaAtiva.data_fim),
+                          new Date(campanhaAtiva.data_inicio),
+                        ) || 1;
+                      const passados = differenceInDays(
+                        new Date(),
+                        new Date(campanhaAtiva.data_inicio),
+                      );
                       return Math.min(100, Math.max(0, (passados / total) * 100));
-                    })()} 
-                    className="h-2 bg-white/5" 
+                    })()}
+                    className="h-2 bg-white/5"
                   />
                   <div className="flex justify-between text-xs text-white/40">
                     <span>Início: {format(new Date(campanhaAtiva.data_inicio), "dd/MM/yyyy")}</span>
@@ -529,21 +630,29 @@ export default function CampanhaPage() {
                     <div className="text-white/40 text-xs flex items-center gap-1">
                       <Clock size={12} /> Posts p/ Dia
                     </div>
-                    <div className="text-xl font-bold text-white">{campanhaAtiva.posts_por_dia}</div>
+                    <div className="text-xl font-bold text-white">
+                      {campanhaAtiva.posts_por_dia}
+                    </div>
                   </div>
                 </div>
 
                 <div className="flex gap-4 pt-4">
-                  <Button 
+                  <Button
                     variant="outline"
                     className="flex-1 bg-yellow-500/10 border-yellow-500/20 text-yellow-500 hover:bg-yellow-500/20"
-                    onClick={() => handleUpdateStatus(campanhaAtiva.status === "pausado" ? "ativo" : "pausado")}
+                    onClick={() =>
+                      handleUpdateStatus(campanhaAtiva.status === "pausado" ? "ativo" : "pausado")
+                    }
                     disabled={saving}
                   >
-                    {campanhaAtiva.status === "pausado" ? <Play size={18} className="mr-2" /> : <Pause size={18} className="mr-2" />}
+                    {campanhaAtiva.status === "pausado" ? (
+                      <Play size={18} className="mr-2" />
+                    ) : (
+                      <Pause size={18} className="mr-2" />
+                    )}
                     {campanhaAtiva.status === "pausado" ? "Retomar" : "Pausar"}
                   </Button>
-                  <Button 
+                  <Button
                     variant="outline"
                     className="flex-1 bg-red-500/10 border-red-500/20 text-red-500 hover:bg-red-500/20"
                     onClick={() => handleUpdateStatus("encerrado")}
@@ -564,15 +673,22 @@ export default function CampanhaPage() {
                 <CardContent className="space-y-4">
                   <div className="flex justify-between items-center text-sm">
                     <span className="text-white/40">Horário Ativo</span>
-                    <span className="text-white">{campanhaAtiva.hora_inicio}:00 - {campanhaAtiva.hora_fim}:00</span>
+                    <span className="text-white">
+                      {campanhaAtiva.hora_inicio}:00 - {campanhaAtiva.hora_fim}:00
+                    </span>
                   </div>
                   <div className="flex justify-between items-center text-sm">
                     <span className="text-white/40">Intervalo</span>
-                    <span className="text-white">{campanhaAtiva.intervalo_min} - {campanhaAtiva.intervalo_max} min</span>
+                    <span className="text-white">
+                      {campanhaAtiva.intervalo_min} - {campanhaAtiva.intervalo_max} min
+                    </span>
                   </div>
                   <div className="flex justify-between items-center text-sm">
                     <span className="text-white/40">Status</span>
-                    <Badge variant={campanhaAtiva.status === "ativo" ? "default" : "secondary"} className={campanhaAtiva.status === "ativo" ? "bg-emerald-500" : ""}>
+                    <Badge
+                      variant={campanhaAtiva.status === "ativo" ? "default" : "secondary"}
+                      className={campanhaAtiva.status === "ativo" ? "bg-emerald-500" : ""}
+                    >
                       {campanhaAtiva.status}
                     </Badge>
                   </div>
@@ -582,8 +698,13 @@ export default function CampanhaPage() {
               <Card className="bg-[#13131F] border-white/10">
                 <CardHeader className="pb-2">
                   <div className="flex justify-between items-center">
-                    <CardTitle className="text-sm font-medium text-white/60">Conteúdos Ativos</CardTitle>
-                    <Badge variant="outline" className="text-[10px] h-5 border-white/10 text-white/40">
+                    <CardTitle className="text-sm font-medium text-white/60">
+                      Conteúdos Ativos
+                    </CardTitle>
+                    <Badge
+                      variant="outline"
+                      className="text-[10px] h-5 border-white/10 text-white/40"
+                    >
                       {selectedContentIds.length} Itens
                     </Badge>
                   </div>
@@ -591,17 +712,30 @@ export default function CampanhaPage() {
                 <CardContent className="space-y-3">
                   <div className="grid grid-cols-2 gap-2 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
                     {biblioteca
-                      .filter(item => selectedContentIds.includes(item.id))
+                      .filter((item) => selectedContentIds.includes(item.id))
                       .map((item) => (
-                        <div key={item.id} className="relative aspect-video rounded-md overflow-hidden group">
-                          <video 
-                            src={supabase.storage.from('content-library').getPublicUrl(item.storage_path).data.publicUrl} 
-                            className="w-full h-full object-cover" 
-                          />
+                        <div
+                          key={item.id}
+                          className="relative aspect-video rounded-md overflow-hidden group"
+                        >
+                          {loadingUrls[item.id] ? (
+                            <div className="w-full h-full flex items-center justify-center bg-white/5">
+                              <Loader2 className="w-4 h-4 text-primary animate-spin" />
+                            </div>
+                          ) : signedUrls[item.id] ? (
+                            <video
+                              src={signedUrls[item.id]}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center bg-white/5">
+                              <X className="w-4 h-4 text-red-500/50" />
+                            </div>
+                          )}
                           <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                            <Button 
-                              size="icon" 
-                              variant="ghost" 
+                            <Button
+                              size="icon"
+                              variant="ghost"
                               className="h-6 w-6 text-white hover:text-red-400 hover:bg-transparent"
                               onClick={async () => {
                                 if (!campanhaAtiva) return;
@@ -611,9 +745,11 @@ export default function CampanhaPage() {
                                     .delete()
                                     .eq("campaign_id", campanhaAtiva.id)
                                     .eq("content_id", item.id);
-                                  
+
                                   if (error) throw error;
-                                  setSelectedContentIds(prev => prev.filter(id => id !== item.id));
+                                  setSelectedContentIds((prev) =>
+                                    prev.filter((id) => id !== item.id),
+                                  );
                                   toast.success("Conteúdo removido da campanha");
                                 } catch (err: any) {
                                   toast.error("Erro ao remover: " + err.message);
@@ -626,8 +762,8 @@ export default function CampanhaPage() {
                         </div>
                       ))}
                   </div>
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     className="w-full border-primary/20 text-primary text-xs h-8 hover:bg-primary/10"
                     onClick={() => toast.info("Funcionalidade de adição rápida em breve")}
                   >
