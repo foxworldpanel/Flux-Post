@@ -22,12 +22,16 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
 
   const navItems = [
     { label: "Dashboard", icon: LayoutDashboard, href: "/" },
-    { label: "Biblioteca de Vídeos", icon: Video, href: "/videos" },
-    { label: "Biblioteca de Músicas", icon: Music, href: "/musics" },
-    { label: "Processar Vídeo", icon: Clapperboard, href: "/processar" },
-    { label: "Contas TikTok", icon: Users, href: "/accounts" },
-    { label: "Campanha Ativa", icon: Megaphone, href: "/campanha" },
-    { label: "Agendamentos", icon: Calendar, href: "/schedule" },
+    { label: "Campanhas", icon: Megaphone, href: "/campanha" },
+    { label: "Artistas", icon: Users, href: "/artistas" },
+    { label: "Músicas", icon: Music, href: "/musics" },
+    { label: "Garimpo", icon: LayoutDashboard, href: "/garimpo" },
+    { label: "Biblioteca", icon: Video, href: "/videos" },
+    { label: "Contas", icon: Users, href: "/accounts" },
+    { label: "Agenda", icon: Calendar, href: "/schedule" },
+    { label: "Publicações", icon: LayoutDashboard, href: "/publicacoes" },
+    { label: "Analytics", icon: LayoutDashboard, href: "/analytics" },
+    { label: "Processar", icon: Clapperboard, href: "/processar" },
   ];
 
   const handleLogout = () => {
