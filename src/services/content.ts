@@ -103,7 +103,14 @@ export const contentService = {
       body: params,
     });
 
-    if (error) throw error;
+    if (error) {
+      // Return error object instead of throwing for status-based handling in UI
+      const errObj = error as any;
+      throw {
+        message: errObj.message || "Erro na importação",
+        status: errObj.status || 500
+      };
+    }
     return data;
   },
 
