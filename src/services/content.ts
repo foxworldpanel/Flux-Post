@@ -1,7 +1,14 @@
 import { supabase } from "@/integrations/supabase/client";
 import { Database } from "@/integrations/supabase/types";
 
-type Content = Database["public"]["Tables"]["content_library"]["Row"];
+type Content = Database["public"]["Tables"]["content_library"]["Row"] & {
+  source?: string;
+  external_id?: string;
+  author?: string;
+  original_url?: string;
+  credit?: string;
+  license_info?: string;
+};
 type ContentInsert = Database["public"]["Tables"]["content_library"]["Insert"];
 
 const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
@@ -75,5 +82,40 @@ export const contentService = {
     }
 
     return data.signedUrl;
+  },
+
+  async searchPexels(params: {
+    query: string;
+    orientation?: "landscape" | "portrait" | "square";
+    page?: number;
+    per_page?: number;
+  }) {
+    const { data, error } = await supabase.functions.invoke("pexels-search", {
+      body: params,
+    });
+
+    if (error) throw error;
+    return data;
+  },
+
+  async importPexelsVideo(params: { videoId: number; category: string }) {
+    const { data, error } = await supabase.functions.invoke("import-pexels-content", {
+      body: params,
+    });
+
+    if (error) throw error;
+    return data;
+  },
+
+  async checkDuplicate(source: string, externalId: string) {
+    const { data, error } = await supabase
+      .from("content_library")
+      .select("id")
+      .eq("source", source)
+      .eq("external_id", externalId)
+      .maybeSingle();
+
+    if (error) throw error;
+    return data;
   },
 };
