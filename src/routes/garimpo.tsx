@@ -151,12 +151,12 @@ export default function GarimpoPage() {
             onClick: () => navigate("/videos"),
           },
         });
-      } else if (err.status === 429 || err.message?.includes("rate limit")) {
+      } else if (error.status === 429 || error.message?.includes("rate limit")) {
         toast.error("Limite temporário da API Pexels. Tente novamente em instantes.", {
           id: "import-pexels",
         });
       } else {
-        toast.error(err.message || "Erro ao importar vídeo", { id: "import-pexels" });
+        toast.error(error.message || "Erro ao importar vídeo", { id: "import-pexels" });
       }
     } finally {
       setImportingId(null);
