@@ -135,10 +135,12 @@ export default function GarimpoPage() {
       toast.success("Vídeo importado com sucesso para a Biblioteca!", { id: "import-pexels" });
       setSelectedVideo(null);
     } catch (err: unknown) {
-      const error = err as { message?: string; status?: number };
-      console.error("Erro na importação:", error);
+      const error = err as { message?: string; status?: number; name?: string };
+      console.error("Erro detalhado na importação:", error);
 
-      if (
+      if (error.name === "FunctionsHttpError") {
+        toast.error(`Erro de Rede: Falha ao contatar servidor (${error.status})`, { id: "import-pexels" });
+      } else if (
         error.status === 409 ||
         error.message?.includes("duplicate") ||
         error.message?.includes("Biblioteca")

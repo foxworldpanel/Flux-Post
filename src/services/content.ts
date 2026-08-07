@@ -99,16 +99,20 @@ export const contentService = {
   },
 
   async importPexelsVideo(params: { videoId: number; category: string }) {
+    console.log("[CONTENT_SERVICE] Invoking import-pexels-content for:", params.videoId);
     const { data, error } = await supabase.functions.invoke("import-pexels-content", {
       body: params,
     });
 
     if (error) {
+      console.error("[CONTENT_SERVICE] Function invocation error:", error);
       // Return error object instead of throwing for status-based handling in UI
-      const errObj = error as { message?: string; status?: number };
+      const errObj = error as any;
       throw {
         message: errObj.message || "Erro na importação",
         status: errObj.status || 500,
+        name: errObj.name,
+        details: errObj
       };
     }
     return data;
