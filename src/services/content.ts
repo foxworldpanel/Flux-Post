@@ -105,7 +105,7 @@ export const contentService = {
 
     if (error) {
       // Return error object instead of throwing for status-based handling in UI
-      const errObj = error as any;
+      const errObj = error as { message?: string; status?: number };
       throw {
         message: errObj.message || "Erro na importação",
         status: errObj.status || 500,
