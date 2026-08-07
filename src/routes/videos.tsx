@@ -42,15 +42,15 @@ import { contentService } from "@/services/content";
 interface ContentLibrary {
   id: string;
   title: string;
-  file_path: string;
-  file_type: string;
+  storage_path: string;
+  file_type?: string;
   category: string | null;
   status: string | null;
   source: string | null;
   author: string | null;
   original_url: string | null;
   credit: string | null;
-  usage_count: number | null;
+  use_count: number | null;
   created_at: string | null;
 }
 
@@ -88,7 +88,7 @@ export default function VideosPage() {
     setIsPreviewOpen(true);
     setLoadingUrl(true);
     try {
-      const url = await contentService.getSignedUrl(item.file_path);
+      const url = await contentService.getSignedUrl(item.storage_path);
       setSignedUrl(url);
     } catch (error) {
       toast.error("Erro ao carregar preview");
@@ -104,7 +104,7 @@ export default function VideosPage() {
       // 1. Storage
       const { error: storageError } = await supabase.storage
         .from("content-library")
-        .remove([item.file_path]);
+        .remove([item.storage_path]);
 
       if (storageError) console.warn("Erro ao remover arquivo (prosseguindo):", storageError);
 
