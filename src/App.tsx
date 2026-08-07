@@ -11,6 +11,7 @@ import ArtistasPage from "./routes/artistas";
 import GarimpoPage from "./routes/garimpo";
 import PublicacoesPage from "./routes/publicacoes";
 import AnalyticsPage from "./routes/analytics";
+import SecurityReportPage from "./routes/security-report";
 import { Toaster } from "sonner";
 
 function App() {
@@ -30,6 +31,7 @@ function App() {
           <Route path="/garimpo" element={<GarimpoPage />} />
           <Route path="/publicacoes" element={<PublicacoesPage />} />
           <Route path="/analytics" element={<AnalyticsPage />} />
+          <Route path="/security-report" element={<SecurityReportPage />} />
         </Routes>
       </BrowserRouter>
       <Toaster position="top-right" />

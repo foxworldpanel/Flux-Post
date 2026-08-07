@@ -13,7 +13,8 @@ import {
   Search,
   History,
   BarChart3,
-  Settings
+  Settings,
+  ShieldCheck
 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -38,6 +39,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
     { label: "Publicações", icon: History, href: "/publicacoes" },
     { label: "Analytics", icon: BarChart3, href: "/analytics" },
     { label: "Processar", icon: Clapperboard, href: "/processar" },
+    { label: "Segurança", icon: ShieldCheck, href: "/security-report" },
   ];
 
   const handleLogout = () => {
