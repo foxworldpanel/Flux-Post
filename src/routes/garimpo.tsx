@@ -120,37 +120,44 @@ export default function GarimpoPage() {
   };
 
   const handleImport = async (video: PexelsVideo) => {
-    try {
-      // Check duplicate first
-      const existing = await contentService.checkDuplicate("pexels", video.id.toString());
-      if (existing) {
-        toast.info("Este conteúdo já está na sua Biblioteca", {
-          action: {
-            label: "Ver na Biblioteca",
-            onClick: () => navigate("/videos"),
-          },
-        });
-        setImportedIds((prev) => new Set([...prev, video.id]));
-        return;
-      }
+    if (importingId) return;
 
+    try {
       setImportingId(video.id);
-      toast.loading("Importando vídeo do Pexels...", { id: "import-pexels" });
+      toast.loading("Iniciando importação segura...", { id: "import-pexels" });
 
       const response = await contentService.importPexelsVideo({
         videoId: video.id,
         category: category,
       });
 
-      if (response.error) throw new Error(response.error);
-
       setImportedIds((prev) => new Set([...prev, video.id]));
       toast.success("Vídeo importado com sucesso para a Biblioteca!", { id: "import-pexels" });
       setSelectedVideo(null);
     } catch (err: unknown) {
-      console.error(err);
-      const errorMessage = err instanceof Error ? err.message : "Erro desconhecido";
-      toast.error("Erro ao importar vídeo: " + errorMessage, { id: "import-pexels" });
+      const error = err as { message?: string; status?: number };
+      console.error("Erro na importação:", error);
+
+      if (
+        error.status === 409 ||
+        error.message?.includes("duplicate") ||
+        error.message?.includes("Biblioteca")
+      ) {
+        setImportedIds((prev) => new Set([...prev, video.id]));
+        toast.info("Este conteúdo já está na sua Biblioteca.", {
+          id: "import-pexels",
+          action: {
+            label: "VER NA BIBLIOTECA",
+            onClick: () => navigate("/videos"),
+          },
+        });
+      } else if (error.status === 429 || error.message?.includes("rate limit")) {
+        toast.error("Limite temporário da API Pexels. Tente novamente em instantes.", {
+          id: "import-pexels",
+        });
+      } else {
+        toast.error(error.message || "Erro ao importar vídeo", { id: "import-pexels" });
+      }
     } finally {
       setImportingId(null);
     }

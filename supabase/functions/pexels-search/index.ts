@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { createClient } from 'https://esm.sh/@supabase/supabase-client@2'
 
 const PEXELS_API_KEY = Deno.env.get('PEXELS_API_KEY')
 
@@ -7,12 +8,28 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+interface PexelsSearchRequest {
+  query: string;
+  orientation?: 'landscape' | 'portrait' | 'square';
+  per_page?: number;
+  page?: number;
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
   try {
+    // Authentication required
+    const authHeader = req.headers.get('Authorization')
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: 'Authentication required' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
     if (!PEXELS_API_KEY) {
       return new Response(
         JSON.stringify({ error: 'PEXELS_API_KEY not configured' }),
@@ -20,17 +37,50 @@ serve(async (req) => {
       )
     }
 
-    const { query, orientation, size, per_page = 20, page = 1 } = await req.json()
+    const body: PexelsSearchRequest = await req.json()
+    const { query, orientation, per_page = 20, page = 1 } = body
 
-    let url = `https://api.pexels.com/videos/search?query=${encodeURIComponent(query)}&per_page=${per_page}&page=${page}`
+    // Validation
+    if (!query || query.trim().length === 0) {
+      return new Response(
+        JSON.stringify({ error: 'Query is required' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    const safePerPage = Math.min(Math.max(1, per_page), 40)
+    const safePage = Math.max(1, page)
+    
+    const allowedOrientations = ['landscape', 'portrait', 'square']
+    if (orientation && !allowedOrientations.includes(orientation)) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid orientation' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    let url = `https://api.pexels.com/videos/search?query=${encodeURIComponent(query)}&per_page=${safePerPage}&page=${safePage}`
     if (orientation) url += `&orientation=${orientation}`
-    if (size) url += `&size=${size}`
 
     const response = await fetch(url, {
       headers: {
         'Authorization': PEXELS_API_KEY
       }
     })
+
+    if (!response.ok) {
+      const status = response.status
+      if (status === 429) {
+        return new Response(
+          JSON.stringify({ error: 'Limite de taxa do Pexels atingido. Tente novamente mais tarde.' }),
+          { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+      return new Response(
+        JSON.stringify({ error: `Pexels API error: ${status}` }),
+        { status: status >= 500 ? 502 : 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
 
     const data = await response.json()
 
@@ -39,8 +89,9 @@ serve(async (req) => {
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   } catch (error) {
+    console.error('[pexels-search]', error)
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: 'Erro interno ao processar pesquisa' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
