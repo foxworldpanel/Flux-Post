@@ -628,10 +628,17 @@ export default function CampanhaPage() {
                       .filter(item => selectedContentIds.includes(item.id))
                       .map((item) => (
                         <div key={item.id} className="relative aspect-video rounded-md overflow-hidden group">
-                          <video 
-                            src={supabase.storage.from('content-library').getPublicUrl(item.storage_path).data.publicUrl} 
-                            className="w-full h-full object-cover" 
-                          />
+                          {loadingUrls[item.id] ? (
+                            <div className="w-full h-full flex items-center justify-center bg-white/5">
+                              <Loader2 className="w-4 h-4 text-primary animate-spin" />
+                            </div>
+                          ) : signedUrls[item.id] ? (
+                            <video src={signedUrls[item.id]} className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center bg-white/5">
+                              <X className="w-4 h-4 text-red-500/50" />
+                            </div>
+                          )}
                           <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                             <Button 
                               size="icon" 
