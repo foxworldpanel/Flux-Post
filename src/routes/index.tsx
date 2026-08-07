@@ -33,7 +33,7 @@ export default function Dashboard() {
       try {
         const { data, error } = await supabase
           .from("campanhas")
-          .select("*, music_tracks(nome, artista)")
+          .select("*, music_tracks(nome, artista), artists(name)")
           .eq("status", "ativo")
           .maybeSingle();
         
@@ -95,7 +95,7 @@ export default function Dashboard() {
                             </div>
                             <div>
                               <p className="text-white font-medium">{activeCampaign.music_tracks?.nome || 'Música'}</p>
-                              <p className="text-slate-400 text-xs">{activeCampaign.music_tracks?.artista || 'Artista'}</p>
+                              <p className="text-slate-400 text-xs">{activeCampaign.artists?.name || activeCampaign.music_tracks?.artista || 'Artista'}</p>
                             </div>
                           </div>
                         </div>
