@@ -129,9 +129,8 @@ export default function GarimpoPage() {
       // Ping test to verify connectivity
       console.log("[GARIMPO] Performing ping test...");
       try {
-        const ping = await supabase.functions.invoke("import-pexels-content", {
-          method: 'GET',
-          queryParams: { ping: '1' }
+        const ping = await supabase.functions.invoke("import-pexels-content?ping=1", {
+          method: 'GET'
         });
         console.log("[GARIMPO] Ping result:", ping);
       } catch (e) {
