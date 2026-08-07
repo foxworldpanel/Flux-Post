@@ -16,7 +16,6 @@ import {
   Music2
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
 
 export default function Dashboard() {
   const [loading, setLoading] = useState(true);
@@ -210,3 +209,4 @@ export default function Dashboard() {
     </DashboardLayout>
   );
 }
+
