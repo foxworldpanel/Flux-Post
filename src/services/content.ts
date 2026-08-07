@@ -83,4 +83,42 @@ export const contentService = {
 
     return data.signedUrl;
   },
+
+  async searchPexels(params: { 
+    query: string; 
+    orientation?: 'landscape' | 'portrait' | 'square';
+    page?: number;
+    per_page?: number;
+  }) {
+    const { data, error } = await supabase.functions.invoke('pexels-search', {
+      body: params
+    });
+
+    if (error) throw error;
+    return data;
+  },
+
+  async importPexelsVideo(params: {
+    videoId: number;
+    category: string;
+  }) {
+    const { data, error } = await supabase.functions.invoke('import-pexels-content', {
+      body: params
+    });
+
+    if (error) throw error;
+    return data;
+  },
+
+  async checkDuplicate(source: string, externalId: string) {
+    const { data, error } = await supabase
+      .from('content_library')
+      .select('id')
+      .eq('source', source)
+      .eq('external_id', externalId)
+      .maybeSingle();
+    
+    if (error) throw error;
+    return data;
+  }
 };
