@@ -228,7 +228,7 @@ serve(async (req) => {
           original_url: videoData.url,
           credit: `Video by ${videoData.user.name} from Pexels`,
           license_info: 'Pexels License',
-          usage_count: 0
+          use_count: 0
         })
         .select()
         .single()
