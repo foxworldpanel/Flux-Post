@@ -106,13 +106,41 @@ export const contentService = {
 
     if (error) {
       console.error("[CONTENT_SERVICE] Function invocation error:", error);
-      // Return error object instead of throwing for status-based handling in UI
-      const errObj = error as any;
+      
+      let errorMessage = "Erro na importação";
+      let stage = "unknown";
+      
+      // Handle FunctionsHttpError and extract real body if possible
+      if (error instanceof Error && 'context' in error) {
+        try {
+          // Supabase FunctionsHttpError usually has the response body in the error context or message
+          // The JS SDK might wrap it. Let's try to extract JSON from the response.
+          const err = error as any;
+          if (err.context && typeof err.context.json === 'function') {
+             const body = await err.context.json();
+             errorMessage = body.error || errorMessage;
+             stage = body.stage || stage;
+          } else if (err.message) {
+            // Sometimes the error message contains the JSON string
+            try {
+              const parsed = JSON.parse(err.message.substring(err.message.indexOf('{')));
+              errorMessage = parsed.error || errorMessage;
+              stage = parsed.stage || stage;
+            } catch (e) {
+              errorMessage = err.message;
+            }
+          }
+        } catch (e) {
+          console.error("Failed to parse function error body", e);
+        }
+      }
+
       throw {
-        message: errObj.message || "Erro na importação",
-        status: errObj.status || 500,
-        name: errObj.name,
-        details: errObj
+        message: errorMessage,
+        status: (error as any).status || 500,
+        name: (error as any).name,
+        stage: stage,
+        details: error
       };
     }
     return data;

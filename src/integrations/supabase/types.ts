@@ -229,8 +229,10 @@ export type Database = {
           author: string | null
           category: string | null
           created_at: string | null
+          credit: string | null
           duration_seconds: number | null
           external_id: string | null
+          file_type: string | null
           first_used_at: string | null
           id: string
           last_used_at: string | null
@@ -254,8 +256,10 @@ export type Database = {
           author?: string | null
           category?: string | null
           created_at?: string | null
+          credit?: string | null
           duration_seconds?: number | null
           external_id?: string | null
+          file_type?: string | null
           first_used_at?: string | null
           id?: string
           last_used_at?: string | null
@@ -279,8 +283,10 @@ export type Database = {
           author?: string | null
           category?: string | null
           created_at?: string | null
+          credit?: string | null
           duration_seconds?: number | null
           external_id?: string | null
+          file_type?: string | null
           first_used_at?: string | null
           id?: string
           last_used_at?: string | null
