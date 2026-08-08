@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { 
   TrendingUp, 
@@ -12,9 +12,13 @@ import {
   ArrowUpRight,
   Sparkles,
   Music2,
-  Play
+  Play,
+  FileText,
+  ChevronDown,
+  ChevronUp
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+
 
 export default function Index() {
   const [loading, setLoading] = useState(true);
