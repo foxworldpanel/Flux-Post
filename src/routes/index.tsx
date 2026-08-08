@@ -173,6 +173,40 @@ export default function Index() {
           <div className="space-y-8">
             <section>
               <h2 className="text-xl font-space font-semibold text-white mb-6 flex items-center gap-2">
+                <FileText className="text-purple-500 w-5 h-5" />
+                Estoque Inteligente
+              </h2>
+              <Card className="bg-[#13131F] border-white/5">
+                <CardContent className="p-6 space-y-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Status Geral</p>
+                      <h3 className="text-2xl font-space font-bold text-white">0/0</h3>
+                    </div>
+                    <Badge variant="outline" className="border-white/10 text-slate-400">
+                      Aguardando Dados
+                    </Badge>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-slate-400">Biblioteca Aprovada</span>
+                      <span className="text-white font-medium">0</span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-slate-400">Candidatos Pendentes</span>
+                      <span className="text-white font-medium">0</span>
+                    </div>
+                    <div className="w-full bg-white/5 h-1.5 rounded-full overflow-hidden">
+                      <div className="bg-purple-600 h-full w-0 transition-all duration-1000" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </section>
+
+            <section>
+              <h2 className="text-xl font-space font-semibold text-white mb-6 flex items-center gap-2">
                 <Lightbulb className="text-purple-500 w-5 h-5" />
                 Flux Intelligence
               </h2>
@@ -197,16 +231,8 @@ export default function Index() {
                 </CardContent>
               </Card>
             </section>
-
-            <section>
-              <h2 className="text-xl font-space font-semibold text-white mb-6">Contas Conectadas</h2>
-              <div className="space-y-3">
-                <div className="py-8 text-center border border-dashed border-white/10 rounded-2xl">
-                  <p className="text-white/40 text-sm">Nenhuma conta conectada</p>
-                </div>
-              </div>
-            </section>
           </div>
+
         </div>
       </div>
     </DashboardLayout>
