@@ -1,5 +1,67 @@
 import { supabase } from "@/integrations/supabase/client";
 
+export interface DiscoverySettings {
+  id: string;
+  user_id: string;
+  is_active: boolean;
+  target_stock: number;
+  max_per_execution: number;
+  default_orientation: 'landscape' | 'portrait' | 'square' | 'all';
+  min_duration: number;
+  max_duration: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DiscoveryCategory {
+  id: string;
+  user_id: string;
+  name: string;
+  target_count: number;
+  is_active: boolean;
+  search_terms: string[];
+  created_at: string;
+}
+
+export interface ContentCandidate {
+  id: string;
+  user_id: string;
+  source: string;
+  external_id: string;
+  original_url: string;
+  preview_url: string;
+  author?: string;
+  category: string;
+  search_term?: string;
+  duration?: number;
+  width?: number;
+  height?: number;
+  orientation?: string;
+  status: 'pendente' | 'aprovado' | 'descartado';
+  metadata?: any;
+  discovered_at: string;
+  reviewed_at?: string;
+}
+
+export interface DiscoveryReportItem {
+  category: string;
+  term: string;
+  found: number;
+  added: number;
+  status: 'success' | 'error';
+  error?: string;
+}
+
+export interface DiscoveryReport {
+  success: boolean;
+  message: string;
+  summary: {
+    total_added: number;
+    categories_analyzed: number;
+    details: DiscoveryReportItem[];
+  };
+}
+
 export const contentService = {
   async searchPexels({ query, orientation, page = 1, per_page = 20 }: {
     query: string;
@@ -57,7 +119,7 @@ export const contentService = {
     return data;
   },
 
-  async runDiscovery() {
+  async runDiscovery(): Promise<DiscoveryReport> {
     const { data: { session } } = await supabase.auth.getSession();
     const { data, error } = await supabase.functions.invoke("run-content-discovery", {
       headers: {
@@ -79,7 +141,6 @@ export const contentService = {
     if (error) throw error;
   },
 
-  // Restored methods
   async getLibrary() {
     const { data, error } = await supabase
       .from('content_library')
