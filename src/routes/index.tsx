@@ -23,15 +23,14 @@ export default function Index() {
         </div>
 
         <div className="bg-[#13131F]/50 border border-white/5 rounded-2xl p-6">
-          <Badge className="bg-purple-600 mb-4">FASE 2.2 — AUDITORIA COMPLETA</Badge>
+          <Badge className="bg-purple-600 mb-4">FASE 3.1 — CENTRAL DE CONTAS SOCIAIS</Badge>
           <div className="text-sm text-slate-300 font-mono leading-relaxed space-y-2">
-            <p>O sistema foi auditado e está sendo atualizado para garantir conformidade com a Fase 2.2.</p>
-            <p>O arquivo <strong>src/routes/garimpo.tsx</strong> está sendo revisado para incluir as funcionalidades pendentes:</p>
+            <p>O Flux Post iniciou a <strong>Fase 3: Distribuição</strong>.</p>
+            <p>A central de contas sociais foi arquitetada para suportar múltiplas plataformas, perfis editoriais, e estratégias de postagem.</p>
             <ul className="list-disc pl-5 mt-2 space-y-1 text-slate-400">
-              <li>Editor de <em>search_terms</em> e CRUD de categorias completo.</li>
-              <li>Filtros de status (Pendente/Aprovado/Descartado) e metadados de automação.</li>
-              <li>Modal de visualização completa para candidatos.</li>
-              <li>Remoção de tipos <em>any</em> nos serviços e componentes.</li>
+              <li>Reutilização da tabela <em>social_accounts</em>.</li>
+              <li>Configuração de perfil editorial, categorias e posts/dia por conta.</li>
+              <li>Preparação para OAuth em fases futuras.</li>
             </ul>
           </div>
         </div>
