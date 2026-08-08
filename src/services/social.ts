@@ -76,5 +76,36 @@ export const socialService = {
 
   async archiveAccount(id: string) {
     return this.updateAccount(id, { status: 'archived' });
+  },
+
+  async startTikTokOAuth(socialAccountId: string) {
+    const { data, error } = await supabase.functions.invoke('tiktok-oauth-start', {
+      body: { social_account_id: socialAccountId }
+    });
+    if (error) throw error;
+    return data; // { authorization_url }
+  },
+
+  async disconnectAccount(id: string) {
+    const { error: credError } = await supabase
+      .from('social_account_credentials')
+      .delete()
+      .eq('social_account_id', id);
+    
+    // Mesmo que falhe a deleção da credencial (ex: já não existe), limpamos a conta
+    const { data, error } = await supabase
+      .from('social_accounts')
+      .update({
+        connection_status: 'nao_conectada',
+        external_account_id: null,
+        token_expires_at: null,
+        last_sync_at: null
+      })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
   }
 };

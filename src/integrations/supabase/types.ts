@@ -832,6 +832,59 @@ export type Database = {
           },
         ]
       }
+      social_account_credentials: {
+        Row: {
+          access_token_encrypted: string
+          access_token_expires_at: string | null
+          created_at: string | null
+          id: string
+          metadata: Json | null
+          provider: string
+          refresh_token_encrypted: string | null
+          refresh_token_expires_at: string | null
+          scopes: string[] | null
+          social_account_id: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          access_token_encrypted: string
+          access_token_expires_at?: string | null
+          created_at?: string | null
+          id?: string
+          metadata?: Json | null
+          provider: string
+          refresh_token_encrypted?: string | null
+          refresh_token_expires_at?: string | null
+          scopes?: string[] | null
+          social_account_id: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          access_token_encrypted?: string
+          access_token_expires_at?: string | null
+          created_at?: string | null
+          id?: string
+          metadata?: Json | null
+          provider?: string
+          refresh_token_encrypted?: string | null
+          refresh_token_expires_at?: string | null
+          scopes?: string[] | null
+          social_account_id?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_account_credentials_social_account_id_fkey"
+            columns: ["social_account_id"]
+            isOneToOne: false
+            referencedRelation: "social_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       social_accounts: {
         Row: {
           account_name: string | null
@@ -923,6 +976,44 @@ export type Database = {
             columns: ["artist_id"]
             isOneToOne: false
             referencedRelation: "artists"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      social_oauth_states: {
+        Row: {
+          created_at: string | null
+          expires_at: string
+          id: string
+          social_account_id: string
+          state: string
+          used_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          expires_at: string
+          id?: string
+          social_account_id: string
+          state: string
+          used_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          expires_at?: string
+          id?: string
+          social_account_id?: string
+          state?: string
+          used_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_oauth_states_social_account_id_fkey"
+            columns: ["social_account_id"]
+            isOneToOne: false
+            referencedRelation: "social_accounts"
             referencedColumns: ["id"]
           },
         ]
