@@ -66,7 +66,6 @@ export const socialService = {
     const { data, error } = await supabase
       .from('social_accounts')
       .update(updates)
-      .member('id', [id]) // Use eq for single item usually but let's be safe
       .eq('id', id)
       .select()
       .single();
