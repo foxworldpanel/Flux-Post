@@ -37,6 +37,8 @@ export default function AccountsPage() {
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isConnectDialogOpen, setIsConnectDialogOpen] = useState(false);
+  const [connectingAccount, setConnectingAccount] = useState<SocialAccountWithArtist | null>(null);
+  const [isConnecting, setIsConnecting] = useState(false);
   const [editingAccount, setEditingAccount] = useState<Partial<SocialAccountWithArtist> | null>(null);
   const [filterPlatform, setFilterPlatform] = useState<string>("Todas");
   const [filterStatus, setFilterStatus] = useState<string>("Ativas");
@@ -59,6 +61,22 @@ export default function AccountsPage() {
 
   useEffect(() => {
     loadData();
+
+    // Capturar parâmetros de callback do OAuth
+    const params = new URLSearchParams(window.location.search);
+    const success = params.get('success');
+    const error = params.get('error');
+
+    if (success === 'tiktok_connected') {
+      toast.success("TikTok conectado com sucesso!");
+      // Limpa a URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+      loadData();
+    } else if (error) {
+      const msg = error === 'Configuração TikTok pendente.' ? error : "Erro na conexão: " + error;
+      toast.error(msg);
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
   }, []);
 
   const handleSaveAccount = async (e: React.FormEvent) => {
@@ -112,6 +130,38 @@ export default function AccountsPage() {
       loadData();
     } catch (err: any) {
       toast.error("Erro ao arquivar: " + err.message);
+    }
+  };
+
+  const handleConnectTikTok = async (account: SocialAccount) => {
+    try {
+      setIsConnecting(true);
+      const { authorization_url } = await socialService.startTikTokOAuth(account.id);
+      if (authorization_url) {
+        window.location.href = authorization_url;
+      }
+    } catch (err: any) {
+      console.error(err);
+      const errorBody = err.message || "";
+      if (errorBody.includes("Configuração TikTok pendente")) {
+        toast.error("Configuração TikTok pendente.");
+      } else {
+        toast.error("Erro ao iniciar conexão TikTok.");
+      }
+    } finally {
+      setIsConnecting(false);
+      setIsConnectDialogOpen(false);
+    }
+  };
+
+  const handleDisconnect = async (account: SocialAccount) => {
+    if (!confirm(`Deseja desconectar a conta ${account.account_name}?`)) return;
+    try {
+      await socialService.disconnectAccount(account.id);
+      toast.success("Conta desconectada.");
+      loadData();
+    } catch (err: any) {
+      toast.error("Erro ao desconectar: " + err.message);
     }
   };
 
@@ -245,10 +295,24 @@ export default function AccountsPage() {
                   }}>
                     CONFIGURAR
                   </Button>
-                  {account.connection_status === 'nao_conectada' && (
+                  {account.connection_status === 'nao_conectada' && account.platform === 'tiktok' && (
                     <Button variant="outline" size="sm" className="flex-1 border-purple-500/30 text-purple-400 hover:bg-purple-500/10 text-xs h-8" 
-                      onClick={() => setIsConnectDialogOpen(true)}>
+                      onClick={() => {
+                        setConnectingAccount(account);
+                        setIsConnectDialogOpen(true);
+                      }}>
                       CONECTAR
+                    </Button>
+                  )}
+                  {account.connection_status === 'conectada' && (
+                    <Button variant="outline" size="sm" className="flex-1 border-red-500/30 text-red-400 hover:bg-red-500/10 text-xs h-8" 
+                      onClick={() => handleDisconnect(account)}>
+                      DESCONECTAR
+                    </Button>
+                  )}
+                  {account.connection_status === 'nao_conectada' && account.platform !== 'tiktok' && (
+                    <Button variant="outline" size="sm" disabled className="flex-1 border-white/5 text-slate-600 text-xs h-8">
+                      EM BREVE
                     </Button>
                   )}
                   <div className="flex gap-1">
@@ -438,6 +502,43 @@ export default function AccountsPage() {
              </DialogHeader>
              <p className="text-slate-400 py-4">A conexão oficial via OAuth será configurada na próxima etapa do desenvolvimento (Fase 3.2).</p>
              <Button className="bg-[#7C3AED] w-full mt-4" onClick={() => setIsConnectDialogOpen(false)}>Entendido</Button>
+          </DialogContent>
+        </Dialog>
+        {/* Modal de Conexão */}
+        <Dialog open={isConnectDialogOpen} onOpenChange={setIsConnectDialogOpen}>
+          <DialogContent className="bg-[#0A0A0F] border-white/10 text-white">
+            <DialogHeader>
+              <DialogTitle className="text-xl font-bold font-space">Conectar TikTok</DialogTitle>
+            </DialogHeader>
+            <div className="py-6 space-y-4">
+              <div className="flex items-center gap-4 bg-white/5 p-4 rounded-xl border border-white/10">
+                <div className="w-12 h-12 rounded-full bg-black flex items-center justify-center text-2xl">📱</div>
+                <div>
+                  <p className="font-bold">{connectingAccount?.account_name}</p>
+                  <p className="text-xs text-slate-500">@{connectingAccount?.username}</p>
+                </div>
+              </div>
+              <p className="text-sm text-slate-400 leading-relaxed">
+                Você será redirecionado para o TikTok para autorizar o <strong>Flux Post</strong> a acessar suas informações básicas de perfil.
+              </p>
+              <div className="bg-amber-500/10 border border-amber-500/20 p-3 rounded-lg flex gap-3 items-start">
+                <Settings className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
+                <p className="text-[10px] text-amber-200/70">
+                  Nota: Esta fase implementa apenas a conexão de identidade. A funcionalidade de postagem será ativada em fases futuras após validação técnica.
+                </p>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="ghost" onClick={() => setIsConnectDialogOpen(false)} disabled={isConnecting}>CANCELAR</Button>
+              <Button 
+                className="bg-[#7C3AED] hover:bg-[#6D28D9]" 
+                disabled={isConnecting}
+                onClick={() => connectingAccount && handleConnectTikTok(connectingAccount)}
+              >
+                {isConnecting ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : null}
+                AUTORIZAR NO TIKTOK
+              </Button>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
       </div>

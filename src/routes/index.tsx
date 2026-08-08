@@ -36,15 +36,18 @@ export default function Index() {
         </div>
 
         <div className="bg-[#13131F]/50 border border-white/5 rounded-2xl p-6">
-          <Badge className="bg-purple-600 mb-4">FASE 3.1 — CENTRAL DE CONTAS SOCIAIS</Badge>
+          <Badge className="bg-emerald-600 mb-4 text-[10px] uppercase font-bold">FASE 3.2A — TIKTOK OAUTH ATIVO</Badge>
           <div className="text-sm text-slate-300 font-mono leading-relaxed space-y-2">
-            <p>O Flux Post iniciou a <strong>Fase 3: Distribuição</strong>.</p>
-            <p>A central de contas sociais foi arquitetada para suportar múltiplas plataformas, perfis editoriais, e estratégias de postagem.</p>
-            <ul className="list-disc pl-5 mt-2 space-y-1 text-slate-400">
-              <li>Reutilização da tabela <em>social_accounts</em>.</li>
-              <li>Configuração de perfil editorial, categorias e posts/dia por conta.</li>
-              <li>Preparação para OAuth em fases futuras.</li>
+            <p className="text-emerald-400 font-bold">A infraestrutura oficial de conexão social está operacional.</p>
+            <p>O Flux Post agora suporta TikTok Login Kit via OAuth 2.0 com proteção de tokens server-side.</p>
+            <ul className="list-disc pl-5 mt-2 space-y-1 text-slate-400 text-xs">
+              <li><strong>Security Vault:</strong> Tokens armazenados em tabela restrita (service_role only).</li>
+              <li><strong>CSRF Protection:</strong> Implementado via State temporário criptográfico.</li>
+              <li><strong>TikTok Integration:</strong> Fluxo completo de autorização e sincronização de perfil.</li>
             </ul>
+            <div className="mt-4 pt-4 border-t border-white/5 flex gap-4 text-[10px] text-slate-500 italic">
+              <span>Módulos: tiktok-oauth-start, tiktok-oauth-callback, social_account_credentials</span>
+            </div>
           </div>
         </div>
 
