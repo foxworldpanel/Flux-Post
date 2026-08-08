@@ -147,17 +147,13 @@ export default function GarimpoPage() {
       setImportedIds((prev) => new Set([...prev, video.id]));
       toast.success("Vídeo importado com sucesso para a Biblioteca!", { id: "import-pexels" });
       setSelectedVideo(null);
-    } catch (err: unknown) {
-      const error = err as { message?: string; status?: number; name?: string };
-      console.error("Erro detalhado na importação:", error);
-
-      if (error.name === "FunctionsHttpError") {
-        toast.error(`Erro de Rede: Falha ao contatar servidor (${error.status})`, { id: "import-pexels" });
-      } else if (
-        error.status === 409 ||
-        error.message?.includes("duplicate") ||
-        error.message?.includes("Biblioteca")
-      ) {
+    } catch (err: any) {
+      console.error("[GARIMPO] Erro detalhado na importação:", err);
+      
+      const stageMessage = err.stage ? ` (${err.stage})` : "";
+      const errorMessage = err.message || "Erro desconhecido";
+      
+      if (err.status === 409 || err.duplicate || errorMessage.includes("duplicate") || errorMessage.includes("Biblioteca")) {
         setImportedIds((prev) => new Set([...prev, video.id]));
         toast.info("Este conteúdo já está na sua Biblioteca.", {
           id: "import-pexels",
@@ -166,12 +162,14 @@ export default function GarimpoPage() {
             onClick: () => navigate("/videos"),
           },
         });
-      } else if (error.status === 429 || error.message?.includes("rate limit")) {
+      } else if (err.name === "FunctionsHttpError") {
+        toast.error(`Erro de Rede: Falha ao contatar servidor (${err.status})${stageMessage}`, { id: "import-pexels" });
+      } else if (err.status === 429 || errorMessage.includes("rate limit")) {
         toast.error("Limite temporário da API Pexels. Tente novamente em instantes.", {
           id: "import-pexels",
         });
       } else {
-        toast.error(error.message || "Erro ao importar vídeo", { id: "import-pexels" });
+        toast.error(`Falha na importação${stageMessage}: ${errorMessage}`, { id: "import-pexels" });
       }
     } finally {
       setImportingId(null);

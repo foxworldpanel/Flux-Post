@@ -230,6 +230,7 @@ export type Database = {
           category: string | null
           created_at: string | null
           duration_seconds: number | null
+          external_id: string | null
           first_used_at: string | null
           id: string
           last_used_at: string | null
@@ -254,6 +255,7 @@ export type Database = {
           category?: string | null
           created_at?: string | null
           duration_seconds?: number | null
+          external_id?: string | null
           first_used_at?: string | null
           id?: string
           last_used_at?: string | null
@@ -278,6 +280,7 @@ export type Database = {
           category?: string | null
           created_at?: string | null
           duration_seconds?: number | null
+          external_id?: string | null
           first_used_at?: string | null
           id?: string
           last_used_at?: string | null

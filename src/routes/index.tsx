@@ -1,19 +1,18 @@
 import { useState, useEffect } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { 
   TrendingUp, 
-  Users, 
-  Play, 
-  MessageSquare, 
   Heart, 
+  MessageSquare, 
   Share2, 
   Activity, 
   Lightbulb,
   ArrowUpRight,
   Sparkles,
-  Music2
+  Music2,
+  Play
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -209,3 +208,4 @@ export default function Index() {
     </DashboardLayout>
   );
 }
+
