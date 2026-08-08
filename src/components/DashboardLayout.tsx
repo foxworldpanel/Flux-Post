@@ -34,7 +34,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
     { label: "Músicas", icon: Music, href: "/musics" },
     { label: "Garimpo", icon: Search, href: "/garimpo" },
     { label: "Biblioteca", icon: Video, href: "/videos" },
-    { label: "Contas", icon: Users, href: "/accounts" },
+    { label: "Contas Sociais", icon: Users, href: "/accounts" },
     { label: "Agenda", icon: Calendar, href: "/schedule" },
     { label: "Publicações", icon: History, href: "/publicacoes" },
     { label: "Analytics", icon: BarChart3, href: "/analytics" },

@@ -835,14 +835,27 @@ export type Database = {
       social_accounts: {
         Row: {
           account_name: string | null
+          artist_id: string | null
           avatar_url: string | null
           connection_metadata: Json | null
+          connection_status: string | null
           created_at: string | null
+          editorial_profile: string | null
           external_account_id: string | null
           id: string
+          last_post_at: string | null
+          last_sync_at: string | null
+          metadata: Json | null
           platform: string
+          posting_enabled: boolean | null
+          posts_per_day: number | null
           posts_today: number | null
+          preferred_categories: string[] | null
+          profile_image_url: string | null
+          receive_all_campaigns: boolean | null
           status: string | null
+          timezone: string | null
+          token_expires_at: string | null
           total_posts: number | null
           updated_at: string | null
           user_id: string | null
@@ -850,14 +863,27 @@ export type Database = {
         }
         Insert: {
           account_name?: string | null
+          artist_id?: string | null
           avatar_url?: string | null
           connection_metadata?: Json | null
+          connection_status?: string | null
           created_at?: string | null
+          editorial_profile?: string | null
           external_account_id?: string | null
           id?: string
+          last_post_at?: string | null
+          last_sync_at?: string | null
+          metadata?: Json | null
           platform: string
+          posting_enabled?: boolean | null
+          posts_per_day?: number | null
           posts_today?: number | null
+          preferred_categories?: string[] | null
+          profile_image_url?: string | null
+          receive_all_campaigns?: boolean | null
           status?: string | null
+          timezone?: string | null
+          token_expires_at?: string | null
           total_posts?: number | null
           updated_at?: string | null
           user_id?: string | null
@@ -865,20 +891,41 @@ export type Database = {
         }
         Update: {
           account_name?: string | null
+          artist_id?: string | null
           avatar_url?: string | null
           connection_metadata?: Json | null
+          connection_status?: string | null
           created_at?: string | null
+          editorial_profile?: string | null
           external_account_id?: string | null
           id?: string
+          last_post_at?: string | null
+          last_sync_at?: string | null
+          metadata?: Json | null
           platform?: string
+          posting_enabled?: boolean | null
+          posts_per_day?: number | null
           posts_today?: number | null
+          preferred_categories?: string[] | null
+          profile_image_url?: string | null
+          receive_all_campaigns?: boolean | null
           status?: string | null
+          timezone?: string | null
+          token_expires_at?: string | null
           total_posts?: number | null
           updated_at?: string | null
           user_id?: string | null
           username?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "social_accounts_artist_id_fkey"
+            columns: ["artist_id"]
+            isOneToOne: false
+            referencedRelation: "artists"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       tiktok_accounts: {
         Row: {
