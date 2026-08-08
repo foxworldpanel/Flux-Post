@@ -66,7 +66,22 @@ export default function Index() {
           </div>
         </div>
 
+        <div className="bg-[#13131F]/50 border border-white/5 rounded-2xl p-6 mb-8">
+          <div className="flex items-center gap-3 mb-4">
+            <Badge className="bg-purple-600">FASE 2.2 OPERACIONAL</Badge>
+            <span className="text-xs text-slate-500 font-mono">Status: Consolidado</span>
+          </div>
+          <div className="text-sm text-slate-400 font-mono leading-relaxed space-y-2">
+            <p>FASE 2.2 — GARIMPO AUTOMÁTICO E ESTOQUE INTELIGENTE — FLUX POST</p>
+            <p>• Integração Pexels consolidada com Edge Functions seguras.</p>
+            <p>• Fila de Candidatos operacional em /garimpo.</p>
+            <p>• Configurações de Automação com RLS restritivo.</p>
+            <p>• Dashboard alimentado por dados reais (Estoque/IA).</p>
+          </div>
+        </div>
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+
           <div className="lg:col-span-2 space-y-8">
             <section>
               <div className="flex items-center justify-between mb-6">
