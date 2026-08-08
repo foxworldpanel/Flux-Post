@@ -90,8 +90,16 @@ export const contentService = {
     page?: number;
     per_page?: number;
   }) {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) {
+      throw new Error("Sessão expirada. Faça login novamente.");
+    }
+
     const { data, error } = await supabase.functions.invoke("pexels-search", {
       body: params,
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+      },
     });
 
     if (error) throw error;
@@ -100,8 +108,23 @@ export const contentService = {
 
   async importPexelsVideo(params: { videoId: number; category: string }) {
     console.log("[CONTENT_SERVICE] Invoking import-pexels-content for:", params.videoId);
+    
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    
+    if (sessionError || !session?.access_token) {
+      console.error("[CONTENT_SERVICE] No session found");
+      throw {
+        message: "Sessão expirada. Faça login novamente.",
+        status: 401,
+        stage: "auth"
+      };
+    }
+
     const { data, error } = await supabase.functions.invoke("import-pexels-content", {
       body: params,
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+      },
     });
 
     if (error) {
@@ -110,22 +133,21 @@ export const contentService = {
       let errorMessage = "Erro na importação";
       let stage = "unknown";
       
-      // Handle FunctionsHttpError and extract real body if possible
       if (error instanceof Error && 'context' in error) {
         try {
-          // Supabase FunctionsHttpError usually has the response body in the error context or message
-          // The JS SDK might wrap it. Let's try to extract JSON from the response.
           const err = error as any;
           if (err.context && typeof err.context.json === 'function') {
              const body = await err.context.json();
              errorMessage = body.error || errorMessage;
              stage = body.stage || stage;
           } else if (err.message) {
-            // Sometimes the error message contains the JSON string
             try {
-              const parsed = JSON.parse(err.message.substring(err.message.indexOf('{')));
-              errorMessage = parsed.error || errorMessage;
-              stage = parsed.stage || stage;
+              const jsonPart = err.message.substring(err.message.indexOf('{'));
+              if (jsonPart.startsWith('{')) {
+                const parsed = JSON.parse(jsonPart);
+                errorMessage = parsed.error || errorMessage;
+                stage = parsed.stage || stage;
+              }
             } catch (e) {
               errorMessage = err.message;
             }
