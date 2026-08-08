@@ -3,13 +3,29 @@ import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { TrendingUp, Heart, MessageSquare, Share2, Play } from "lucide-react";
+import { socialService } from "@/services/social";
 
 export default function Index() {
   const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({ views: "0", likes: "0", comments: "0", shares: "0" });
+  const [stats, setStats] = useState({ totalAccounts: 0, connected: 0, disconnected: 0 });
+
+  const loadStats = async () => {
+    try {
+      const accounts = await socialService.getAccounts();
+      setStats({
+        totalAccounts: accounts.length,
+        connected: accounts.filter((a: any) => a.connection_status === 'conectada').length,
+        disconnected: accounts.filter((a: any) => a.connection_status === 'nao_conectada').length
+      });
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    setLoading(false);
+    loadStats();
   }, []);
 
   return (
@@ -40,18 +56,21 @@ export default function Index() {
             <section>
               <h2 className="text-xl font-space font-semibold text-white mb-6 flex items-center gap-2">
                 <TrendingUp className="text-purple-500 w-5 h-5" />
-                Performance
+                Performance das Contas
               </h2>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {[
-                  { label: "Views", value: stats.views, icon: Play },
-                  { label: "Likes", value: stats.likes, icon: Heart },
-                  { label: "Comments", value: stats.comments, icon: MessageSquare },
-                  { label: "Shares", value: stats.shares, icon: Share2 },
+                  { label: "Total", value: stats.totalAccounts, icon: Play },
+                  { label: "Conectadas", value: stats.connected, icon: Heart },
+                  { label: "Não Conectadas", value: stats.disconnected, icon: MessageSquare },
+                  { label: "Posts Hoje", value: "0", icon: Share2 },
                 ].map((stat, i) => (
                   <Card key={i} className="bg-[#13131F] border-white/5">
                     <CardContent className="p-5 space-y-2">
-                      <stat.icon className="w-4 h-4 text-purple-400" />
+                      <div className="flex items-center gap-2">
+                         <stat.icon className="w-4 h-4 text-purple-400" />
+                         <span className="text-xs text-slate-500 uppercase">{stat.label}</span>
+                      </div>
                       <p className="text-2xl font-bold text-white">{stat.value}</p>
                     </CardContent>
                   </Card>
@@ -75,3 +94,4 @@ export default function Index() {
     </DashboardLayout>
   );
 }
+
