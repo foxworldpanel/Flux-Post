@@ -86,9 +86,23 @@ serve(async (req) => {
 
   try {
     const authHeader = req.headers.get('Authorization')
-    if (!authHeader) {
-      console.error('[IMPORT] No authorization header');
-      return new Response(JSON.stringify({ error: 'No authorization header', success: false, stage: 'auth' }), { 
+    const hasAuth = !!authHeader
+    const token = authHeader?.replace('Bearer ', '')
+    const hasToken = !!token
+
+    console.log(`[IMPORT] Authorization header present: ${hasAuth}`)
+    console.log(`[IMPORT] Token extracted: ${hasToken}`)
+    console.log(`[IMPORT] SUPABASE_URL configured: ${!!SUPABASE_URL}`)
+    console.log(`[IMPORT] SERVICE_ROLE configured: ${!!SUPABASE_SERVICE_ROLE_KEY}`)
+
+    if (!authHeader || !token) {
+      console.error('[IMPORT] No authorization header or token');
+      return new Response(JSON.stringify({ 
+        error: 'Sessão inválida ou expirada', 
+        success: false, 
+        stage: 'auth',
+        auth_debug: { header_present: hasAuth, token_present: hasToken }
+      }), { 
         status: 401, 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
       });
@@ -103,12 +117,16 @@ serve(async (req) => {
     }
 
     const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!)
-    const token = authHeader.replace('Bearer ', '')
     const { data: { user }, error: userError } = await supabase.auth.getUser(token)
 
     if (userError || !user) {
       console.error('[IMPORT] Auth failed:', userError?.message);
-      return new Response(JSON.stringify({ error: 'Unauthorized', success: false, stage: 'auth' }), { 
+      return new Response(JSON.stringify({ 
+        error: 'Sessão inválida ou expirada', 
+        success: false, 
+        stage: 'auth',
+        auth_debug: { header_present: true, token_present: true }
+      }), { 
         status: 401, 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
       });
