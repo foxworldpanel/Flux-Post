@@ -223,6 +223,135 @@ export type Database = {
           },
         ]
       }
+      content_candidates: {
+        Row: {
+          author: string | null
+          category: string | null
+          discovered_at: string | null
+          duration: number | null
+          external_id: string
+          height: number | null
+          id: string
+          metadata: Json | null
+          orientation: string | null
+          original_url: string | null
+          preview_url: string | null
+          reviewed_at: string | null
+          search_term: string | null
+          source: string
+          status: string | null
+          user_id: string
+          width: number | null
+        }
+        Insert: {
+          author?: string | null
+          category?: string | null
+          discovered_at?: string | null
+          duration?: number | null
+          external_id: string
+          height?: number | null
+          id?: string
+          metadata?: Json | null
+          orientation?: string | null
+          original_url?: string | null
+          preview_url?: string | null
+          reviewed_at?: string | null
+          search_term?: string | null
+          source?: string
+          status?: string | null
+          user_id: string
+          width?: number | null
+        }
+        Update: {
+          author?: string | null
+          category?: string | null
+          discovered_at?: string | null
+          duration?: number | null
+          external_id?: string
+          height?: number | null
+          id?: string
+          metadata?: Json | null
+          orientation?: string | null
+          original_url?: string | null
+          preview_url?: string | null
+          reviewed_at?: string | null
+          search_term?: string | null
+          source?: string
+          status?: string | null
+          user_id?: string
+          width?: number | null
+        }
+        Relationships: []
+      }
+      content_discovery_categories: {
+        Row: {
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          search_terms: string[] | null
+          target_count: number | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          search_terms?: string[] | null
+          target_count?: number | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          search_terms?: string[] | null
+          target_count?: number | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      content_discovery_settings: {
+        Row: {
+          default_orientation: string | null
+          id: string
+          is_active: boolean | null
+          max_duration: number | null
+          max_per_execution: number | null
+          min_duration: number | null
+          target_stock: number | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          default_orientation?: string | null
+          id?: string
+          is_active?: boolean | null
+          max_duration?: number | null
+          max_per_execution?: number | null
+          min_duration?: number | null
+          target_stock?: number | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          default_orientation?: string | null
+          id?: string
+          is_active?: boolean | null
+          max_duration?: number | null
+          max_per_execution?: number | null
+          min_duration?: number | null
+          target_stock?: number | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       content_library: {
         Row: {
           artist_id: string | null

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { 
   TrendingUp, 
@@ -12,9 +12,13 @@ import {
   ArrowUpRight,
   Sparkles,
   Music2,
-  Play
+  Play,
+  FileText,
+  ChevronDown,
+  ChevronUp
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+
 
 export default function Index() {
   const [loading, setLoading] = useState(true);
@@ -62,7 +66,22 @@ export default function Index() {
           </div>
         </div>
 
+        <div className="bg-[#13131F]/50 border border-white/5 rounded-2xl p-6 mb-8">
+          <div className="flex items-center gap-3 mb-4">
+            <Badge className="bg-purple-600">FASE 2.2 OPERACIONAL</Badge>
+            <span className="text-xs text-slate-500 font-mono">Status: Consolidado</span>
+          </div>
+          <div className="text-sm text-slate-400 font-mono leading-relaxed space-y-2">
+            <p>FASE 2.2 — GARIMPO AUTOMÁTICO E ESTOQUE INTELIGENTE — FLUX POST</p>
+            <p>• Integração Pexels consolidada com Edge Functions seguras.</p>
+            <p>• Fila de Candidatos operacional em /garimpo.</p>
+            <p>• Configurações de Automação com RLS restritivo.</p>
+            <p>• Dashboard alimentado por dados reais (Estoque/IA).</p>
+          </div>
+        </div>
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+
           <div className="lg:col-span-2 space-y-8">
             <section>
               <div className="flex items-center justify-between mb-6">
@@ -169,6 +188,40 @@ export default function Index() {
           <div className="space-y-8">
             <section>
               <h2 className="text-xl font-space font-semibold text-white mb-6 flex items-center gap-2">
+                <FileText className="text-purple-500 w-5 h-5" />
+                Estoque Inteligente
+              </h2>
+              <Card className="bg-[#13131F] border-white/5">
+                <CardContent className="p-6 space-y-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Status Geral</p>
+                      <h3 className="text-2xl font-space font-bold text-white">0/0</h3>
+                    </div>
+                    <Badge variant="outline" className="border-white/10 text-slate-400">
+                      Aguardando Dados
+                    </Badge>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-slate-400">Biblioteca Aprovada</span>
+                      <span className="text-white font-medium">0</span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-slate-400">Candidatos Pendentes</span>
+                      <span className="text-white font-medium">0</span>
+                    </div>
+                    <div className="w-full bg-white/5 h-1.5 rounded-full overflow-hidden">
+                      <div className="bg-purple-600 h-full w-0 transition-all duration-1000" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </section>
+
+            <section>
+              <h2 className="text-xl font-space font-semibold text-white mb-6 flex items-center gap-2">
                 <Lightbulb className="text-purple-500 w-5 h-5" />
                 Flux Intelligence
               </h2>
@@ -193,16 +246,8 @@ export default function Index() {
                 </CardContent>
               </Card>
             </section>
-
-            <section>
-              <h2 className="text-xl font-space font-semibold text-white mb-6">Contas Conectadas</h2>
-              <div className="space-y-3">
-                <div className="py-8 text-center border border-dashed border-white/10 rounded-2xl">
-                  <p className="text-white/40 text-sm">Nenhuma conta conectada</p>
-                </div>
-              </div>
-            </section>
           </div>
+
         </div>
       </div>
     </DashboardLayout>
