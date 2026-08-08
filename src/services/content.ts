@@ -33,21 +33,17 @@ export const contentService = {
     if (error) {
       console.error("[CONTENT SERVICE] Error calling Edge Function:", error);
       
-      // Try to extract detailed error if it's a FunctionsHttpError
       if (error.name === 'FunctionsHttpError') {
         try {
-          // The error object might contain the response body
           const details = await (error as any).context?.json();
           if (details) throw details;
         } catch (e) {
-          // If not parsable, throw original or with status
           throw error;
         }
       }
       throw error;
     }
 
-    // If successful and was a candidate, update status
     if (candidateId) {
       await supabase
         .from('content_candidates')
@@ -81,5 +77,25 @@ export const contentService = {
       })
       .eq('id', id);
     if (error) throw error;
+  },
+
+  // Restored methods
+  async getLibrary() {
+    const { data, error } = await supabase
+      .from('content_library')
+      .select('*')
+      .order('created_at', { ascending: false });
+    
+    if (error) throw error;
+    return data;
+  },
+
+  async getSignedUrl(path: string) {
+    const { data, error } = await supabase.storage
+      .from('content-library')
+      .createSignedUrl(path, 3600); // 1 hour
+
+    if (error) throw error;
+    return data.signedUrl;
   }
 };
