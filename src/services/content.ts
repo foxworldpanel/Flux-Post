@@ -1,182 +1,85 @@
 import { supabase } from "@/integrations/supabase/client";
-import { Database } from "@/integrations/supabase/types";
-
-type Content = Database["public"]["Tables"]["content_library"]["Row"] & {
-  source?: string;
-  external_id?: string;
-  author?: string;
-  original_url?: string;
-  credit?: string;
-  license_info?: string;
-};
-type ContentInsert = Database["public"]["Tables"]["content_library"]["Insert"];
-
-const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
-const ALLOWED_MIME_TYPES = ["video/mp4", "video/quicktime", "video/x-msvideo"];
 
 export const contentService = {
-  async getLibrary(): Promise<Content[]> {
-    const { data, error } = await supabase
-      .from("content_library")
-      .select("*")
-      .order("created_at", { ascending: false });
-    if (error) throw error;
-    return data || [];
-  },
-
-  async uploadContent(
-    file: File,
-    metadata: Omit<ContentInsert, "storage_path" | "user_id">,
-  ): Promise<Content> {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) throw new Error("Usuário não autenticado");
-
-    // Validation
-    if (file.size > MAX_FILE_SIZE) {
-      throw new Error("Arquivo excede o limite de 100MB");
-    }
-    if (!ALLOWED_MIME_TYPES.includes(file.type)) {
-      throw new Error("Formato de vídeo não suportado. Use MP4, MOV ou AVI.");
-    }
-
-    const fileName = `${user.id}/${Date.now()}-${file.name.replace(/\s+/g, "_")}`;
-
-    const { error: uploadError } = await supabase.storage
-      .from("content-library")
-      .upload(fileName, file, {
-        cacheControl: "3600",
-        upsert: false,
-      });
-
-    if (uploadError) throw uploadError;
-
-    try {
-      const { data, error } = await supabase
-        .from("content_library")
-        .insert({
-          ...metadata,
-          storage_path: fileName,
-          user_id: user.id,
-        } as ContentInsert)
-        .select()
-        .single();
-
-      if (error) throw error;
-      return data;
-    } catch (dbError) {
-      await supabase.storage.from("content-library").remove([fileName]);
-      throw dbError;
-    }
-  },
-
-  async getSignedUrl(path: string): Promise<string> {
-    const { data, error } = await supabase.storage
-      .from("content-library")
-      .createSignedUrl(path, 3600); // 1 hour expiry
-
-    if (error) {
-      console.error("Erro ao gerar signed URL:", error.message);
-      throw error;
-    }
-
-    return data.signedUrl;
-  },
-
-  async searchPexels(params: {
+  async searchPexels({ query, orientation, page = 1, per_page = 20 }: {
     query: string;
-    orientation?: "landscape" | "portrait" | "square";
+    orientation?: string;
     page?: number;
     per_page?: number;
   }) {
     const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.access_token) {
-      throw new Error("Sessão expirada. Faça login novamente.");
-    }
-
+    
     const { data, error } = await supabase.functions.invoke("pexels-search", {
-      body: params,
+      body: { query, orientation, page, per_page },
       headers: {
-        Authorization: `Bearer ${session.access_token}`,
-      },
+        Authorization: `Bearer ${session?.access_token}`
+      }
     });
 
     if (error) throw error;
     return data;
   },
 
-  async importPexelsVideo(params: { videoId: number; category: string }) {
-    console.log("[CONTENT_SERVICE] Invoking import-pexels-content for:", params.videoId);
-    
-    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-    
-    if (sessionError || !session?.access_token) {
-      console.error("[CONTENT_SERVICE] No session found");
-      throw {
-        message: "Sessão expirada. Faça login novamente.",
-        status: 401,
-        stage: "auth"
-      };
-    }
+  async importPexelsVideo({ videoId, category, candidateId }: { videoId: number; category: string; candidateId?: string }) {
+    const { data: { session } } = await supabase.auth.getSession();
 
     const { data, error } = await supabase.functions.invoke("import-pexels-content", {
-      body: params,
+      body: { videoId, category },
       headers: {
-        Authorization: `Bearer ${session.access_token}`,
-      },
+        Authorization: `Bearer ${session?.access_token}`
+      }
     });
 
     if (error) {
-      console.error("[CONTENT_SERVICE] Function invocation error:", error);
+      console.error("[CONTENT SERVICE] Error calling Edge Function:", error);
       
-      let errorMessage = "Erro na importação";
-      let stage = "unknown";
-      
-      if (error instanceof Error && 'context' in error) {
+      // Try to extract detailed error if it's a FunctionsHttpError
+      if (error.name === 'FunctionsHttpError') {
         try {
-          const err = error as any;
-          if (err.context && typeof err.context.json === 'function') {
-             const body = await err.context.json();
-             errorMessage = body.error || errorMessage;
-             stage = body.stage || stage;
-          } else if (err.message) {
-            try {
-              const jsonPart = err.message.substring(err.message.indexOf('{'));
-              if (jsonPart.startsWith('{')) {
-                const parsed = JSON.parse(jsonPart);
-                errorMessage = parsed.error || errorMessage;
-                stage = parsed.stage || stage;
-              }
-            } catch (e) {
-              errorMessage = err.message;
-            }
-          }
+          // The error object might contain the response body
+          const details = await (error as any).context?.json();
+          if (details) throw details;
         } catch (e) {
-          console.error("Failed to parse function error body", e);
+          // If not parsable, throw original or with status
+          throw error;
         }
       }
-
-      throw {
-        message: errorMessage,
-        status: (error as any).status || 500,
-        name: (error as any).name,
-        stage: stage,
-        details: error
-      };
+      throw error;
     }
+
+    // If successful and was a candidate, update status
+    if (candidateId) {
+      await supabase
+        .from('content_candidates')
+        .update({ 
+          status: 'aprovado', 
+          reviewed_at: new Date().toISOString() 
+        })
+        .eq('id', candidateId);
+    }
+
     return data;
   },
 
-  async checkDuplicate(source: string, externalId: string) {
-    const { data, error } = await supabase
-      .from("content_library")
-      .select("id")
-      .eq("source", source)
-      .eq("external_id", externalId)
-      .maybeSingle();
-
+  async runDiscovery() {
+    const { data: { session } } = await supabase.auth.getSession();
+    const { data, error } = await supabase.functions.invoke("run-content-discovery", {
+      headers: {
+        Authorization: `Bearer ${session?.access_token}`
+      }
+    });
     if (error) throw error;
     return data;
   },
+
+  async discardCandidate(id: string) {
+    const { error } = await supabase
+      .from('content_candidates')
+      .update({ 
+        status: 'descartado', 
+        reviewed_at: new Date().toISOString() 
+      })
+      .eq('id', id);
+    if (error) throw error;
+  }
 };
