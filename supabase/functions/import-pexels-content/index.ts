@@ -88,7 +88,7 @@ serve(async (req) => {
     const authHeader = req.headers.get('Authorization')
     if (!authHeader) {
       console.error('[IMPORT] No authorization header');
-      return new Response(JSON.stringify({ error: 'No authorization header' }), { 
+      return new Response(JSON.stringify({ error: 'No authorization header', success: false, stage: 'auth' }), { 
         status: 401, 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
       });
@@ -96,7 +96,10 @@ serve(async (req) => {
 
     if (!PEXELS_API_KEY) {
       console.error('[IMPORT] PEXELS_API_KEY not configured');
-      throw new Error('PEXELS_API_KEY not configured');
+      return new Response(JSON.stringify({ error: 'PEXELS_API_KEY not configured', success: false, stage: 'config' }), { 
+        status: 500, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      });
     }
 
     const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!)
@@ -105,28 +108,27 @@ serve(async (req) => {
 
     if (userError || !user) {
       console.error('[IMPORT] Auth failed:', userError?.message);
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), { 
+      return new Response(JSON.stringify({ error: 'Unauthorized', success: false, stage: 'auth' }), { 
         status: 401, 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
       });
     }
 
-    console.log(`[IMPORT] User authenticated: ${user.id}`);
+    console.log(`[IMPORT] user authenticated: ${user.id}`);
 
     const { videoId, category } = await req.json()
 
     if (!videoId) {
       console.error('[IMPORT] videoId is missing');
-      return new Response(JSON.stringify({ error: 'videoId is required' }), { 
+      return new Response(JSON.stringify({ error: 'videoId is required', success: false, stage: 'input' }), { 
         status: 400, 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
       });
     }
 
-    console.log(`[IMPORT] Processing videoId: ${videoId}`);
+    console.log(`[IMPORT] checking duplicate for videoId: ${videoId}`);
 
-    // --- DUPLICATE CHECK BEFORE DOWNLOAD ---
-    console.log('[IMPORT] Checking duplicate');
+    // --- DUPLICATE CHECK ---
     const { data: existing } = await supabase
       .from('content_library')
       .select('id')
@@ -136,89 +138,87 @@ serve(async (req) => {
       .maybeSingle()
 
     if (existing) {
+      console.log('[IMPORT] duplicate found');
       return new Response(
         JSON.stringify({ 
           success: false, 
           duplicate: true, 
           existing_content_id: existing.id,
-          message: 'Este conteúdo já está na sua Biblioteca.' 
+          message: 'Este conteúdo já está na sua Biblioteca.',
+          stage: 'duplicate_check'
         }), 
         { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    // 1. Fetch video info from Pexels
-    console.log(`[IMPORT] Fetching Pexels metadata for ${videoId}`);
+    // 1. Fetch metadata
+    console.log('[IMPORT] fetching Pexels metadata');
     const pexelsRes = await fetch(`https://api.pexels.com/videos/videos/${videoId}`, {
       headers: { 'Authorization': PEXELS_API_KEY }
     })
     
     if (!pexelsRes.ok) {
       const status = pexelsRes.status
-      if (status === 429) return new Response(JSON.stringify({ error: 'Pexels rate limit' }), { status: 429, headers: corsHeaders })
-      return new Response(JSON.stringify({ error: 'Video not found in Pexels' }), { status: 404, headers: corsHeaders })
+      console.error(`[IMPORT] Pexels API status: ${status}`);
+      if (status === 429) return new Response(JSON.stringify({ error: 'Pexels rate limit', success: false, stage: 'pexels_fetch' }), { status: 429, headers: corsHeaders })
+      if (status === 404) return new Response(JSON.stringify({ error: 'Video not found in Pexels', success: false, stage: 'pexels_fetch' }), { status: 404, headers: corsHeaders })
+      return new Response(JSON.stringify({ error: `Pexels API error: ${status}`, success: false, stage: 'pexels_fetch' }), { status, headers: corsHeaders })
     }
 
     const videoData: PexelsVideo = await pexelsRes.json()
-    console.log('[IMPORT] Selecting best video file');
+    console.log('[IMPORT] selecting video file');
     const selectedFile = selectBestVideoFile(videoData.video_files);
 
     if (!selectedFile) {
-      console.error('[IMPORT] No suitable video file found');
-      return new Response(JSON.stringify({ error: 'No suitable video file found' }), { 
-        status: 404, 
+      console.error('[IMPORT] no selected file found');
+      return new Response(JSON.stringify({ error: 'No suitable video file found', success: false, stage: 'file_selection' }), { 
+        status: 422, 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
       });
     }
 
-    // 2. Head check for size if possible
-    console.log(`[IMPORT] HEAD check for: ${selectedFile.link}`);
-    const headRes = await fetch(selectedFile.link, { method: 'HEAD' });
-    const contentLength = headRes.headers.get('content-length');
-    if (contentLength && parseInt(contentLength) > MAX_STORAGE_SIZE) {
-      console.error('[IMPORT] File too large (HEAD):', contentLength);
-      return new Response(JSON.stringify({ error: 'Arquivo muito grande (> 100MB)' }), { 
-        status: 400, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-      });
-    }
+    console.log(`[IMPORT] selected file: ${selectedFile.width}x${selectedFile.height}, ${selectedFile.file_type}`);
 
-    // 3. Download the video
-    console.log('[IMPORT] Downloading video file');
+    // 2. Download
+    console.log('[IMPORT] downloading');
     const videoRes = await fetch(selectedFile.link)
+    if (!videoRes.ok) {
+      console.error(`[IMPORT] download failed: ${videoRes.status}`);
+      return new Response(JSON.stringify({ error: 'Falha no download do vídeo', success: false, stage: 'download' }), { status: 502, headers: corsHeaders })
+    }
+
     const blob = await videoRes.blob()
+    console.log(`[IMPORT] download success, size: ${blob.size}`);
 
     if (blob.size > MAX_STORAGE_SIZE) {
-      console.error('[IMPORT] File too large (Blob):', blob.size);
-      return new Response(JSON.stringify({ error: 'Arquivo baixado excede o limite de 100MB' }), { 
-        status: 400, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-      });
+      console.error('[IMPORT] file too large');
+      return new Response(JSON.stringify({ error: 'Arquivo excede 100MB', success: false, stage: 'download' }), { status: 413, headers: corsHeaders })
     }
 
-    // 4. Upload to Supabase Storage - DETERMINISTIC PATH
-    console.log('[IMPORT] Uploading to Storage');
+    // 3. Storage
+    console.log('[IMPORT] uploading storage');
     const fileName = `${user.id}/pexels/${videoId}/original.mp4`
-    
     const { error: uploadError } = await supabase.storage
       .from('content-library')
       .upload(fileName, blob, {
         contentType: 'video/mp4',
-        upsert: true // Using upsert for resilience, though duplicate check should prevent it
+        upsert: true
       })
 
-    if (uploadError) throw uploadError
+    if (uploadError) {
+      console.error('[IMPORT] storage upload error:', uploadError);
+      return new Response(JSON.stringify({ error: uploadError.message, success: false, stage: 'storage_upload' }), { status: 500, headers: corsHeaders })
+    }
 
-    let recordId = null
+    // 4. Database
     try {
-      // 5. Create record in content_library
-      console.log('[IMPORT] Inserting database record');
+      console.log('[IMPORT] inserting database');
       const { data: record, error: dbError } = await supabase
         .from('content_library')
         .insert({
           user_id: user.id,
           title: `Pexels Video ${videoId}`,
-          storage_path: fileName, // Using storage_path as per schema
+          storage_path: fileName,
           file_type: 'video',
           category: category || 'Outros',
           status: 'aprovado',
@@ -234,30 +234,36 @@ serve(async (req) => {
         .single()
 
       if (dbError) throw dbError
-      recordId = record.id
 
-      console.log('[IMPORT] Success:', recordId);
+      console.log('[IMPORT] success');
       return new Response(
         JSON.stringify({ success: true, record }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     } catch (dbError) {
-      // --- CLEANUP ORPHAN STORAGE FILE ---
-      console.error('[import-pexels-content] DB Insert failed, cleaning up storage:', dbError.message || dbError)
+      console.error('[IMPORT] FAILED stage: database_insert', {
+        name: dbError.name,
+        message: dbError.message
+      })
       await supabase.storage.from('content-library').remove([fileName])
       return new Response(
-        JSON.stringify({ error: 'Erro ao salvar no banco de dados', details: dbError.message }),
+        JSON.stringify({ error: dbError.message, success: false, stage: 'database_insert' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
   } catch (error) {
-    console.error('[import-pexels-content] GLOBAL ERROR:', error.message || error)
+    console.error('[IMPORT] FAILED stage: unknown', {
+      name: error instanceof Error ? error.name : 'Unknown',
+      message: error instanceof Error ? error.message : String(error)
+    })
     return new Response(
       JSON.stringify({ 
+        success: false,
         error: error.message || 'Erro interno na importação',
-        stack: error.stack
+        stage: 'unknown'
       }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
 })
+
