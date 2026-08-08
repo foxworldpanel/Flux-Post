@@ -6,7 +6,6 @@ import { TrendingUp, Heart, MessageSquare, Share2, Play } from "lucide-react";
 import { socialService } from "@/services/social";
 
 export default function Index() {
-  const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({ totalAccounts: 0, connected: 0, disconnected: 0 });
 
   const loadStats = async () => {
@@ -19,8 +18,6 @@ export default function Index() {
       });
     } catch (err) {
       console.error(err);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -94,4 +91,5 @@ export default function Index() {
     </DashboardLayout>
   );
 }
+
 
