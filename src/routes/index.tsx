@@ -1,8 +1,9 @@
+
 import { useState, useEffect } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { TrendingUp, Heart, MessageSquare, Share2, Play } from "lucide-react";
+import { TrendingUp, Heart, MessageSquare, Share2, Play, ShieldCheck, Lock, Key, Server, RefreshCw } from "lucide-react";
 import { socialService } from "@/services/social";
 
 export default function Index() {
@@ -36,17 +37,63 @@ export default function Index() {
         </div>
 
         <div className="bg-[#13131F]/50 border border-white/5 rounded-2xl p-6">
-          <Badge className="bg-emerald-600 mb-4 text-[10px] uppercase font-bold">FASE 3.2A — TIKTOK OAUTH ATIVO</Badge>
-          <div className="text-sm text-slate-300 font-mono leading-relaxed space-y-2">
-            <p className="text-emerald-400 font-bold">A infraestrutura oficial de conexão social está operacional.</p>
-            <p>O Flux Post agora suporta TikTok Login Kit via OAuth 2.0 com proteção de tokens server-side.</p>
-            <ul className="list-disc pl-5 mt-2 space-y-1 text-slate-400 text-xs">
-              <li><strong>Security Vault:</strong> Tokens armazenados em tabela restrita (service_role only).</li>
-              <li><strong>CSRF Protection:</strong> Implementado via State temporário criptográfico.</li>
-              <li><strong>TikTok Integration:</strong> Fluxo completo de autorização e sincronização de perfil.</li>
-            </ul>
-            <div className="mt-4 pt-4 border-t border-white/5 flex gap-4 text-[10px] text-slate-500 italic">
-              <span>Módulos: tiktok-oauth-start, tiktok-oauth-callback, social_account_credentials</span>
+          <Badge className="bg-blue-600 mb-4 text-[10px] uppercase font-bold flex w-fit items-center gap-1">
+            <ShieldCheck className="w-3 h-3" />
+            FASE 3.2A — HARDENING DE SEGURANÇA CONCLUÍDO
+          </Badge>
+          <div className="text-sm text-slate-300 font-mono leading-relaxed space-y-4">
+            <p className="text-blue-400 font-bold border-b border-white/5 pb-2">
+              Auditoria de segurança e blindagem de tokens concluída.
+            </p>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <p className="flex items-center gap-2 text-white text-xs">
+                  <Lock className="w-3 h-3 text-blue-500" />
+                  CRIPTOGRAFIA AES-GCM
+                </p>
+                <p className="text-[11px] text-slate-400">
+                  Tokens agora são criptografados em repouso usando Web Crypto API (Deno) com IV aleatório por entrada. Sem fallbacks de chave.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <p className="flex items-center gap-2 text-white text-xs">
+                  <Server className="w-3 h-3 text-blue-500" />
+                  DISCONNECT SERVER-SIDE
+                </p>
+                <p className="text-[11px] text-slate-400">
+                  Fluxo de desconexão movido para Edge Function. Frontend não possui mais privilégios de DELETE em credenciais.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <p className="flex items-center gap-2 text-white text-xs">
+                  <RefreshCw className="w-3 h-3 text-blue-500" />
+                  REFRESH TOKEN AUTOMÁTICO
+                </p>
+                <p className="text-[11px] text-slate-400">
+                  Implementada Edge Function <code>tiktok-token-refresh</code> para renovação segura de tokens sem exposição ao cliente.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <p className="flex items-center gap-2 text-white text-xs">
+                  <Key className="w-3 h-3 text-blue-500" />
+                  PROTEÇÃO DE CALLBACK
+                </p>
+                <p className="text-[11px] text-slate-400">
+                  Validação atômica de State (single-use), verificação de duplicidade de conta e sanitização rigorosa de logs de produção.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-4 pt-4 border-t border-white/5 flex flex-wrap gap-4 text-[10px] text-slate-500 italic uppercase tracking-wider">
+              <span>Algoritmo: AES-GCM (256-bit)</span>
+              <span>•</span>
+              <span>Scope: user.info.basic</span>
+              <span>•</span>
+              <span>Status: Pronto para Credenciais Reais</span>
             </div>
           </div>
         </div>
@@ -94,5 +141,3 @@ export default function Index() {
     </DashboardLayout>
   );
 }
-
-

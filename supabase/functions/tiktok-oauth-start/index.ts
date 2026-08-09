@@ -1,11 +1,8 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { corsHeaders } from "../_shared/social-helpers.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -58,8 +55,17 @@ serve(async (req) => {
     }
 
     const TIKTOK_CLIENT_KEY = Deno.env.get("TIKTOK_CLIENT_KEY");
-    if (!TIKTOK_CLIENT_KEY) {
-      return new Response(JSON.stringify({ error: "Configuração TikTok pendente." }), {
+    const TIKTOK_REDIRECT_URI = Deno.env.get("TIKTOK_REDIRECT_URI");
+
+    if (!TIKTOK_CLIENT_KEY || !TIKTOK_REDIRECT_URI) {
+      return new Response(JSON.stringify({ error: "Configuração TikTok pendente (Client Key ou Redirect URI ausente)." }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (!Deno.env.get("SOCIAL_TOKEN_ENCRYPTION_KEY")) {
+      return new Response(JSON.stringify({ error: "Configuração de segurança pendente (Encryption Key ausente)." }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -85,7 +91,7 @@ serve(async (req) => {
 
     // Montar URL oficial do TikTok
     // Endereço de callback (deve estar configurado no console do TikTok)
-    const redirectUri = `${new URL(req.url).origin.replace("functions/v1/tiktok-oauth-start", "functions/v1/tiktok-oauth-callback")}`;
+    const redirectUri = TIKTOK_REDIRECT_URI;
     
     // Scopes mínimos conforme requisitos da Fase 3.2A
     const scope = "user.info.basic"; 
