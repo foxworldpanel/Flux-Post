@@ -39,7 +39,7 @@ serve(async (req) => {
     // Validar se a conta pertence ao usuário
     const { data: account, error: accError } = await supabaseAdmin
       .from("social_accounts")
-      .select("id, user_id")
+      .select("id, user_id, provider, provider_connection_id")
       .eq("id", social_account_id)
       .eq("user_id", user.id)
       .single();
@@ -51,13 +51,27 @@ serve(async (req) => {
       });
     }
 
-    // 1. Remover credenciais
+    // 1. Se for PostPeer, tentar desconectar no provedor
+    if (account.provider === 'postpeer' && account.provider_connection_id) {
+      const POSTPEER_API_KEY = Deno.env.get("POSTPEER_API_KEY");
+      if (POSTPEER_API_KEY) {
+        try {
+          const { PostPeerClient } = await import("../_shared/social-helpers.ts");
+          const postpeer = new PostPeerClient(POSTPEER_API_KEY);
+          await postpeer.deleteConnection(account.provider_connection_id);
+        } catch (e) {
+          console.warn("Could not disconnect from PostPeer provider:", e);
+        }
+      }
+    }
+
+    // 2. Remover credenciais locais (fallback direct)
     await supabaseAdmin
       .from("social_account_credentials")
       .delete()
       .eq("social_account_id", social_account_id);
 
-    // 2. Limpar campos da conta social
+    // 3. Limpar campos da conta social
     const { error: updateError } = await supabaseAdmin
       .from("social_accounts")
       .update({
@@ -65,7 +79,12 @@ serve(async (req) => {
         external_account_id: null,
         token_expires_at: null,
         last_sync_at: null,
-        profile_image_url: null
+        profile_image_url: null,
+        provider_connection_id: null,
+        provider_account_id: null,
+        provider_status: null,
+        connected_at: null,
+        provider: null
       })
       .eq("id", social_account_id);
 
