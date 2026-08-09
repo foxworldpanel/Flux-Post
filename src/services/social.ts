@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 export type SocialPlatform = 'tiktok' | 'instagram' | 'youtube' | 'facebook';
 export type ConnectionStatus = 'nao_conectada' | 'conectada' | 'token_expirado' | 'erro' | 'requer_reconexao';
 export type OperationalStatus = 'active' | 'paused' | 'archived';
+export type SocialProviderName = 'postpeer' | 'tiktok_direct' | 'meta_direct' | 'youtube_direct';
 
 export interface SocialAccount {
   id: string;
@@ -24,6 +25,11 @@ export interface SocialAccount {
   last_sync_at?: string;
   connection_status: ConnectionStatus;
   token_expires_at?: string;
+  provider?: SocialProviderName;
+  provider_connection_id?: string;
+  provider_account_id?: string;
+  provider_status?: string;
+  connected_at?: string;
   metadata: any;
   created_at: string;
   updated_at: string;
@@ -78,6 +84,25 @@ export const socialService = {
     return this.updateAccount(id, { status: 'archived' });
   },
 
+  async connectAccount(socialAccountId: string) {
+    const { data, error } = await supabase.functions.invoke('postpeer-connect', {
+      body: { social_account_id: socialAccountId }
+    });
+    
+    if (error) {
+      // Tratar erro específico de configuração pendente
+      try {
+        const errorBody = JSON.parse(await error.response.text());
+        if (errorBody.error === 'postpeer_config_pending') {
+          throw new Error("Configuração PostPeer pendente.");
+        }
+      } catch (e) {}
+      throw error;
+    }
+    
+    return data; // { authorization_url }
+  },
+
   async startTikTokOAuth(socialAccountId: string) {
     const { data, error } = await supabase.functions.invoke('tiktok-oauth-start', {
       body: { social_account_id: socialAccountId }
@@ -93,5 +118,11 @@ export const socialService = {
     
     if (error) throw error;
     return data;
+  },
+
+  async syncAccount(id: string) {
+    // Placeholder para futura Edge Function de sync
+    console.log("Syncing account:", id);
+    return { success: true };
   }
 };

@@ -62,18 +62,20 @@ export default function AccountsPage() {
   useEffect(() => {
     loadData();
 
-    // Capturar parâmetros de callback do OAuth
+    // Capturar parâmetros de callback do OAuth / PostPeer
     const params = new URLSearchParams(window.location.search);
     const success = params.get('success');
     const error = params.get('error');
 
-    if (success === 'tiktok_connected') {
-      toast.success("TikTok conectado com sucesso!");
-      // Limpa a URL
+    if (success === 'tiktok_connected' || success === 'postpeer_connected') {
+      toast.success(success === 'tiktok_connected' ? "TikTok conectado com sucesso!" : "Conta conectada via PostPeer!");
       window.history.replaceState({}, document.title, window.location.pathname);
       loadData();
     } else if (error) {
-      const msg = error === 'Configuração TikTok pendente.' ? error : "Erro na conexão: " + error;
+      let msg = error;
+      if (error === 'config_pending' || error === 'postpeer_config_pending') msg = "Configuração PostPeer pendente.";
+      if (error === 'already_connected') msg = "Esta conta social já está conectada ao Flux Post.";
+      
       toast.error(msg);
       window.history.replaceState({}, document.title, window.location.pathname);
     }
@@ -133,7 +135,26 @@ export default function AccountsPage() {
     }
   };
 
-  const handleConnectTikTok = async (account: SocialAccount) => {
+  const handleConnect = async (account: SocialAccount) => {
+    try {
+      setIsConnecting(true);
+      
+      // PostPeer é o provider padrão para todas as plataformas na Fase 3.2B
+      const { authorization_url } = await socialService.connectAccount(account.id);
+      
+      if (authorization_url) {
+        window.location.href = authorization_url;
+      }
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message || "Erro ao iniciar conexão.");
+    } finally {
+      setIsConnecting(false);
+      setIsConnectDialogOpen(false);
+    }
+  };
+
+  const handleConnectTikTokDirect = async (account: SocialAccount) => {
     try {
       setIsConnecting(true);
       const { authorization_url } = await socialService.startTikTokOAuth(account.id);
@@ -142,12 +163,7 @@ export default function AccountsPage() {
       }
     } catch (err: any) {
       console.error(err);
-      const errorBody = err.message || "";
-      if (errorBody.includes("Configuração TikTok pendente")) {
-        toast.error("Configuração TikTok pendente.");
-      } else {
-        toast.error("Erro ao iniciar conexão TikTok.");
-      }
+      toast.error(err.message || "Erro ao iniciar conexão TikTok Direta.");
     } finally {
       setIsConnecting(false);
       setIsConnectDialogOpen(false);
@@ -263,11 +279,17 @@ export default function AccountsPage() {
                 </div>
 
                 <div className="flex-1 space-y-3">
-                   <div className="flex justify-between items-center text-xs">
+                   <div className="flex justify-between items-center text-[10px]">
                       <span className="text-slate-500 uppercase font-bold">Artista/Label</span>
-                      <span className="text-white">{account.artist?.name || 'Label / Gravadora'}</span>
+                      <span className="text-white truncate max-w-[120px]">{account.artist?.name || 'Label / Gravadora'}</span>
                    </div>
-                   <div className="flex justify-between items-center text-xs">
+                   <div className="flex justify-between items-center text-[10px]">
+                      <span className="text-slate-500 uppercase font-bold">Provider</span>
+                      <span className="text-white bg-white/5 px-2 py-0.5 rounded uppercase text-[9px]">
+                        {account.provider === 'postpeer' ? 'PostPeer' : (account.provider || 'Direto')}
+                      </span>
+                   </div>
+                   <div className="flex justify-between items-center text-[10px]">
                       <span className="text-slate-500 uppercase font-bold">Posts/Dia</span>
                       <span className="text-white">{account.posts_per_day} posts</span>
                    </div>
@@ -295,7 +317,7 @@ export default function AccountsPage() {
                   }}>
                     CONFIGURAR
                   </Button>
-                  {account.connection_status === 'nao_conectada' && account.platform === 'tiktok' && (
+                  {account.connection_status === 'nao_conectada' && (
                     <Button variant="outline" size="sm" className="flex-1 border-purple-500/30 text-purple-400 hover:bg-purple-500/10 text-xs h-8" 
                       onClick={() => {
                         setConnectingAccount(account);
@@ -310,9 +332,10 @@ export default function AccountsPage() {
                       DESCONECTAR
                     </Button>
                   )}
-                  {account.connection_status === 'nao_conectada' && account.platform !== 'tiktok' && (
-                    <Button variant="outline" size="sm" disabled className="flex-1 border-white/5 text-slate-600 text-xs h-8">
-                      EM BREVE
+                  {account.connection_status === 'conectada' && (
+                    <Button variant="outline" size="sm" className="flex-1 border-white/10 hover:bg-white/5 text-slate-400 text-xs h-8" 
+                      onClick={() => socialService.syncAccount(account.id).then(() => toast.success("Sincronizado!"))}>
+                      SINCRONIZAR
                     </Button>
                   )}
                   <div className="flex gap-1">
@@ -508,35 +531,44 @@ export default function AccountsPage() {
         <Dialog open={isConnectDialogOpen} onOpenChange={setIsConnectDialogOpen}>
           <DialogContent className="bg-[#0A0A0F] border-white/10 text-white">
             <DialogHeader>
-              <DialogTitle className="text-xl font-bold font-space">Conectar TikTok</DialogTitle>
+              <DialogTitle className="text-xl font-bold font-space">Conectar Conta</DialogTitle>
             </DialogHeader>
             <div className="py-6 space-y-4">
               <div className="flex items-center gap-4 bg-white/5 p-4 rounded-xl border border-white/10">
-                <div className="w-12 h-12 rounded-full bg-black flex items-center justify-center text-2xl">📱</div>
+                <div className="w-12 h-12 rounded-full bg-black flex items-center justify-center text-2xl">
+                  {connectingAccount?.platform === 'tiktok' ? '📱' : connectingAccount?.platform === 'instagram' ? '📸' : connectingAccount?.platform === 'youtube' ? '🎥' : '👥'}
+                </div>
                 <div>
                   <p className="font-bold">{connectingAccount?.account_name}</p>
                   <p className="text-xs text-slate-500">@{connectingAccount?.username}</p>
+                  <p className="text-[10px] text-purple-400 uppercase mt-1">Via PostPeer Provider</p>
                 </div>
               </div>
               <p className="text-sm text-slate-400 leading-relaxed">
-                Você será redirecionado para o TikTok para autorizar o <strong>Flux Post</strong> a acessar suas informações básicas de perfil.
+                Você será redirecionado para o <strong>PostPeer</strong> para autorizar a conexão oficial da sua rede social.
               </p>
-              <div className="bg-amber-500/10 border border-amber-500/20 p-3 rounded-lg flex gap-3 items-start">
-                <Settings className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
-                <p className="text-[10px] text-amber-200/70">
-                  Nota: Esta fase implementa apenas a conexão de identidade. A funcionalidade de postagem será ativada em fases futuras após validação técnica.
-                </p>
-              </div>
+              
+              {connectingAccount?.platform === 'tiktok' && (
+                <div className="pt-2 border-t border-white/5">
+                  <Button 
+                    variant="link" 
+                    className="text-[10px] text-slate-500 p-0 h-auto hover:text-white"
+                    onClick={() => connectingAccount && handleConnectTikTokDirect(connectingAccount)}
+                  >
+                    Alternativa: Usar Conexão Direta TikTok (Fallback)
+                  </Button>
+                </div>
+              )}
             </div>
             <DialogFooter>
               <Button variant="ghost" onClick={() => setIsConnectDialogOpen(false)} disabled={isConnecting}>CANCELAR</Button>
               <Button 
                 className="bg-[#7C3AED] hover:bg-[#6D28D9]" 
                 disabled={isConnecting}
-                onClick={() => connectingAccount && handleConnectTikTok(connectingAccount)}
+                onClick={() => connectingAccount && handleConnect(connectingAccount)}
               >
                 {isConnecting ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : null}
-                AUTORIZAR NO TIKTOK
+                CONECTAR VIA POSTPEER
               </Button>
             </DialogFooter>
           </DialogContent>
