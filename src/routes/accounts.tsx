@@ -531,35 +531,44 @@ export default function AccountsPage() {
         <Dialog open={isConnectDialogOpen} onOpenChange={setIsConnectDialogOpen}>
           <DialogContent className="bg-[#0A0A0F] border-white/10 text-white">
             <DialogHeader>
-              <DialogTitle className="text-xl font-bold font-space">Conectar TikTok</DialogTitle>
+              <DialogTitle className="text-xl font-bold font-space">Conectar Conta</DialogTitle>
             </DialogHeader>
             <div className="py-6 space-y-4">
               <div className="flex items-center gap-4 bg-white/5 p-4 rounded-xl border border-white/10">
-                <div className="w-12 h-12 rounded-full bg-black flex items-center justify-center text-2xl">📱</div>
+                <div className="w-12 h-12 rounded-full bg-black flex items-center justify-center text-2xl">
+                  {connectingAccount?.platform === 'tiktok' ? '📱' : connectingAccount?.platform === 'instagram' ? '📸' : connectingAccount?.platform === 'youtube' ? '🎥' : '👥'}
+                </div>
                 <div>
                   <p className="font-bold">{connectingAccount?.account_name}</p>
                   <p className="text-xs text-slate-500">@{connectingAccount?.username}</p>
+                  <p className="text-[10px] text-purple-400 uppercase mt-1">Via PostPeer Provider</p>
                 </div>
               </div>
               <p className="text-sm text-slate-400 leading-relaxed">
-                Você será redirecionado para o TikTok para autorizar o <strong>Flux Post</strong> a acessar suas informações básicas de perfil.
+                Você será redirecionado para o <strong>PostPeer</strong> para autorizar a conexão oficial da sua rede social.
               </p>
-              <div className="bg-amber-500/10 border border-amber-500/20 p-3 rounded-lg flex gap-3 items-start">
-                <Settings className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
-                <p className="text-[10px] text-amber-200/70">
-                  Nota: Esta fase implementa apenas a conexão de identidade. A funcionalidade de postagem será ativada em fases futuras após validação técnica.
-                </p>
-              </div>
+              
+              {connectingAccount?.platform === 'tiktok' && (
+                <div className="pt-2 border-t border-white/5">
+                  <Button 
+                    variant="link" 
+                    className="text-[10px] text-slate-500 p-0 h-auto hover:text-white"
+                    onClick={() => connectingAccount && handleConnectTikTokDirect(connectingAccount)}
+                  >
+                    Alternativa: Usar Conexão Direta TikTok (Fallback)
+                  </Button>
+                </div>
+              )}
             </div>
             <DialogFooter>
               <Button variant="ghost" onClick={() => setIsConnectDialogOpen(false)} disabled={isConnecting}>CANCELAR</Button>
               <Button 
                 className="bg-[#7C3AED] hover:bg-[#6D28D9]" 
                 disabled={isConnecting}
-                onClick={() => connectingAccount && handleConnectTikTok(connectingAccount)}
+                onClick={() => connectingAccount && handleConnect(connectingAccount)}
               >
                 {isConnecting ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : null}
-                AUTORIZAR NO TIKTOK
+                CONECTAR VIA POSTPEER
               </Button>
             </DialogFooter>
           </DialogContent>
