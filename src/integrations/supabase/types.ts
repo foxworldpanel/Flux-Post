@@ -890,6 +890,7 @@ export type Database = {
           account_name: string | null
           artist_id: string | null
           avatar_url: string | null
+          connected_at: string | null
           connection_metadata: Json | null
           connection_status: string | null
           created_at: string | null
@@ -905,6 +906,10 @@ export type Database = {
           posts_today: number | null
           preferred_categories: string[] | null
           profile_image_url: string | null
+          provider: string | null
+          provider_account_id: string | null
+          provider_connection_id: string | null
+          provider_status: string | null
           receive_all_campaigns: boolean | null
           status: string | null
           timezone: string | null
@@ -918,6 +923,7 @@ export type Database = {
           account_name?: string | null
           artist_id?: string | null
           avatar_url?: string | null
+          connected_at?: string | null
           connection_metadata?: Json | null
           connection_status?: string | null
           created_at?: string | null
@@ -933,6 +939,10 @@ export type Database = {
           posts_today?: number | null
           preferred_categories?: string[] | null
           profile_image_url?: string | null
+          provider?: string | null
+          provider_account_id?: string | null
+          provider_connection_id?: string | null
+          provider_status?: string | null
           receive_all_campaigns?: boolean | null
           status?: string | null
           timezone?: string | null
@@ -946,6 +956,7 @@ export type Database = {
           account_name?: string | null
           artist_id?: string | null
           avatar_url?: string | null
+          connected_at?: string | null
           connection_metadata?: Json | null
           connection_status?: string | null
           created_at?: string | null
@@ -961,6 +972,10 @@ export type Database = {
           posts_today?: number | null
           preferred_categories?: string[] | null
           profile_image_url?: string | null
+          provider?: string | null
+          provider_account_id?: string | null
+          provider_connection_id?: string | null
+          provider_status?: string | null
           receive_all_campaigns?: boolean | null
           status?: string | null
           timezone?: string | null
