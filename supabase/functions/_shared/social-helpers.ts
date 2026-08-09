@@ -73,6 +73,7 @@ export async function decryptToken(encryptedBase64: string, secretKey: string): 
   return new TextDecoder().decode(decrypted);
 }
 
+
 export interface TikTokTokenResponse {
   access_token: string;
   refresh_token: string;
@@ -101,3 +102,84 @@ export interface TikTokUserInfoResponse {
     log_id: string;
   };
 }
+
+// --- PostPeer Types ---
+
+export type SocialProviderName = 'postpeer' | 'tiktok_direct' | 'meta_direct' | 'youtube_direct';
+
+export interface PostPeerConnection {
+  id: string;
+  platform: string;
+  status: string;
+  external_account_id?: string;
+  username?: string;
+  display_name?: string;
+  avatar_url?: string;
+  metadata?: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PostPeerApiError {
+  error: string;
+  message: string;
+  code?: string;
+}
+
+/**
+ * PostPeer API Wrapper
+ */
+export class PostPeerClient {
+  private apiKey: string;
+  private baseUrl = "https://api.postpeer.app/v1"; // Premise: check doc if possible
+
+  constructor(apiKey: string) {
+    this.apiKey = apiKey;
+  }
+
+  private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+    const response = await fetch(`${this.baseUrl}${endpoint}`, {
+      ...options,
+      headers: {
+        "Authorization": `Bearer ${this.apiKey}`,
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw {
+        error: data.error || "postpeer_api_error",
+        message: data.message || "Unknown error from PostPeer",
+        status: response.status,
+      };
+    }
+
+    return data as T;
+  }
+
+  async createConnection(payload: {
+    platform: string;
+    redirect_url: string;
+    state?: string;
+    metadata?: Record<string, unknown>;
+  }): Promise<{ connection_id: string; authorization_url: string }> {
+    return this.request("/connections", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async getConnection(connectionId: string): Promise<PostPeerConnection> {
+    return this.request(`/connections/${connectionId}`);
+  }
+
+  async deleteConnection(connectionId: string): Promise<{ success: boolean }> {
+    return this.request(`/connections/${connectionId}`, {
+      method: "DELETE",
+    });
+  }
+}
+
