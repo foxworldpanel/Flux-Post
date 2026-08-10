@@ -38,6 +38,11 @@ export default function GarimpoPage() {
   const [sortBy, setSortBy] = useState<string>("none");
 
   const fetchData = async () => {
+    // Load imported IDs for deduplication display
+    const library = await contentService.getLibrary();
+    const ids = new Set(library.map(item => item.metadata?.pexels_id?.toString()).filter(Boolean));
+    setImportedExternalIds(ids as Set<string>);
+
     if (activeTab === "candidatos") {
       setLoadingCandidates(true);
       const { data, error } = await supabase
