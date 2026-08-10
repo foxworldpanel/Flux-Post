@@ -326,8 +326,10 @@ export default function AccountsPage() {
                     </Button>
                   )}
                   {account.connection_status === 'conectada' && (
-                    <Button variant="outline" size="sm" className="flex-1 border-white/10 hover:bg-white/5 text-slate-400 text-xs h-8" 
-                      onClick={() => socialService.syncAccount(account.id).then(() => toast.success("Sincronizado!"))}>
+                <Button variant="outline" size="sm" className="flex-1 border-white/10 hover:bg-white/5 text-slate-400 text-xs h-8" 
+                      onClick={() => socialService.syncAccount(account.id)
+                        .then(() => { toast.success("Sincronizado!"); loadData(); })
+                        .catch((e: Error) => toast.error(e.message))}>
                       SINCRONIZAR
                     </Button>
                   )}
@@ -349,7 +351,7 @@ export default function AccountsPage() {
                    <Plus className="text-slate-600" />
                 </div>
                 <h3 className="text-xl font-bold text-white mb-2">Nenhuma conta social encontrada</h3>
-                <p className="text-slate-500 mb-6">Cadastre suas contas existentes para preparar a distribuição multicanal.</p>
+                <p className="text-slate-500 mb-6">Conecte uma rede social em poucos cliques. O login é feito na própria plataforma.</p>
                 <Button className="bg-[#7C3AED]" onClick={() => { setSelectedPlatform(null); setIsAddOpen(true); }}>
                   ADICIONAR PRIMEIRA CONTA
                 </Button>
@@ -362,9 +364,7 @@ export default function AccountsPage() {
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogContent className="bg-[#0A0A0F] border-white/10 text-white max-w-2xl overflow-y-auto max-h-[90vh]">
             <DialogHeader>
-              <DialogTitle className="text-2xl font-space font-bold">
-                {editingAccount?.id ? 'Configurar Conta' : 'Adicionar Nova Conta Social'}
-              </DialogTitle>
+              <DialogTitle className="text-2xl font-space font-bold">Configurar Conta</DialogTitle>
             </DialogHeader>
             <form onSubmit={handleSaveAccount} className="space-y-6 pt-4">
               <div className="grid grid-cols-2 gap-4">
@@ -555,23 +555,3 @@ export default function AccountsPage() {
   );
 }
 
-function Globe(props: any) {
-  return (
-    <svg
-      {...props}
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <circle cx="12" cy="12" r="10" />
-      <path d="M12 2a14.5 14.5 0 0 0 0 20" />
-      <path d="M2 12h20" />
-    </svg>
-  )
-}
