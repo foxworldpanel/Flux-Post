@@ -227,7 +227,12 @@ serve(async (req) => {
 
     // 5. Obter URL de Autorização
     console.log("OAUTH_START");
-    const callbackUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/postpeer-callback?state=${state}`;
+    const appUrl = Deno.env.get("APP_URL");
+    if (!appUrl) {
+      console.error("CRITICAL: APP_URL environment variable is missing.");
+      throw { status: 500, error: "app_url_missing", message: "Configuração APP_URL pendente no servidor." };
+    }
+    const callbackUrl = `${appUrl}/accounts?success=postpeer_connected`;
     
     const { url } = await postpeer.getOAuthUrl(
       account.platform,
