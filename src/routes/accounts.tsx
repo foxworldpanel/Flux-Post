@@ -324,10 +324,8 @@ export default function AccountsPage() {
                   </Button>
                   {account.connection_status === 'nao_conectada' && (
                     <Button variant="outline" size="sm" className="flex-1 border-purple-500/30 text-purple-400 hover:bg-purple-500/10 text-xs h-8" 
-                      onClick={() => {
-                        setConnectingAccount(account);
-                        setIsConnectDialogOpen(true);
-                      }}>
+                      disabled={isConnecting}
+                      onClick={() => handleReconnect(account)}>
                       CONECTAR
                     </Button>
                   )}
