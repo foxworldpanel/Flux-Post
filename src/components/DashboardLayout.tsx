@@ -32,16 +32,17 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
     { label: "Dashboard", icon: LayoutDashboard, href: "/" },
     { label: "Campanhas", icon: Megaphone, href: "/campanha" },
     { label: "Artistas", icon: Users, href: "/artistas" },
-    { label: "Músicas", icon: Music, href: "/musics" },
+    { label: "Músicas", icon: Music, href: "/musicas" },
     { label: "Garimpo", icon: Search, href: "/garimpo" },
-    { label: "Biblioteca", icon: Video, href: "/videos" },
+    { label: "Biblioteca", icon: Video, href: "/biblioteca" },
     { label: "Contas Sociais", icon: Users, href: "/accounts" },
-    { label: "Agenda", icon: Calendar, href: "/schedule" },
+    { label: "Agenda", icon: Calendar, href: "/agenda" },
     { label: "Publicações", icon: History, href: "/publicacoes" },
     { label: "Analytics", icon: BarChart3, href: "/analytics" },
     { label: "Processar", icon: Clapperboard, href: "/processar" },
     { label: "Segurança", icon: ShieldCheck, href: "/security-report" },
   ];
+
 
   const handleLogout = async () => {
     await supabase.auth.signOut();

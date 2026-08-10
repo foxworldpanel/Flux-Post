@@ -686,12 +686,15 @@ export type Database = {
           hashtags: string[] | null
           id: string
           last_error: string | null
+          metadata: Json | null
           music_id: string | null
           platform: string
           post_url: string | null
+          provider_post_id: string | null
           published_at: string | null
           scheduled_at: string | null
           status: string | null
+          timezone: string | null
           updated_at: string | null
           user_id: string | null
         }
@@ -705,12 +708,15 @@ export type Database = {
           hashtags?: string[] | null
           id?: string
           last_error?: string | null
+          metadata?: Json | null
           music_id?: string | null
           platform: string
           post_url?: string | null
+          provider_post_id?: string | null
           published_at?: string | null
           scheduled_at?: string | null
           status?: string | null
+          timezone?: string | null
           updated_at?: string | null
           user_id?: string | null
         }
@@ -724,12 +730,15 @@ export type Database = {
           hashtags?: string[] | null
           id?: string
           last_error?: string | null
+          metadata?: Json | null
           music_id?: string | null
           platform?: string
           post_url?: string | null
+          provider_post_id?: string | null
           published_at?: string | null
           scheduled_at?: string | null
           status?: string | null
+          timezone?: string | null
           updated_at?: string | null
           user_id?: string | null
         }
