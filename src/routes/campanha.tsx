@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -12,12 +12,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogTrigger,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import {
   Megaphone,
-  Music,
+  Music as MusicIcon,
   Calendar,
   Clock,
   RotateCcw,
@@ -29,18 +39,24 @@ import {
   X,
   Filter,
   Loader2,
+  Plus,
+  Globe,
+  LayoutDashboard,
+  CheckCircle2,
+  AlertTriangle,
 } from "lucide-react";
-import { format, addDays, differenceInDays } from "date-fns";
+import { format, addDays, differenceInDays, isBefore, isAfter, startOfDay, addMinutes, setHours, setMinutes } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import { artistService } from "@/services/artists";
 import { contentService } from "@/services/content";
-import { socialService } from "@/services/social";
-
+import { socialService, type SocialAccount } from "@/services/social";
 
 type MusicTrack = {
   id: string;
   nome: string;
   artista: string;
   artist_id: string;
+  storage_path: string | null;
 };
 
 type Artist = {
@@ -72,25 +88,83 @@ export default function CampanhaPage() {
   const [musicas, setMusicas] = useState<MusicTrack[]>([]);
   const [artistas, setArtistas] = useState<Artist[]>([]);
   const [biblioteca, setBiblioteca] = useState<any[]>([]);
+  const [socialAccounts, setSocialAccounts] = useState<SocialAccount[]>([]);
   const [selectedContentIds, setSelectedContentIds] = useState<string[]>([]);
+  const [selectedAccountIds, setSelectedAccountIds] = useState<string[]>([]);
   const [contentFilter, setContentFilter] = useState("todos");
   const [signedUrls, setSignedUrls] = useState<Record<string, string>>({});
   const [loadingUrls, setLoadingUrls] = useState<Record<string, boolean>>({});
   const [totalPosts, setTotalPosts] = useState(0);
+  
+  // Modal states for new music
+  const [isMusicModalOpen, setIsMusicModalOpen] = useState(false);
+  const [newMusicData, setNewMusicData] = useState({
+    nome: "",
+    file: null as File | null,
+    uploading: false
+  });
+  const musicFileInputRef = useRef<HTMLInputElement>(null);
 
   // Form states
   const [formData, setFormData] = useState({
     nome: "",
     artist_id: "",
     music_track_id: "",
-    posts_por_dia: 3,
+    posts_por_dia: 1,
     hora_inicio: "09:00",
-    hora_fim: "22:00",
-    intervalo_min: 40,
-    intervalo_max: 90,
+    hora_fim: "21:00",
+    intervalo_min: 30,
+    intervalo_max: 120,
     data_inicio: format(new Date(), "yyyy-MM-dd"),
-    data_fim: format(addDays(new Date(), 30), "yyyy-MM-dd"),
+    data_fim: format(addDays(new Date(), 7), "yyyy-MM-dd"),
+    timezone: "America/Sao_Paulo",
+    schedulingMode: "distribute" as "manual" | "distribute"
   });
+
+  // Calculate Scheduling Preview
+  const schedulingPreview = useMemo(() => {
+    if (!formData.data_inicio || !formData.data_fim || !selectedAccountIds.length || !selectedContentIds.length) {
+      return [];
+    }
+
+    const preview: any[] = [];
+    const startDate = new Date(formData.data_inicio + "T00:00:00");
+
+    const endDate = new Date(formData.data_fim + "T23:59:59");
+    const [startH, startM] = formData.hora_inicio.split(":").map(Number);
+    const [endH, endM] = formData.hora_fim.split(":").map(Number);
+    const postsPerDay = formData.posts_por_dia;
+    
+    let currentDay = startOfDay(startDate);
+    let videoIndex = 0;
+
+    while (isBefore(currentDay, endDate) || currentDay.getTime() === startOfDay(endDate).getTime()) {
+      for (let p = 0; p < postsPerDay; p++) {
+        const totalMinutes = (endH * 60 + endM) - (startH * 60 + startM);
+        const interval = totalMinutes > 0 ? totalMinutes / Math.max(1, postsPerDay) : 0;
+        const postTime = addMinutes(setMinutes(setHours(currentDay, startH), startM), interval * p);
+        
+        if (isBefore(postTime, startDate) || isAfter(postTime, endDate)) continue;
+
+        selectedAccountIds.forEach((accountId) => {
+          const account = socialAccounts.find(a => a.id === accountId);
+          preview.push({
+            date: postTime,
+            accountId,
+            accountName: account?.account_name || "Conta",
+            videoIndex: videoIndex % selectedContentIds.length
+          });
+        });
+        videoIndex++;
+      }
+      currentDay = addDays(currentDay, 1);
+    }
+
+    return preview.sort((a, b) => a.date.getTime() - b.date.getTime());
+  }, [formData, selectedAccountIds, selectedContentIds, socialAccounts]);
+
+  const totalEstimatedPosts = schedulingPreview.length;
+
 
   useEffect(() => {
     fetchData();
@@ -99,10 +173,13 @@ export default function CampanhaPage() {
   async function fetchData() {
     setLoading(true);
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
       // 1. Check for active campaign
       const { data: campanhas, error: campError } = await supabase
         .from("campanhas")
-        .select("*, music_tracks(id, nome, artista), artists(id, name)")
+        .select("*, music_tracks(id, nome, artista, storage_path, artist_id), artists(id, name)")
         .eq("status", "ativo")
         .maybeSingle();
 
@@ -111,7 +188,7 @@ export default function CampanhaPage() {
       if (campanhas) {
         setCampanhaAtiva(campanhas as any);
 
-        // Count posts realized from the canonical publications table
+        // Count posts
         const { count, error: countError } = await supabase
           .from("publications")
           .select("*", { count: "exact", head: true })
@@ -119,7 +196,6 @@ export default function CampanhaPage() {
           .eq("status", "published");
 
         if (!countError) setTotalPosts(count || 0);
-
 
         // Fetch campaign contents
         const { data: campaignContents, error: contentsError } = await supabase
@@ -130,13 +206,24 @@ export default function CampanhaPage() {
         if (!contentsError && campaignContents) {
           setSelectedContentIds(campaignContents.map((c) => c.content_id));
         }
+
+        // Fetch campaign social accounts
+        const { data: campaignAccounts, error: accountsRelError } = await supabase
+          .from("campaign_social_accounts")
+          .select("social_account_id")
+          .eq("campaign_id", campanhas.id);
+        
+        if (!accountsRelError && campaignAccounts) {
+          setSelectedAccountIds(campaignAccounts.map(a => a.social_account_id));
+        }
       }
 
       // Fetch data for new/existing campaign
-      const [artistsRes, tracksRes, libraryRes] = await Promise.all([
+      const [artistsRes, tracksRes, libraryRes, accountsRes] = await Promise.all([
         artistService.getArtists(),
-        supabase.from("music_tracks").select("id, nome, artista, artist_id"),
+        supabase.from("music_tracks").select("id, nome, artista, artist_id, storage_path"),
         supabase.from("content_library").select("*").order("created_at", { ascending: false }),
+        socialService.getConnectedAccounts()
       ]);
 
       if (tracksRes.error) throw tracksRes.error;
@@ -145,8 +232,9 @@ export default function CampanhaPage() {
       setArtistas(artistsRes || []);
       setMusicas(tracksRes.data || []);
       setBiblioteca(libraryRes.data || []);
+      setSocialAccounts(accountsRes || []);
 
-      // Pre-fetch signed URLs for library items
+      // Pre-fetch signed URLs
       if (libraryRes.data) {
         libraryRes.data.forEach((item) => {
           loadSignedUrl(item.id, item.storage_path);
@@ -173,6 +261,59 @@ export default function CampanhaPage() {
     }
   }
 
+  async function handleCreateMusic() {
+    if (!newMusicData.nome || !newMusicData.file || !formData.artist_id) {
+      toast.error("Preencha o nome, escolha um arquivo e certifique-se de que um artista está selecionado.");
+      return;
+    }
+
+    setNewMusicData(prev => ({ ...prev, uploading: true }));
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Usuário não autenticado");
+
+      // 1. Upload file
+      const fileExt = newMusicData.file.name.split('.').pop();
+      const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+      const filePath = `music/${user.id}/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('musicas')
+        .upload(filePath, newMusicData.file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('musicas')
+        .getPublicUrl(filePath);
+
+      // 2. Insert into DB
+      const { data: music, error: dbError } = await supabase
+        .from('music_tracks')
+        .insert({
+          nome: newMusicData.nome,
+          artist_id: formData.artist_id,
+          storage_path: publicUrl,
+          user_id: user.id
+        })
+        .select()
+        .single();
+
+      if (dbError) throw dbError;
+
+      // 3. Update local state and select it
+      setMusicas(prev => [music as any, ...prev]);
+      setFormData(prev => ({ ...prev, music_track_id: music.id }));
+      setIsMusicModalOpen(false);
+      setNewMusicData({ nome: "", file: null, uploading: false });
+      toast.success("Música adicionada e selecionada!");
+    } catch (error: any) {
+      toast.error("Erro ao adicionar música: " + error.message);
+    } finally {
+      setNewMusicData(prev => ({ ...prev, uploading: false }));
+    }
+  }
+
   async function handleIniciar() {
     if (!formData.nome || !formData.music_track_id || !formData.artist_id) {
       toast.error("Preencha o nome, escolha um artista e uma música");
@@ -184,11 +325,14 @@ export default function CampanhaPage() {
       return;
     }
 
+    if (selectedAccountIds.length === 0) {
+      toast.error("Selecione pelo menos uma conta social para publicação");
+      return;
+    }
+
     setSaving(true);
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Usuário não autenticado");
 
       // 1. Create campaign
@@ -209,10 +353,11 @@ export default function CampanhaPage() {
           data_inicio: formData.data_inicio,
           data_fim: formData.data_fim,
           status: "ativo",
-          user_id: user.id,
+          user_id: user.id
         })
         .select()
         .single();
+
 
       if (campError) throw campError;
 
@@ -228,28 +373,25 @@ export default function CampanhaPage() {
 
       if (contentError) throw contentError;
 
-      // 3. Update music track
+      // 3. Link social accounts
+      const accountInserts = selectedAccountIds.map(accountId => ({
+        campaign_id: newCamp.id,
+        social_account_id: accountId
+      }));
+
+      const { error: accountRelError } = await supabase
+        .from("campaign_social_accounts")
+        .insert(accountInserts);
+      
+      if (accountRelError) throw accountRelError;
+
+      // 4. Update music track
       await supabase
         .from("music_tracks")
         .update({ campanha_ativa: true })
         .eq("id", formData.music_track_id);
 
-      // 4. PREPARAR MVP: Agendar automaticamente 1 post de teste se houver conta conectada
-      const connectedAccounts = await socialService.getConnectedAccounts();
-      if (connectedAccounts.length > 0 && selectedContentIds.length > 0) {
-        toast.info("Agendando primeiro post de teste...");
-        await socialService.createPublication({
-          content_id: selectedContentIds[0],
-          account_id: connectedAccounts[0].id,
-          platform: connectedAccounts[0].platform,
-          caption: `Lançamento: ${musicas.find(m => m.id === formData.music_track_id)?.nome || 'Nova Música'} #fluxpost`,
-          scheduled_at: new Date(Date.now() + 10 * 60000).toISOString(), // 10 min a frente
-          timezone: "America/Sao_Paulo"
-        });
-        toast.success("Primeiro post agendado para daqui a 10 minutos!");
-      }
-
-      toast.success("Campanha iniciada com sucesso!");
+      toast.success("Campanha criada com sucesso! Você pode revisar a programação agora.");
       fetchData();
     } catch (error: any) {
       toast.error("Erro ao iniciar campanha: " + error.message);
@@ -257,7 +399,6 @@ export default function CampanhaPage() {
       setSaving(false);
     }
   }
-
 
   async function handleUpdateStatus(status: string) {
     if (!campanhaAtiva) return;
@@ -272,7 +413,6 @@ export default function CampanhaPage() {
       if (error) throw error;
 
       if (status === "encerrado") {
-        // Clear music track active flag
         await supabase
           .from("music_tracks")
           .update({ campanha_ativa: false })
@@ -291,6 +431,18 @@ export default function CampanhaPage() {
       setSaving(false);
     }
   }
+
+  const filteredMusics = useMemo(() => {
+    if (!formData.artist_id) return [];
+    return musicas.filter(m => m.artist_id === formData.artist_id);
+  }, [musicas, formData.artist_id]);
+
+  const toggleAccount = (id: string) => {
+    setSelectedAccountIds(prev => 
+      prev.includes(id) ? prev.filter(a => a !== id) : [...prev, id]
+    );
+  };
+
 
   if (loading) {
     return (
@@ -363,206 +515,381 @@ export default function CampanhaPage() {
 
                   <div className="space-y-2">
                     <Label className="text-white/80">Escolher Música</Label>
+                    <div className="flex gap-2">
+                      <Select
+                        value={formData.music_track_id}
+                        onValueChange={(v) => setFormData({ ...formData, music_track_id: v })}
+                        disabled={!formData.artist_id}
+                      >
+                        <SelectTrigger className="bg-white/5 border-white/10 text-white flex-1">
+                          <SelectValue
+                            placeholder={
+                              formData.artist_id
+                                ? "Selecione uma música"
+                                : "Selecione um artista primeiro"
+                            }
+                          />
+                        </SelectTrigger>
+                        <SelectContent className="bg-[#13131F] border-white/10 text-white">
+                          {musicas
+                            .filter((m) => m.artist_id === formData.artist_id)
+                            .map((m) => (
+                              <SelectItem key={m.id} value={m.id}>
+                                {m.nome}
+                              </SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                      <Dialog open={isMusicModalOpen} onOpenChange={setIsMusicModalOpen}>
+                        <DialogTrigger asChild>
+                          <Button 
+                            variant="outline" 
+                            size="icon" 
+                            className="shrink-0 bg-white/5 border-white/10 text-white hover:bg-white/10"
+                            disabled={!formData.artist_id}
+                          >
+                            <Plus className="h-4 w-4" />
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent className="bg-[#13131F] border-white/10 text-white sm:max-w-[425px]">
+                          <DialogHeader>
+                            <DialogTitle className="text-xl font-bold">Nova Música</DialogTitle>
+                            <DialogDescription className="text-white/60">
+                              Adicione uma nova música para o artista {artistas.find(a => a.id === formData.artist_id)?.name}.
+                            </DialogDescription>
+                          </DialogHeader>
+                          <div className="space-y-4 py-4">
+                            <div className="space-y-2">
+                              <Label htmlFor="music-name">Nome da Música</Label>
+                              <Input
+                                id="music-name"
+                                value={newMusicData.nome}
+                                onChange={(e) => setNewMusicData({ ...newMusicData, nome: e.target.value })}
+                                placeholder="Ex: Chill Vibe"
+                                className="bg-white/5 border-white/10 text-white"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="music-file">Arquivo de Áudio (MP3/WAV)</Label>
+                              <Input
+                                id="music-file"
+                                type="file"
+                                accept="audio/*"
+                                className="bg-white/5 border-white/10 text-white"
+                                onChange={(e) => {
+                                  if (e.target.files?.[0]) {
+                                    setNewMusicData({ ...newMusicData, file: e.target.files[0] });
+                                    if (!newMusicData.nome) {
+                                      setNewMusicData(prev => ({ ...prev, nome: e.target.files![0].name.split('.')[0] }));
+                                    }
+                                  }
+                                }}
+                              />
+                            </div>
+                          </div>
+                          <DialogFooter>
+                            <Button
+                              onClick={handleCreateMusic}
+                              disabled={newMusicData.uploading}
+                              className="bg-[#7C3AED] hover:bg-[#6D28D9] text-white w-full"
+                            >
+                              {newMusicData.uploading ? (
+                                <>
+                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                  Salvando...
+                                </>
+                              ) : "Salvar Música"}
+                            </Button>
+                          </DialogFooter>
+                        </DialogContent>
+                      </Dialog>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <Label className="text-white/80">Posts por dia</Label>
                     <Select
-                      value={formData.music_track_id}
-                      onValueChange={(v) => setFormData({ ...formData, music_track_id: v })}
-                      disabled={!formData.artist_id}
+                      value={formData.posts_por_dia.toString()}
+                      onValueChange={(v) => setFormData({ ...formData, posts_por_dia: parseInt(v) })}
                     >
                       <SelectTrigger className="bg-white/5 border-white/10 text-white">
-                        <SelectValue
-                          placeholder={
-                            formData.artist_id
-                              ? "Selecione uma música"
-                              : "Selecione um artista primeiro"
-                          }
-                        />
+                        <SelectValue placeholder="Selecione" />
                       </SelectTrigger>
                       <SelectContent className="bg-[#13131F] border-white/10 text-white">
-                        {musicas
-                          .filter((m) => m.artist_id === formData.artist_id)
-                          .map((m) => (
-                            <SelectItem key={m.id} value={m.id}>
-                              {m.nome}
-                            </SelectItem>
-                          ))}
+                        {[1, 2, 3, 4, 5].map((n) => (
+                          <SelectItem key={n} value={n.toString()}>{n} posts/dia</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-white/80">Timezone</Label>
+                    <Select
+                      value={formData.timezone}
+                      onValueChange={(v) => setFormData({ ...formData, timezone: v })}
+                    >
+                      <SelectTrigger className="bg-white/5 border-white/10 text-white">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-[#13131F] border-white/10 text-white">
+                        <SelectItem value="America/Sao_Paulo">America/Sao_Paulo</SelectItem>
+                        <SelectItem value="UTC">UTC</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label className="text-white/80">Posts por dia (máx 3)</Label>
-                  <Input
-                    type="number"
-                    min={1}
-                    max={3}
-                    className="bg-white/5 border-white/10 text-white"
-                    value={formData.posts_por_dia}
-                    onChange={(e) =>
-                      setFormData({ ...formData, posts_por_dia: parseInt(e.target.value) })
-                    }
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label className="text-white/80">Horário Início</Label>
-                    <Input
-                      type="time"
-                      className="bg-white/5 border-white/10 text-white"
-                      value={formData.hora_inicio}
-                      onChange={(e) => setFormData({ ...formData, hora_inicio: e.target.value })}
-                    />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label className="text-white/80">Data Início</Label>
+                      <Input
+                        type="date"
+                        className="bg-white/5 border-white/10 text-white"
+                        value={formData.data_inicio}
+                        onChange={(e) => setFormData({ ...formData, data_inicio: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-white/80">Data Fim</Label>
+                      <Input
+                        type="date"
+                        className="bg-white/5 border-white/10 text-white"
+                        value={formData.data_fim}
+                        onChange={(e) => setFormData({ ...formData, data_fim: e.target.value })}
+                      />
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label className="text-white/80">Horário Fim</Label>
-                    <Input
-                      type="time"
-                      className="bg-white/5 border-white/10 text-white"
-                      value={formData.hora_fim}
-                      onChange={(e) => setFormData({ ...formData, hora_fim: e.target.value })}
-                    />
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label className="text-white/80">Horário Início</Label>
+                      <Input
+                        type="time"
+                        className="bg-white/5 border-white/10 text-white"
+                        value={formData.hora_inicio}
+                        onChange={(e) => setFormData({ ...formData, hora_inicio: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-white/80">Horário Fim</Label>
+                      <Input
+                        type="time"
+                        className="bg-white/5 border-white/10 text-white"
+                        value={formData.hora_fim}
+                        onChange={(e) => setFormData({ ...formData, hora_fim: e.target.value })}
+                      />
+                    </div>
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label className="text-white/80">Intervalo Mínimo (minutos)</Label>
-                  <Input
-                    type="number"
-                    className="bg-white/5 border-white/10 text-white"
-                    value={formData.intervalo_min}
-                    onChange={(e) =>
-                      setFormData({ ...formData, intervalo_min: parseInt(e.target.value) })
-                    }
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label className="text-white/80">Intervalo Máximo (minutos)</Label>
-                  <Input
-                    type="number"
-                    className="bg-white/5 border-white/10 text-white"
-                    value={formData.intervalo_max}
-                    onChange={(e) =>
-                      setFormData({ ...formData, intervalo_max: parseInt(e.target.value) })
-                    }
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label className="text-white/80">Data Início</Label>
-                  <Input
-                    type="date"
-                    className="bg-white/5 border-white/10 text-white"
-                    value={formData.data_inicio}
-                    onChange={(e) => setFormData({ ...formData, data_inicio: e.target.value })}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label className="text-white/80">Data Fim</Label>
-                  <Input
-                    type="date"
-                    className="bg-white/5 border-white/10 text-white"
-                    value={formData.data_fim}
-                    onChange={(e) => setFormData({ ...formData, data_fim: e.target.value })}
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-4 pt-4 border-t border-white/5">
-                <div className="flex items-center justify-between">
+                <div className="space-y-4 pt-4 border-t border-white/5">
                   <div className="space-y-1">
-                    <Label className="text-white text-base font-semibold">
-                      CONTEÚDOS DA CAMPANHA
+                    <Label className="text-white text-base font-semibold uppercase">
+                      Contas de Publicação
                     </Label>
                     <p className="text-white/40 text-xs">
-                      {selectedContentIds.length} selecionados
+                      Selecione onde os vídeos serão postados
                     </p>
                   </div>
-                  <Select value={contentFilter} onValueChange={setContentFilter}>
-                    <SelectTrigger className="w-[150px] bg-white/5 border-white/10 text-white text-xs h-8">
-                      <div className="flex items-center gap-2">
-                        <Filter size={12} />
-                        <SelectValue placeholder="Filtrar" />
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {socialAccounts.length === 0 ? (
+                      <div className="col-span-full py-6 text-center border border-dashed border-white/10 rounded-xl">
+                        <p className="text-white/40 text-sm">Nenhuma conta conectada. Vá em Contas primeiro.</p>
                       </div>
-                    </SelectTrigger>
-                    <SelectContent className="bg-[#13131F] border-white/10 text-white">
-                      <SelectItem value="todos">Todos</SelectItem>
-                      <SelectItem value="raw">Raw</SelectItem>
-                      <SelectItem value="processed">Processados</SelectItem>
-                      <SelectItem value="artist">Do Artista</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
-                  {biblioteca
-                    .filter((c) => c.status !== "arquivado" && c.status !== "descartado")
-                    .filter((c) => {
-                      if (contentFilter === "todos") return true;
-                      if (contentFilter === "artist") return c.artist_id === formData.artist_id;
-                      return c.category === contentFilter;
-                    })
-                    .map((item) => {
-                      const isSelected = selectedContentIds.includes(item.id);
-                      return (
-                        <div
-                          key={item.id}
-                          onClick={() => {
-                            if (isSelected) {
-                              setSelectedContentIds((prev) => prev.filter((id) => id !== item.id));
-                            } else {
-                              setSelectedContentIds((prev) => [...prev, item.id]);
-                            }
-                          }}
-                          className={`relative aspect-video rounded-lg overflow-hidden border-2 cursor-pointer transition-all ${
-                            isSelected
-                              ? "border-primary"
-                              : "border-transparent hover:border-white/20"
+                    ) : (
+                      socialAccounts.map((account) => (
+                        <div 
+                          key={account.id}
+                          onClick={() => toggleAccount(account.id)}
+                          className={`p-4 rounded-xl border cursor-pointer transition-all flex items-center justify-between ${
+                            selectedAccountIds.includes(account.id)
+                              ? "bg-[#7C3AED]/10 border-[#7C3AED]"
+                              : "bg-white/5 border-white/10 hover:border-white/20"
                           }`}
                         >
-                          {loadingUrls[item.id] ? (
-                            <div className="w-full h-full flex items-center justify-center bg-white/5">
-                              <Loader2 className="w-4 h-4 text-primary animate-spin" />
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-black/20 overflow-hidden flex items-center justify-center">
+                              {account.profile_image_url ? (
+                                <img src={account.profile_image_url} alt="" className="w-full h-full object-cover" />
+                              ) : (
+                                <Globe className="w-5 h-5 text-slate-500" />
+                              )}
                             </div>
-                          ) : signedUrls[item.id] ? (
-                            <video
-                              src={signedUrls[item.id]}
-                              className="w-full h-full object-cover"
-                            />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center bg-white/5">
-                              <X className="w-4 h-4 text-red-500/50" />
+                            <div>
+                              <p className="text-sm font-bold text-white capitalize">{account.platform}</p>
+                              <p className="text-xs text-slate-400">{account.account_name}</p>
+                              <div className="flex items-center gap-1 mt-1">
+                                <div className={`w-1.5 h-1.5 rounded-full ${account.connection_status === 'conectada' ? 'bg-emerald-500' : 'bg-red-500'}`} />
+                                <span className="text-[10px] text-slate-500 font-bold uppercase tracking-tighter">
+                                  {account.connection_status === 'conectada' ? 'Conectada' : 'Desconectada'}
+                                </span>
+                              </div>
                             </div>
-                          )}
-                          <div className="absolute inset-0 bg-black/40 flex flex-col justify-end p-2">
-                            <p className="text-[10px] text-white font-medium truncate">
-                              {item.title}
-                            </p>
-                            <Badge className="w-fit text-[8px] h-3 px-1 mt-1 bg-white/20 hover:bg-white/20 border-none">
-                              {item.category}
-                            </Badge>
                           </div>
-                          {isSelected && (
-                            <div className="absolute top-1 right-1 bg-primary rounded-full p-0.5">
-                              <Check size={10} className="text-white" />
-                            </div>
-                          )}
+                          <Checkbox 
+                            checked={selectedAccountIds.includes(account.id)} 
+                            onCheckedChange={() => toggleAccount(account.id)}
+                            className="border-white/20 data-[state=checked]:bg-[#7C3AED]"
+                          />
                         </div>
-                      );
-                    })}
-                  {biblioteca.length === 0 && (
-                    <div className="col-span-full py-8 text-center border border-dashed border-white/10 rounded-xl">
-                      <p className="text-white/40 text-sm">
-                        Biblioteca vazia. Faça upload em Biblioteca primeiro.
+                      ))
+                    )}
+                  </div>
+                </div>
+
+
+                <div className="space-y-4 pt-4 border-t border-white/5">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-1">
+                      <Label className="text-white text-base font-semibold uppercase">
+                        Programação Sugerida
+                      </Label>
+                      <p className="text-white/40 text-xs">
+                        Cronograma de postagens baseado nas configurações
                       </p>
                     </div>
-                  )}
+                    {schedulingPreview.length > 0 && (
+                      <Badge variant="outline" className="bg-[#7C3AED]/10 text-[#7C3AED] border-[#7C3AED]/20">
+                        {totalEstimatedPosts} Posts Total
+                      </Badge>
+                    )}
+                  </div>
+
+                  <div className="bg-black/20 rounded-xl border border-white/5 overflow-hidden">
+                    {schedulingPreview.length === 0 ? (
+                      <div className="p-8 text-center">
+                        <p className="text-white/40 text-sm italic">
+                          Selecione as datas, horários e contas para ver a prévia da programação.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="max-h-[300px] overflow-y-auto custom-scrollbar">
+                        <table className="w-full text-left text-xs">
+                          <thead className="sticky top-0 bg-[#1A1A2E] text-white/60 uppercase tracking-tighter font-bold border-b border-white/5">
+                            <tr>
+                              <th className="px-4 py-3">Data/Hora</th>
+                              <th className="px-4 py-3">Conta</th>
+                              <th className="px-4 py-3">Conteúdo</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-white/5">
+                            {schedulingPreview.map((item, idx) => (
+                              <tr key={idx} className="hover:bg-white/5 transition-colors">
+                                <td className="px-4 py-3 text-white font-medium">
+                                  {format(item.date, "dd/MM HH:mm", { locale: ptBR })}
+                                </td>
+                                <td className="px-4 py-3 text-white/70">
+                                  {item.accountName}
+                                </td>
+                                <td className="px-4 py-3 text-[#7C3AED] font-bold">
+                                  Vídeo #{item.videoIndex + 1}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-4 pt-4 border-t border-white/5">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-1">
+                      <Label className="text-white text-base font-semibold uppercase">
+                        Biblioteca de Conteúdos
+                      </Label>
+                      <p className="text-white/40 text-xs">
+                        {selectedContentIds.length} selecionados para rodízio
+                      </p>
+                    </div>
+                    <Select value={contentFilter} onValueChange={setContentFilter}>
+                      <SelectTrigger className="w-[150px] bg-white/5 border-white/10 text-white text-xs h-8">
+                        <div className="flex items-center gap-2">
+                          <Filter size={12} />
+                          <SelectValue placeholder="Filtrar" />
+                        </div>
+                      </SelectTrigger>
+                      <SelectContent className="bg-[#13131F] border-white/10 text-white">
+                        <SelectItem value="todos">Todos</SelectItem>
+                        <SelectItem value="raw">Raw</SelectItem>
+                        <SelectItem value="processed">Processados</SelectItem>
+                        <SelectItem value="artist">Do Artista</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                    {biblioteca
+                      .filter((c) => c.status !== "arquivado" && c.status !== "descartado")
+                      .filter((c) => {
+                        if (contentFilter === "todos") return true;
+                        if (contentFilter === "artist") return c.artist_id === formData.artist_id;
+                        return c.category === contentFilter;
+                      })
+                      .map((item) => {
+                        const isSelected = selectedContentIds.includes(item.id);
+                        return (
+                          <div
+                            key={item.id}
+                            onClick={() => {
+                              if (isSelected) {
+                                setSelectedContentIds((prev) => prev.filter((id) => id !== item.id));
+                              } else {
+                                setSelectedContentIds((prev) => [...prev, item.id]);
+                              }
+                            }}
+                            className={`relative aspect-[9/16] rounded-lg overflow-hidden border-2 cursor-pointer transition-all ${
+                              isSelected
+                                ? "border-[#7C3AED]"
+                                : "border-transparent hover:border-white/20"
+                            }`}
+                          >
+                            {loadingUrls[item.id] ? (
+                              <div className="w-full h-full flex items-center justify-center bg-white/5">
+                                <Loader2 className="w-4 h-4 text-[#7C3AED] animate-spin" />
+                              </div>
+                            ) : signedUrls[item.id] ? (
+                              <video
+                                src={signedUrls[item.id]}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center bg-white/5">
+                                <X className="w-4 h-4 text-red-500/50" />
+                              </div>
+                            )}
+                            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-2">
+                              <p className="text-[10px] text-white font-medium truncate">
+                                {item.title}
+                              </p>
+                            </div>
+                            {isSelected && (
+                              <div className="absolute top-2 right-2 bg-[#7C3AED] rounded-full p-1 shadow-lg">
+                                <Check size={12} className="text-white" />
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    {biblioteca.length === 0 && (
+                      <div className="col-span-full py-8 text-center border border-dashed border-white/10 rounded-xl">
+                        <p className="text-white/40 text-sm">
+                          Biblioteca vazia. Faça upload em Biblioteca primeiro.
+                        </p>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 
               <Button
+
                 onClick={handleIniciar}
                 disabled={saving}
                 className="w-full bg-[#7C3AED] hover:bg-[#6D28D9] text-white py-6 text-lg font-semibold"
@@ -582,7 +909,7 @@ export default function CampanhaPage() {
                     <span>{campanhaAtiva.artists?.name}</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Music size={16} />
+                    <MusicIcon size={16} />
                     <span>{campanhaAtiva.music_tracks?.nome}</span>
                   </div>
                 </div>
