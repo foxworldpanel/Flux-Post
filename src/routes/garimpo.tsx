@@ -14,6 +14,19 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
+function SkeletonCard() {
+  return (
+    <Card className="bg-[#13131F] border-white/5 overflow-hidden flex flex-col h-full">
+      <div className="aspect-[9/16] relative bg-slate-900">
+        <Skeleton className="w-full h-full rounded-none" />
+      </div>
+      <CardContent className="p-3 space-y-2">
+        <Skeleton className="h-8 w-full" />
+      </CardContent>
+    </Card>
+  );
+}
+
 interface VideoCardProps {
   video: any;
   onImport: (video: any) => void;
