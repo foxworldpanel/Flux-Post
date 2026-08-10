@@ -123,7 +123,11 @@ export default function CampanhaPage() {
     cooldown_days: 30,
     distribution_interval_minutes: 5,
     editorial_language: "pt-BR",
-    editorial_style: "engaging"
+    editorial_style: "engaging",
+    audio_mode: 'music_plus_original' as 'only_music' | 'music_plus_original' | 'only_original',
+    music_volume: 80,
+    original_audio_volume: 20,
+    music_start_ms: 0
   });
 
 
