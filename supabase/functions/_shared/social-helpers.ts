@@ -46,7 +46,8 @@ export class PostPeerClient {
         error: data.error || data.code || "postpeer_api_error",
         message: data.message || data.error || "Unknown error from PostPeer",
         status: response.status,
-        endpoint: endpoint
+        endpoint: endpoint,
+        full_data: data
       };
     }
 
@@ -65,15 +66,15 @@ export class PostPeerClient {
   }
 
   async getOAuthUrl(platform: string, profileId: string, redirectUri?: string): Promise<{ url: string }> {
+    if (!profileId) {
+      throw { error: "missing_profile_id", message: "profileId is required", status: 400 };
+    }
     const params = new URLSearchParams({ profileId });
     if (redirectUri) params.append("redirectUri", redirectUri);
     return this.request(`/connect/${platform}?${params.toString()}`);
   }
 }
 
-/**
- * Encrypts a string using AES-GCM via Web Crypto API.
- */
 export async function encryptToken(text: string, secretKey: string): Promise<string> {
   if (!secretKey) throw new Error("Encryption key missing");
   const encoder = new TextEncoder();
