@@ -167,10 +167,30 @@ export const socialService = {
     });
     
     if (error) {
+      console.log("[socialService.connectAccount] error received:", {
+        name: error.name,
+        message: error.message,
+        type: typeof error,
+        contextType: typeof (error as any).context,
+        isFunctionsHttpError: error.name === 'FunctionsHttpError'
+      });
+
       let details = '';
+      const ctx = (error as any).context;
+      
       try {
-        const ctx = (error as any).context;
-        details = ctx ? await ctx.text() : '';
+        if (ctx && typeof ctx.text === 'function') {
+          console.log("[socialService.connectAccount] context has .text(), calling it...");
+          details = await ctx.text();
+        } else if (ctx && typeof ctx === 'object') {
+          console.log("[socialService.connectAccount] context is an object, stringifying...");
+          details = JSON.stringify(ctx);
+        } else {
+          details = String(ctx || '');
+        }
+
+        console.log("[socialService.connectAccount] extracted details:", details);
+
         const body = JSON.parse(details);
         if (body.error === 'postpeer_config_pending') {
           throw new Error("Configuração PostPeer pendente. Informe a API Key do PostPeer para conectar contas.");
@@ -180,8 +200,9 @@ export const socialService = {
         }
         throw new Error(body.message || body.error || error.message);
       } catch (e: any) {
-        if (e instanceof Error && e.message) throw e;
-        throw new Error(details || error.message);
+        console.error("[socialService.connectAccount] catch block:", e);
+        if (e instanceof Error && e.message && !e.message.includes("JSON")) throw e;
+        throw new Error(error.message || "Erro na comunicação com o servidor.");
       }
     }
     
