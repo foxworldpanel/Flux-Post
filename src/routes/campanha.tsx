@@ -152,19 +152,33 @@ export default function CampanhaPage() {
         
         if (isBefore(postTime, startDate) || isAfter(postTime, endDate)) continue;
 
-        selectedAccountIds.forEach((accountId) => {
+        selectedAccountIds.forEach((accountId, accIdx) => {
           const account = socialAccounts.find(a => a.id === accountId);
+          
+          let effectiveVideoIdx;
+          if (formData.distribution_mode === 'all') {
+            // MODO A: Todos recebem o mesmo conteúdo
+            effectiveVideoIdx = videoIndex % selectedContentIds.length;
+          } else {
+            // MODO B: Distribuição Inteligente (Randomizada com variação)
+            // Usamos uma lógica determinística baseada na data e índice da conta para simular pool
+            const seed = postTime.getTime() + accIdx;
+            effectiveVideoIdx = Math.floor(Math.abs(Math.sin(seed) * selectedContentIds.length));
+          }
+
           preview.push({
             date: postTime,
             accountId,
             accountName: account?.account_name || "Conta",
-            videoIndex: videoIndex % selectedContentIds.length
+            videoIndex: effectiveVideoIdx,
+            platform: account?.platform || "tiktok"
           });
         });
         videoIndex++;
       }
       currentDay = addDays(currentDay, 1);
     }
+
 
     return preview.sort((a, b) => a.date.getTime() - b.date.getTime());
   }, [formData, selectedAccountIds, selectedContentIds, socialAccounts]);
