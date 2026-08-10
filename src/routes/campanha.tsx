@@ -110,16 +110,60 @@ export default function CampanhaPage() {
     nome: "",
     artist_id: "",
     music_track_id: "",
-    posts_por_dia: 3,
+    posts_por_dia: 1,
     hora_inicio: "09:00",
-    hora_fim: "22:00",
-    intervalo_min: 40,
-    intervalo_max: 90,
+    hora_fim: "21:00",
+    intervalo_min: 30,
+    intervalo_max: 120,
     data_inicio: format(new Date(), "yyyy-MM-dd"),
-    data_fim: format(addDays(new Date(), 30), "yyyy-MM-dd"),
+    data_fim: format(addDays(new Date(), 7), "yyyy-MM-dd"),
     timezone: "America/Sao_Paulo",
     schedulingMode: "distribute" as "manual" | "distribute"
   });
+
+  // Calculate Scheduling Preview
+  const schedulingPreview = useMemo(() => {
+    if (!formData.data_inicio || !formData.data_fim || !selectedAccountIds.length || !selectedContentIds.length) {
+      return [];
+    }
+
+    const preview = [];
+    const startDate = new Date(formData.data_inicio + "T00:00:00");
+    const endDate = new Date(formData.data_fim + "T23:59:59");
+    const [startH, startM] = formData.hora_inicio.split(":").map(Number);
+    const [endH, endM] = formData.hora_fim.split(":").map(Number);
+    const postsPerDay = formData.posts_por_dia;
+    
+    let currentDay = startOfDay(startDate);
+    let videoIndex = 0;
+
+    while (isBefore(currentDay, endDate) || currentDay.getTime() === startOfDay(endDate).getTime()) {
+      for (let p = 0; p < postsPerDay; p++) {
+        const totalMinutes = (endH * 60 + endM) - (startH * 60 + startM);
+        const interval = totalMinutes > 0 ? totalMinutes / Math.max(1, postsPerDay) : 0;
+        const postTime = addMinutes(setMinutes(setHours(currentDay, startH), startM), interval * p);
+        
+        if (isBefore(postTime, startDate) || isAfter(postTime, endDate)) continue;
+
+        selectedAccountIds.forEach((accountId) => {
+          const account = socialAccounts.find(a => a.id === accountId);
+          preview.push({
+            date: postTime,
+            accountId,
+            accountName: account?.account_name || "Conta",
+            videoIndex: videoIndex % selectedContentIds.length
+          });
+        });
+        videoIndex++;
+      }
+      currentDay = addDays(currentDay, 1);
+    }
+
+    return preview.sort((a, b) => a.date.getTime() - b.date.getTime());
+  }, [formData, selectedAccountIds, selectedContentIds, socialAccounts]);
+
+  const totalEstimatedPosts = schedulingPreview.length;
+
 
   useEffect(() => {
     fetchData();
