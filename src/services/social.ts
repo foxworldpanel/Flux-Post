@@ -28,8 +28,10 @@ export interface SocialAccount {
   provider?: SocialProviderName;
   provider_connection_id?: string;
   provider_account_id?: string;
+  provider_profile_id?: string;
   provider_status?: string;
   connected_at?: string;
+
   metadata: any;
   created_at: string;
   updated_at: string;
@@ -121,8 +123,12 @@ export const socialService = {
   },
 
   async syncAccount(id: string) {
-    // Placeholder para futura Edge Function de sync
-    console.log("Syncing account:", id);
-    return { success: true };
+    const { data, error } = await supabase.functions.invoke('postpeer-sync', {
+      body: { social_account_id: id }
+    });
+    
+    if (error) throw error;
+    return data;
   }
+
 };

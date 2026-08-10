@@ -38,7 +38,7 @@ serve(async (req) => {
     // 1. Carregar social_account
     const { data: account, error: accountError } = await supabaseClient
       .from("social_accounts")
-      .select("*")
+      .select("*, artist:artists(name)")
       .eq("id", social_account_id)
       .eq("user_id", user.id)
       .single();
@@ -50,23 +50,7 @@ serve(async (req) => {
       });
     }
 
-    if (account.status === 'archived') {
-      return new Response(JSON.stringify({ error: "Cannot connect an archived account" }), { 
-        status: 400, 
-        headers: { ...corsHeaders, "Content-Type": "application/json" } 
-      });
-    }
-
-    // 2. Validar plataforma
-    const allowedPlatforms = ['tiktok', 'instagram', 'facebook', 'youtube'];
-    if (!allowedPlatforms.includes(account.platform)) {
-      return new Response(JSON.stringify({ error: `Platform ${account.platform} not supported via PostPeer yet` }), { 
-        status: 400, 
-        headers: { ...corsHeaders, "Content-Type": "application/json" } 
-      });
-    }
-
-    // 3. Verificar PostPeer API Key
+    // 2. Verificar PostPeer API Key
     const POSTPEER_API_KEY = Deno.env.get("POSTPEER_API_KEY");
     if (!POSTPEER_API_KEY) {
       return new Response(JSON.stringify({ error: "postpeer_config_pending", message: "Configuração PostPeer pendente." }), { 
@@ -76,17 +60,29 @@ serve(async (req) => {
     }
 
     const postpeer = new PostPeerClient(POSTPEER_API_KEY);
-    const appUrl = Deno.env.get("APP_URL") || "http://localhost:8080";
-    
-    // 4. Gerar State para correlação
-    const state = crypto.randomUUID();
-    const expiresAt = new Date();
-    expiresAt.setMinutes(expiresAt.getMinutes() + 15);
-
     const supabaseAdmin = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
     );
+
+    // 3. Garantir Profile no PostPeer
+    let profileId = account.provider_profile_id;
+    if (!profileId) {
+      const profileName = account.artist?.name || account.account_name || `Account ${account.id.slice(0, 8)}`;
+      const profile = await postpeer.createProfile(profileName);
+      profileId = profile.id;
+      
+      // Persistir profileId
+      await supabaseAdmin
+        .from("social_accounts")
+        .update({ provider_profile_id: profileId })
+        .eq("id", account.id);
+    }
+
+    // 4. Gerar State para CSRF e correlação local
+    const state = crypto.randomUUID();
+    const expiresAt = new Date();
+    expiresAt.setMinutes(expiresAt.getMinutes() + 15);
 
     await supabaseAdmin
       .from("social_oauth_states")
@@ -97,30 +93,18 @@ serve(async (req) => {
         expires_at: expiresAt.toISOString(),
       });
 
-    // 5. Iniciar conexão no PostPeer
-    const redirectUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/postpeer-callback`;
+    // 5. Obter URL de Autorização (GET /connect/{platform})
+    // O PostPeer redirecionará para o callback do desenvolvedor configurado no dashboard deles.
+    // Mas passamos redirectUri aqui se a API suportar override ou for usada para callback interno.
+    const callbackUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/postpeer-callback?state=${state}`;
     
-    const { connection_id, authorization_url } = await postpeer.createConnection({
-      platform: account.platform,
-      redirect_url: redirectUrl,
-      state,
-      metadata: {
-        flux_account_id: account.id,
-        flux_user_id: user.id
-      }
-    });
+    const { url } = await postpeer.getOAuthUrl(
+      account.platform,
+      profileId,
+      callbackUrl
+    );
 
-    // 6. Associar connection_id temporariamente (opcional, mas bom para debug)
-    await supabaseAdmin
-      .from("social_accounts")
-      .update({
-        provider: 'postpeer',
-        provider_connection_id: connection_id,
-        provider_status: 'pending'
-      })
-      .eq("id", account.id);
-
-    return new Response(JSON.stringify({ authorization_url }), { 
+    return new Response(JSON.stringify({ authorization_url: url }), { 
       status: 200, 
       headers: { ...corsHeaders, "Content-Type": "application/json" } 
     });
