@@ -109,14 +109,15 @@ export default function CampanhaPage() {
       if (campanhas) {
         setCampanhaAtiva(campanhas as any);
 
-        // Count posts realized
+        // Count posts realized from the canonical publications table
         const { count, error: countError } = await supabase
-          .from("posts_agendados")
+          .from("publications")
           .select("*", { count: "exact", head: true })
-          .eq("campanha_id", campanhas.id)
-          .eq("status", "postado");
+          .eq("campaign_id", campanhas.id)
+          .eq("status", "published");
 
         if (!countError) setTotalPosts(count || 0);
+
 
         // Fetch campaign contents
         const { data: campaignContents, error: contentsError } = await supabase
