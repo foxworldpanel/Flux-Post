@@ -33,6 +33,8 @@ import {
 import { format, addDays, differenceInDays } from "date-fns";
 import { artistService } from "@/services/artists";
 import { contentService } from "@/services/content";
+import { socialService } from "@/services/social";
+
 
 type MusicTrack = {
   id: string;
