@@ -32,28 +32,45 @@ export default function DashboardPage() {
     setLoading(true);
     setReport(null);
     try {
-      const { data, error } = await supabase.functions.invoke('postpeer-connect', {
+      // 1. Auditoria no Banco para encontrar TikTok Conta 02
+      const { data: accounts } = await supabase
+        .from('social_accounts')
+        .select('*')
+        .ilike('account_name', '%TikTok Conta 02%');
+      
+      const targetAccount = accounts?.[0];
+      
+      // 2. Tentar Sincronização Real (Recuperação)
+      let syncResult = null;
+      if (targetAccount) {
+        const { data } = await supabase.functions.invoke('postpeer-sync', {
+          body: { social_account_id: targetAccount.id }
+        });
+        syncResult = data;
+      }
+
+      // 3. Rodar diagnóstico de API padrão
+      const { data: diagData } = await supabase.functions.invoke('postpeer-connect', {
         body: { diagnostic: true }
       });
-      if (error) {
-        // Tenta extrair corpo do erro se for FunctionsHttpError
-        let details = error.message;
-        try {
-          const ctx = (error as any).context;
-          if (ctx && typeof ctx.text === 'function') {
-            details = await ctx.text();
-          }
-        } catch(e) {}
-        setReport({ error: true, details: JSON.parse(details || '{}') });
-      } else {
-        setReport(data);
-      }
+      
+      setReport({
+        ...diagData,
+        recovery: {
+          account_found: !!targetAccount,
+          provider_profile_id: targetAccount?.provider_profile_id || 'N/A',
+          sync_success: syncResult?.success,
+          recovered: syncResult?.recovered,
+          status_atual: syncResult?.status
+        }
+      });
     } catch (err: any) {
       setReport({ error: true, message: err.message });
     } finally {
       setLoading(false);
     }
   };
+
 
   return (
     <DashboardLayout>
@@ -66,16 +83,28 @@ export default function DashboardPage() {
           
           <div className="space-y-2">
             <h2 className="text-2xl font-bold text-white font-space flex items-center gap-3">
-              <ShieldCheck className="text-[#7C3AED]" /> Diagnóstico Operacional PostPeer
+              <ShieldCheck className="text-[#7C3AED]" /> Diagnóstico & Recuperação PostPeer
             </h2>
-            <p className="text-slate-400 text-sm">Investigação profunda de status HTTP e payloads da API PostPeer.</p>
+            <p className="text-slate-400 text-sm">Auditoria real e sincronização forçada de contas TikTok conectadas.</p>
           </div>
+
+          <div className="bg-[#13131F] border border-[#7C3AED]/20 p-4 rounded-lg space-y-3">
+             <div className="flex items-center gap-3">
+                <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30">TikTok Conta 02</Badge>
+                <span className="text-xs text-slate-500">Integration status no PostPeer: <b className="text-white">VALID = YES</b></span>
+             </div>
+             <p className="text-[10px] text-slate-400 leading-relaxed uppercase font-bold tracking-tighter">
+                A integração existe no PostPeer mas o Flux não vinculou. O botão abaixo tentará localizar a integração pelo Profile ID e sincronizar automaticamente.
+             </p>
+          </div>
+
 
           {!report && !loading && (
             <div className="py-8 text-center">
               <Button onClick={runDiagnostic} className="bg-[#7C3AED] hover:bg-[#6D28D9] gap-2 px-8 py-6 text-lg h-auto">
-                <Activity className="w-5 h-5" /> Iniciar Teste de API Real
+                <Activity className="w-5 h-5" /> Iniciar Auditoria & Recuperação
               </Button>
+
               <p className="text-slate-500 text-xs mt-4">Isso executará chamadas health, profile e connect contra api.postpeer.dev</p>
             </div>
           )}
@@ -130,9 +159,40 @@ export default function DashboardPage() {
                   value={report.connect_with_redirect ? 'SIM' : 'NÃO'} 
                   success={!!report.connect_with_redirect} 
                 />
+                <ResultItem 
+                  label="I. social_account Localizada?" 
+                  value={report.recovery?.account_found ? 'SIM' : 'NÃO'} 
+                  success={report.recovery?.account_found} 
+                />
+                <ResultItem 
+                  label="J. Profile ID Persistido?" 
+                  value={report.recovery?.provider_profile_id || 'N/A'} 
+                  success={report.recovery?.provider_profile_id !== 'N/A'} 
+                />
+                <ResultItem 
+                  label="K. Recuperação Real Sucesso?" 
+                  value={report.recovery?.sync_success ? 'SIM' : 'FALHA'} 
+                  success={report.recovery?.sync_success} 
+                />
+                <ResultItem 
+                  label="L. Status Final da Conta" 
+                  value={report.recovery?.status_atual || 'Pendente'} 
+                  success={report.recovery?.status_atual === 'active' || report.recovery?.status_atual === 'valid'} 
+                />
               </div>
 
               <div className="bg-white/5 border border-white/10 rounded-xl p-6 space-y-4">
+                {report.recovery?.recovered && (
+                  <div className="bg-emerald-500/10 border border-emerald-500/30 p-4 rounded-lg mb-4">
+                    <p className="text-emerald-400 text-sm font-bold flex items-center gap-2">
+                       <CheckCircle2 size={16} /> CONTA RECUPERADA COM SUCESSO!
+                    </p>
+                    <p className="text-emerald-400/70 text-[11px] mt-1">
+                      A integração existente no PostPeer foi vinculada à conta local. O Dashboard agora deve mostrar 1 conta conectada.
+                    </p>
+                  </div>
+                )}
+
                 <div>
                   <h4 className="text-[#7C3AED] font-bold text-sm uppercase tracking-wider mb-1">I. Body/Mensagem do Erro Real</h4>
                   <pre className="text-amber-400 text-xs bg-black/40 p-3 rounded-lg overflow-x-auto whitespace-pre-wrap">

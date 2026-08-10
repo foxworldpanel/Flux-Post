@@ -66,37 +66,60 @@ serve(async (req) => {
 
     const postpeer = new PostPeerClient(POSTPEER_API_KEY);
     const integrations = await postpeer.listIntegrations(account.provider_profile_id);
-    const integration = integrations.find(i => i.id === account.provider_connection_id);
+    
+    // Tenta encontrar por ID de conexão ou tenta recuperar pela plataforma se ID for nulo
+    let integration = integrations.find(i => i.id === account.provider_connection_id);
+    
+    if (!integration && !account.provider_connection_id) {
+      // LINK/RECOVERY: Se não temos ID local mas temos o profileId, pegamos a primeira da plataforma
+      integration = integrations.find(i => i.platform.toLowerCase() === account.platform.toLowerCase());
+      console.log("[postpeer-sync] Link recovery attempted", { found: !!integration });
+    }
 
     if (!integration) {
-      // Se não encontrar, talvez tenha sido deletada no PostPeer
-      await supabaseAdmin
-        .from("social_accounts")
-        .update({ connection_status: 'requer_reconexao', provider_status: 'not_found' })
-        .eq("id", account.id);
+      // Se não encontrar, e já tínhamos um ID, talvez tenha sido deletada
+      if (account.provider_connection_id) {
+        await supabaseAdmin
+          .from("social_accounts")
+          .update({ 
+            connection_status: 'requer_reconexao', 
+            provider_status: 'not_found',
+            last_sync_at: new Date().toISOString()
+          })
+          .eq("id", account.id);
+      }
         
-      return new Response(JSON.stringify({ success: false, message: "Integration not found in PostPeer" }), {
+      return new Response(JSON.stringify({ 
+        success: false, 
+        message: "Integration not found in PostPeer for this profile and platform" 
+      }), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Atualizar dados locais
+    // Atualizar dados locais (Reconciliação)
     await supabaseAdmin
       .from("social_accounts")
       .update({
+        provider_connection_id: integration.id,
+        provider_account_id: integration.platformUserId,
+        external_account_id: integration.platformUserId,
         provider_status: integration.status,
-        connection_status: integration.status === 'active' ? 'conectada' : 'erro',
+        connection_status: (integration.status === 'active' || integration.status === 'valid') ? 'conectada' : 'erro',
         account_name: integration.displayName || account.account_name,
         profile_image_url: integration.imageUrl || account.profile_image_url,
+        username: integration.displayName || account.username,
+        connected_at: account.connected_at || new Date().toISOString(),
         last_sync_at: new Date().toISOString()
       })
       .eq("id", account.id);
 
-    return new Response(JSON.stringify({ success: true, status: integration.status }), {
+    return new Response(JSON.stringify({ success: true, status: integration.status, recovered: !account.provider_connection_id }), {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
+
 
   } catch (err: any) {
     return new Response(JSON.stringify({ error: err.message }), {

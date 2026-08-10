@@ -355,13 +355,30 @@ export default function AccountsPage() {
                   }}>
                     CONFIGURAR
                   </Button>
-                  {account.connection_status === 'nao_conectada' && (
+                  {account.connection_status !== 'conectada' && (
                     <Button variant="outline" size="sm" className="flex-1 border-purple-500/30 text-purple-400 hover:bg-purple-500/10 text-xs h-8" 
                       disabled={isConnecting}
-                      onClick={() => handleReconnect(account)}>
-                      CONECTAR
+                      onClick={() => {
+                        if (account.provider === 'postpeer' && account.provider_profile_id) {
+                           // Se tem profileId mas não está conectada, tentamos sincronizar primeiro (Recuperação)
+                           socialService.syncAccount(account.id)
+                             .then((res: any) => {
+                               if (res.success) {
+                                 toast.success("Conta recuperada e vinculada com sucesso!");
+                                 loadData();
+                               } else {
+                                 handleReconnect(account);
+                               }
+                             })
+                             .catch(() => handleReconnect(account));
+                        } else {
+                          handleReconnect(account);
+                        }
+                      }}>
+                      {account.provider === 'postpeer' && account.provider_profile_id ? 'VERIFICAR' : 'CONECTAR'}
                     </Button>
                   )}
+
                   {account.connection_status === 'conectada' && (
                     <Button variant="outline" size="sm" className="flex-1 border-red-500/30 text-red-400 hover:bg-red-500/10 text-xs h-8" 
                       onClick={() => handleDisconnect(account)}>
