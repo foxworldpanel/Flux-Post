@@ -680,74 +680,121 @@ export default function GarimpoPage() {
         </Tabs>
 
         <Dialog open={!!selectedCandidate} onOpenChange={() => setSelectedCandidate(null)}>
-          <DialogContent className="max-w-4xl bg-[#0A0A0F] border-white/10 p-0 overflow-hidden">
+          <DialogContent className="max-w-4xl bg-[#0A0A0F] border-white/10 p-0 overflow-hidden ring-0">
              {selectedCandidate && (
-               <div className="flex flex-col md:flex-row h-full">
-                  <div className="md:w-1/2 aspect-[9/16] bg-black">
+               <div className="flex flex-col md:flex-row h-full max-h-[90vh]">
+                  <div className="md:w-[45%] aspect-[9/16] bg-black flex items-center justify-center relative group">
                      <video 
                        src={selectedCandidate.metadata?.video_files?.find((f: any) => f.height > f.width)?.link || selectedCandidate.original_url} 
                        controls 
                        autoPlay 
+                       loop
                        className="w-full h-full object-contain" 
                      />
+                     <div className="absolute top-4 left-4">
+                       <Badge className="bg-black/60 backdrop-blur-md border-white/10 text-[10px] font-bold">PREVIEW</Badge>
+                     </div>
                   </div>
-                  <div className="md:w-1/2 p-8 space-y-6 bg-[#0D0D15]">
-                     <DialogHeader>
-                        <DialogTitle className="text-2xl font-space font-bold">Detalhes do Candidato</DialogTitle>
+                  
+                  <div className="md:w-[55%] p-8 space-y-8 bg-[#0D0D15] overflow-y-auto">
+                     <DialogHeader className="space-y-1">
+                        <div className="flex items-center gap-2 text-purple-400 mb-1">
+                          <Video className="w-4 h-4" />
+                          <span className="text-[10px] font-bold uppercase tracking-wider">Garimpo Inteligente</span>
+                        </div>
+                        <DialogTitle className="text-3xl font-space font-bold text-white">Visualização Técnica</DialogTitle>
+                        <p className="text-slate-500 text-sm">Analise os metadados antes de importar para sua biblioteca.</p>
                      </DialogHeader>
                      
-                     <div className="space-y-4">
-                        <div className="grid grid-cols-2 gap-4">
-                           <div className="bg-white/5 p-4 rounded-xl border border-white/5">
-                              <p className="text-[10px] text-slate-500 font-bold uppercase">Categoria</p>
-                              <p className="text-white font-medium">{selectedCandidate.category}</p>
+                     <div className="grid grid-cols-2 gap-4">
+                        <div className="bg-white/[0.03] p-4 rounded-2xl border border-white/5 space-y-1">
+                           <div className="flex items-center gap-2 text-slate-500">
+                             <Filter className="w-3.5 h-3.5" />
+                             <span className="text-[10px] font-bold uppercase tracking-tighter">Categoria</span>
                            </div>
-                           <div className="bg-white/5 p-4 rounded-xl border border-white/5">
-                              <p className="text-[10px] text-slate-500 font-bold uppercase">Duração</p>
-                              <p className="text-white font-medium">{selectedCandidate.duration} segundos</p>
+                           <p className="text-white font-medium text-lg">{selectedCandidate.category || "Manual"}</p>
+                        </div>
+                        
+                        <div className="bg-white/[0.03] p-4 rounded-2xl border border-white/5 space-y-1">
+                           <div className="flex items-center gap-2 text-slate-500">
+                             <Clock className="w-3.5 h-3.5" />
+                             <span className="text-[10px] font-bold uppercase tracking-tighter">Duração</span>
                            </div>
+                           <p className="text-white font-medium text-lg">{formatDuration(selectedCandidate.duration)}</p>
                         </div>
 
-                        <div className="bg-white/5 p-4 rounded-xl border border-white/5">
-                           <p className="text-[10px] text-slate-500 font-bold uppercase">Autor / Fonte</p>
-                           <p className="text-white font-medium">{selectedCandidate.author || "Pexels"}</p>
+                        <div className="bg-white/[0.03] p-4 rounded-2xl border border-white/5 space-y-1">
+                           <div className="flex items-center gap-2 text-slate-500">
+                             <User className="w-3.5 h-3.5" />
+                             <span className="text-[10px] font-bold uppercase tracking-tighter">Autor</span>
+                           </div>
+                           <p className="text-white font-medium text-lg truncate">{selectedCandidate.author || "Pexels"}</p>
                         </div>
 
-                        <div className="bg-white/5 p-4 rounded-xl border border-white/5">
-                           <p className="text-[10px] text-slate-500 font-bold uppercase">Status Atual</p>
-                           <div className="flex items-center gap-2 mt-1">
-                              {getStatusIcon(selectedCandidate.status)}
-                              <span className="capitalize text-white">{selectedCandidate.status}</span>
+                        <div className="bg-white/[0.03] p-4 rounded-2xl border border-white/5 space-y-1">
+                           <div className="flex items-center gap-2 text-slate-500">
+                             <Maximize2 className="w-3.5 h-3.5" />
+                             <span className="text-[10px] font-bold uppercase tracking-tighter">Resolução</span>
                            </div>
+                           <p className="text-white font-medium text-lg">
+                             {getResolutionInfo(selectedCandidate.metadata || selectedCandidate).width}x{getResolutionInfo(selectedCandidate.metadata || selectedCandidate).height}
+                           </p>
                         </div>
                      </div>
 
-                     <div className="pt-8 flex gap-3">
-                        {selectedCandidate.status === 'pendente' && (
+                     <div className="bg-purple-500/5 p-4 rounded-2xl border border-purple-500/10 flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className={cn(
+                            "p-2 rounded-full",
+                            selectedCandidate.status === 'aprovado' ? "bg-emerald-500/10" : 
+                            selectedCandidate.status === 'descartado' ? "bg-rose-500/10" : "bg-amber-500/10"
+                          )}>
+                            {getStatusIcon(selectedCandidate.status)}
+                          </div>
+                          <div>
+                            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-tight">Status da Descoberta</p>
+                            <p className="text-white font-medium capitalize">{selectedCandidate.status}</p>
+                          </div>
+                        </div>
+                        <Badge className="bg-white/5 text-white/40 border-none font-mono text-[9px]">ID: {selectedCandidate.external_id || selectedCandidate.id}</Badge>
+                     </div>
+
+                     <div className="pt-6 flex gap-4">
+                        {selectedCandidate.status === 'pendente' || selectedCandidate.id === 'new' ? (
                            <>
                              <Button 
-                               className="flex-1 bg-emerald-600 hover:bg-emerald-700" 
-                               onClick={() => handleApprove(selectedCandidate, selectedCandidate.id)}
-                               disabled={importingId === selectedCandidate.id}
+                               className="flex-[2] bg-purple-600 hover:bg-purple-700 h-12 text-sm font-bold shadow-lg shadow-purple-900/20" 
+                               onClick={() => handleApprove(selectedCandidate.metadata || selectedCandidate, selectedCandidate.id !== 'new' ? selectedCandidate.id : undefined)}
+                               disabled={importingId === (selectedCandidate.external_id || selectedCandidate.id)}
                              >
-                               {importingId === selectedCandidate.id ? <Loader2 className="w-4 h-4 animate-spin" /> : "APROVAR E IMPORTAR"}
+                               {importingId === (selectedCandidate.external_id || selectedCandidate.id) ? (
+                                 <Loader2 className="w-5 h-5 animate-spin" />
+                               ) : (
+                                 <>
+                                   <CheckCircle2 className="w-4 h-4 mr-2" />
+                                   APROVAR E IMPORTAR
+                                 </>
+                               )}
                              </Button>
-                             <Button 
-                               variant="destructive" 
-                               onClick={() => {
-                                 contentService.discardCandidate(selectedCandidate.id);
-                                 setSelectedCandidate(null);
-                                 fetchData();
-                               }}
-                             >
-                               DESCARTAR
-                             </Button>
+                             {selectedCandidate.id !== 'new' && (
+                               <Button 
+                                 variant="destructive" 
+                                 className="flex-1 h-12 text-sm font-bold bg-rose-500/10 text-rose-500 hover:bg-rose-500/20 border-rose-500/20"
+                                 onClick={() => {
+                                   contentService.discardCandidate(selectedCandidate.id);
+                                   setSelectedCandidate(null);
+                                   fetchData();
+                                 }}
+                               >
+                                 DESCARTAR
+                               </Button>
+                             )}
                            </>
-                        )}
-                        {selectedCandidate.status !== 'pendente' && (
-                           <Button variant="outline" className="w-full" onClick={() => setSelectedCandidate(null)}>FECHAR</Button>
+                        ) : (
+                           <Button variant="outline" className="w-full h-12 border-white/10 hover:bg-white/5" onClick={() => setSelectedCandidate(null)}>FECHAR VISUALIZAÇÃO</Button>
                         )}
                      </div>
+
                   </div>
                </div>
              )}
