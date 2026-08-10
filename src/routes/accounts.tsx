@@ -224,7 +224,7 @@ export default function AccountsPage() {
                         <span className="text-lg font-bold text-white group-hover:text-purple-400 transition-colors">
                           {account.external_display_name || account.username || 'Identidade Pendente'}
                         </span>
-                        {account.username && account.username !== account.external_display_name && (
+                        {account.username && account.username !== account.external_display_name && !account.username.startsWith('tiktok_conta_') && (
                            <span className="text-xs text-slate-500">@{account.username}</span>
                         )}
                       </div>
