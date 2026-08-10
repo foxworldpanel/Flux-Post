@@ -107,8 +107,8 @@ export default function ArtistasPage() {
   };
 
   const handleSave = async () => {
-    if (!formData.name || !formData.slug) {
-      toast.error("Nome e slug são obrigatórios");
+    if (!formData.name) {
+      toast.error("O nome do artista é obrigatório");
       return;
     }
 
@@ -254,7 +254,7 @@ export default function ArtistasPage() {
               </DialogTitle>
             </DialogHeader>
             <div className="space-y-6 py-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4">
                 <div className="space-y-2">
                   <Label>Nome do Artista</Label>
                   <Input 
@@ -263,15 +263,7 @@ export default function ArtistasPage() {
                     placeholder="Ex: Sourcee"
                     className="bg-[#0A0A0F] border-white/10"
                   />
-                </div>
-                <div className="space-y-2">
-                  <Label>Slug (URL amigável)</Label>
-                  <Input 
-                    value={formData.slug}
-                    onChange={(e) => setFormData({ ...formData, slug: e.target.value.toLowerCase().replace(/\s+/g, '-') })}
-                    placeholder="ex: sourcee"
-                    className="bg-[#0A0A0F] border-white/10"
-                  />
+                  <p className="text-[10px] text-slate-500">O slug da URL será gerado automaticamente a partir do nome.</p>
                 </div>
               </div>
 

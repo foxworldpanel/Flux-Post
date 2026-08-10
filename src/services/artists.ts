@@ -17,23 +17,60 @@ export const artistService = {
 
   async createArtist(artist: Omit<ArtistInsert, "user_id">): Promise<Artist> {
     const { data: { user } } = await supabase.auth.getUser();
+    
+    // Generate unique slug server-side via RPC to prevent race conditions and duplicate keys
+    const { data: slug, error: slugError } = await supabase.rpc('generate_unique_artist_slug', {
+      p_name: artist.name,
+      p_user_id: user?.id
+    });
+
+    if (slugError) throw new Error("Erro ao gerar slug único: " + slugError.message);
+
     const { data, error } = await supabase
       .from("artists")
-      .insert({ ...artist, user_id: user?.id } as ArtistInsert)
+      .insert({ ...artist, slug, user_id: user?.id } as ArtistInsert)
       .select()
       .single();
-    if (error) throw error;
+
+    if (error) {
+      if (error.code === '23505') {
+        throw new Error("Já existe um artista com esse nome ou slug. Por favor, escolha outro.");
+      }
+      throw error;
+    }
     return data;
   },
 
   async updateArtist(id: string, updates: ArtistUpdate): Promise<Artist> {
+    const { data: { user } } = await supabase.auth.getUser();
+
+    let finalUpdates = { ...updates };
+
+    // If name is changing, regenerate slug
+    if (updates.name) {
+      const { data: slug, error: slugError } = await supabase.rpc('generate_unique_artist_slug', {
+        p_name: updates.name,
+        p_user_id: user?.id,
+        p_exclude_id: id
+      });
+
+      if (slugError) throw new Error("Erro ao gerar slug único: " + slugError.message);
+      finalUpdates.slug = slug;
+    }
+
     const { data, error } = await supabase
       .from("artists")
-      .update(updates)
+      .update(finalUpdates)
       .eq("id", id)
       .select()
       .single();
-    if (error) throw error;
+
+    if (error) {
+      if (error.code === '23505') {
+        throw new Error("Já existe um artista com esse nome ou slug. Por favor, escolha outro.");
+      }
+      throw error;
+    }
     return data;
   },
 
