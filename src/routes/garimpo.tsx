@@ -493,49 +493,37 @@ export default function GarimpoPage() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {candidates.map(cand => (
-                <Card key={cand.id} className="bg-[#13131F] border-white/5 overflow-hidden group">
-                  <div className="aspect-[9/16] relative bg-slate-900">
-                    <img src={cand.preview_url} className="w-full h-full object-cover" />
-                    <div className="absolute top-2 right-2">
-                       <Badge className="bg-black/60 backdrop-blur-md border-white/10">{cand.duration}s</Badge>
-                    </div>
-                  </div>
-                  <CardContent className="p-4 space-y-4">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <p className="text-xs font-bold text-purple-400 uppercase">{cand.category}</p>
-                        <p className="text-[10px] text-slate-500 mt-1 truncate max-w-[140px]">De: {cand.author}</p>
-                      </div>
-                      {getStatusIcon(cand.status)}
-                    </div>
-                    <div className="flex gap-2">
-                      <Button 
-                        variant="secondary" 
-                        className="flex-1 bg-white/5 hover:bg-white/10" 
-                        onClick={() => setSelectedCandidate(cand)}
-                      >
-                        VISUALIZAR
-                      </Button>
-                      {cand.status === 'pendente' && (
-                        <Button 
-                          size="icon" 
-                          variant="destructive" 
-                          className="bg-rose-500/10 text-rose-500 hover:bg-rose-500/20"
-                          onClick={() => {
-                            contentService.discardCandidate(cand.id);
-                            fetchData();
-                            toast.info("Descartado");
-                          }}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+              {loadingCandidates ? (
+                Array.from({ length: 8 }).map((_, i) => (
+                  <SkeletonCard key={i} />
+                ))
+              ) : (
+                candidates.map(cand => (
+                  <VideoCard 
+                    key={cand.id} 
+                    video={{
+                      ...cand,
+                      id: cand.external_id,
+                      image: cand.preview_url,
+                      user: { name: cand.author }
+                    }}
+                    onImport={(v) => handleApprove(v, cand.id)}
+                    onPreview={() => setSelectedCandidate(cand)}
+                    isImporting={importingId === cand.id}
+                    isImported={cand.status === 'aprovado' || importedExternalIds.has(cand.external_id)}
+                    formatDuration={formatDuration}
+                    getResolutionInfo={getResolutionInfo}
+                    isCandidate={true}
+                    onDiscard={(id) => {
+                      contentService.discardCandidate(cand.id);
+                      fetchData();
+                      toast.info("Descartado");
+                    }}
+                  />
+                ))
+              )}
             </div>
+
           </TabsContent>
 
           <TabsContent value="automacao" className="space-y-6">
