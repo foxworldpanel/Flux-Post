@@ -203,5 +203,6 @@ function Button({ className, ...props }: any) {
     ghost: "hover:bg-accent hover:text-accent-foreground",
   };
   const v = props.variant || 'default';
-  return <button className={`${base} ${variants[v]} ${className}`} {...props} />;
+  const Comp = props.asChild ? 'span' : 'button';
+  return <Comp className={`${base} ${variants[v]} ${className}`} {...props} />;
 }

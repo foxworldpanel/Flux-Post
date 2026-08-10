@@ -11,7 +11,11 @@ serve(async (req) => {
     return new Response("ok", { headers: corsHeaders, status: 204 });
   }
 
-  const appUrl = Deno.env.get("APP_URL") || "http://localhost:8080";
+  const appUrl = Deno.env.get("APP_URL");
+  if (!appUrl) {
+    console.error("CRITICAL: APP_URL environment variable is missing.");
+    return new Response("Configuration Error: APP_URL missing", { status: 500 });
+  }
 
   try {
     const url = new URL(req.url);
