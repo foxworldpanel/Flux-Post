@@ -14,6 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
+import { supabase } from "@/integrations/supabase/client";
 
 type SocialAccountWithArtist = SocialAccount & { artist?: { id: string; name: string } | null };
 
@@ -45,6 +46,12 @@ const PLATFORM_ICON: Record<SocialPlatform, string> = {
   youtube: "🎥",
 };
 
+type AuthDebugState = {
+  session: boolean;
+  user: boolean;
+  accessToken: boolean;
+};
+
 export default function AccountsPage() {
   const [accounts, setAccounts] = useState<SocialAccountWithArtist[]>([]);
   const [artists, setArtists] = useState<{ id: string; name: string }[]>([]);
@@ -56,6 +63,30 @@ export default function AccountsPage() {
   const [editingAccount, setEditingAccount] = useState<Partial<SocialAccountWithArtist> | null>(null);
   const [filterPlatform, setFilterPlatform] = useState<string>("Todas");
   const [filterStatus, setFilterStatus] = useState<string>("Ativas");
+  const [authDebug, setAuthDebug] = useState<AuthDebugState>({
+    session: false,
+    user: false,
+    accessToken: false,
+  });
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+
+    const updateDebug = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      setAuthDebug({
+        session: Boolean(session),
+        user: Boolean(session?.user),
+        accessToken: Boolean(session?.access_token),
+      });
+    };
+
+    void updateDebug();
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(() => {
+      void updateDebug();
+    });
+    return () => subscription.unsubscribe();
+  }, []);
 
   const loadData = async () => {
     try {
@@ -209,6 +240,18 @@ export default function AccountsPage() {
             <Plus className="mr-2 h-4 w-4" /> Adicionar Conta
           </Button>
         </div>
+
+        {import.meta.env.DEV && (
+          <Card className="border-border bg-card p-4 text-sm">
+            <p className="mb-3 font-semibold text-foreground">Auth Debug</p>
+            <div className="grid gap-2 text-muted-foreground sm:grid-cols-2 lg:grid-cols-4">
+              <span>Supabase configurado: {Boolean(import.meta.env.VITE_SUPABASE_URL && (import.meta.env.VITE_SUPABASE_ANON_KEY || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY)) ? 'SIM' : 'NÃO'}</span>
+              <span>Sessão: {authDebug.session ? 'SIM' : 'NÃO'}</span>
+              <span>Usuário: {authDebug.user ? 'SIM' : 'NÃO'}</span>
+              <span>Access token: {authDebug.accessToken ? 'SIM' : 'NÃO'}</span>
+            </div>
+          </Card>
+        )}
 
         {/* Métricas Reais */}
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
