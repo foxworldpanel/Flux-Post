@@ -135,38 +135,29 @@ export default function AccountsPage() {
     }
   };
 
-  const handleConnect = async (account: SocialAccount) => {
+  /** Fluxo novo: cria pending mínimo e vai direto para o OAuth do PostPeer */
+  const handleStartConnection = async (platform: SocialPlatform) => {
     try {
       setIsConnecting(true);
-      
-      // PostPeer é o provider padrão para todas as plataformas na Fase 3.2B
-      const { authorization_url } = await socialService.connectAccount(account.id);
-      
-      if (authorization_url) {
-        window.location.href = authorization_url;
-      }
+      const { authorization_url } = await socialService.startConnection(platform);
+      window.location.href = authorization_url;
     } catch (err: any) {
       console.error(err);
       toast.error(err.message || "Erro ao iniciar conexão.");
-    } finally {
       setIsConnecting(false);
-      setIsConnectDialogOpen(false);
     }
   };
 
-  const handleConnectTikTokDirect = async (account: SocialAccount) => {
+  /** Reconectar uma conta já existente (card CONECTAR) */
+  const handleReconnect = async (account: SocialAccount) => {
     try {
       setIsConnecting(true);
-      const { authorization_url } = await socialService.startTikTokOAuth(account.id);
-      if (authorization_url) {
-        window.location.href = authorization_url;
-      }
+      const { authorization_url } = await socialService.connectAccount(account.id);
+      if (authorization_url) window.location.href = authorization_url;
     } catch (err: any) {
-      console.error(err);
-      toast.error(err.message || "Erro ao iniciar conexão TikTok Direta.");
+      toast.error(err.message || "Erro ao iniciar conexão.");
     } finally {
       setIsConnecting(false);
-      setIsConnectDialogOpen(false);
     }
   };
 
