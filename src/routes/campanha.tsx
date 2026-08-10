@@ -769,14 +769,35 @@ export default function CampanhaPage() {
                 </div>
 
                 <div className="space-y-4 pt-4 border-t border-white/5">
-                  <div className="space-y-1">
-                    <Label className="text-white text-base font-semibold uppercase">
-                      Contas de Publicação
-                    </Label>
-                    <p className="text-white/40 text-xs">
-                      Selecione onde os vídeos serão postados
-                    </p>
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-1">
+                      <Label className="text-white text-base font-semibold uppercase">
+                        Contas de Publicação
+                      </Label>
+                      <p className="text-white/40 text-xs">
+                        Selecione onde os vídeos serão postados
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="text-[10px] h-7 px-2 border-white/10 text-slate-400 hover:text-white"
+                        onClick={() => setSelectedAccountIds(socialAccounts.map(a => a.id))}
+                      >
+                        Selecionar Todas
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="text-[10px] h-7 px-2 border-white/10 text-slate-400 hover:text-white"
+                        onClick={() => setSelectedAccountIds([])}
+                      >
+                        Limpar
+                      </Button>
+                    </div>
                   </div>
+
                   
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     {socialAccounts.length === 0 ? (
