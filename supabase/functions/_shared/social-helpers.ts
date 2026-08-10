@@ -85,6 +85,8 @@ export class PostPeerClient {
     // PostPeer v1 returns { success: true, count: number, integrations: [...] }
     return data.integrations || [];
   }
+}
+
 
 
 export async function encryptToken(text: string, secretKey: string): Promise<string> {
