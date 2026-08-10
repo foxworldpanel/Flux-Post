@@ -36,8 +36,8 @@ export default function AccountsPage() {
   const [artists, setArtists] = useState<{ id: string; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [isConnectDialogOpen, setIsConnectDialogOpen] = useState(false);
-  const [connectingAccount, setConnectingAccount] = useState<SocialAccountWithArtist | null>(null);
+  const [isAddOpen, setIsAddOpen] = useState(false);
+  const [selectedPlatform, setSelectedPlatform] = useState<SocialPlatform | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
   const [editingAccount, setEditingAccount] = useState<Partial<SocialAccountWithArtist> | null>(null);
   const [filterPlatform, setFilterPlatform] = useState<string>("Todas");
