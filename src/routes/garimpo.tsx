@@ -349,57 +349,122 @@ export default function GarimpoPage() {
           </TabsList>
 
           <TabsContent value="buscar" className="space-y-6">
-             <div className="bg-[#13131F] p-6 rounded-2xl border border-white/5 flex gap-4">
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-                  <Input 
-                    className="bg-white/5 border-white/10 pl-10" 
-                    value={query} 
-                    onChange={(e) => setQuery(e.target.value)} 
-                    onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                    placeholder="Pesquisar no Pexels..." 
-                  />
+             <div className="bg-[#13131F] p-6 rounded-2xl border border-white/5 space-y-6">
+                <div className="flex gap-4">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                    <Input 
+                      className="bg-white/5 border-white/10 pl-10" 
+                      value={query} 
+                      onChange={(e) => setQuery(e.target.value)} 
+                      onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                      placeholder="Pesquisar no Pexels..." 
+                    />
+                  </div>
+                  <Button onClick={handleSearch} disabled={loading} className="bg-purple-600 px-8">
+                    {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Search className="w-4 h-4 mr-2" />}
+                    Buscar
+                  </Button>
                 </div>
-                <Button onClick={handleSearch} disabled={loading} className="bg-purple-600">
-                  {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Search className="w-4 h-4 mr-2" />}
-                  Buscar
-                </Button>
+
+                <div className="flex flex-wrap gap-4 pt-4 border-t border-white/5 items-center">
+                  <div className="flex items-center gap-2">
+                    <Filter className="w-3.5 h-3.5 text-slate-500" />
+                    <span className="text-[10px] text-slate-500 uppercase font-bold">Filtros:</span>
+                  </div>
+                  
+                  <Select value={filterOrientation} onValueChange={setFilterOrientation}>
+                    <SelectTrigger className="w-[140px] bg-white/5 border-white/10 h-8 text-xs">
+                      <SelectValue placeholder="Orientação" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="portrait">Vertical</SelectItem>
+                      <SelectItem value="landscape">Horizontal</SelectItem>
+                      <SelectItem value="square">Quadrado</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  <Select value={filterDuration} onValueChange={setFilterDuration}>
+                    <SelectTrigger className="w-[140px] bg-white/5 border-white/10 h-8 text-xs">
+                      <SelectValue placeholder="Duração" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todas Duração</SelectItem>
+                      <SelectItem value="15">até 15s</SelectItem>
+                      <SelectItem value="15-30">15–30s</SelectItem>
+                      <SelectItem value="30-60">30–60s</SelectItem>
+                      <SelectItem value="60+">60s+</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  <Select value={filterQuality} onValueChange={setFilterQuality}>
+                    <SelectTrigger className="w-[140px] bg-white/5 border-white/10 h-8 text-xs">
+                      <SelectValue placeholder="Qualidade" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todas Qualidades</SelectItem>
+                      <SelectItem value="hd+">HD+</SelectItem>
+                      <SelectItem value="fullhd+">Full HD+</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  <Select value={sortBy} onValueChange={setSortBy}>
+                    <SelectTrigger className="w-[140px] bg-white/5 border-white/10 h-8 text-xs">
+                      <SelectValue placeholder="Ordenar" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Mais Relevantes</SelectItem>
+                      <SelectItem value="short">Mais Curtos</SelectItem>
+                      <SelectItem value="long">Mais Longos</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  {results.length > 0 && (
+                    <span className="ml-auto text-[10px] text-slate-500 font-mono uppercase">
+                      {filteredResults.length} vídeos encontrados
+                    </span>
+                  )}
+                </div>
              </div>
              
              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-               {results.map(video => (
-                 <Card key={video.id} className="bg-[#13131F] border-white/5 overflow-hidden group">
-                   <div className="aspect-[9/16] relative bg-slate-900">
-                     <img src={video.image} className="w-full h-full object-cover" />
-                     <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-3">
-                       <Button size="icon" variant="secondary" className="rounded-full h-12 w-12" onClick={() => setSelectedCandidate({
-                         id: 'new',
-                         source: 'pexels',
-                         external_id: video.id.toString(),
-                         preview_url: video.image,
-                         original_url: video.url,
-                         duration: video.duration,
-                         author: video.user.name,
-                         category: 'Manual',
-                         status: 'pendente',
-                         metadata: video,
-                         user_id: '',
-                         discovered_at: new Date().toISOString()
-                       })}><Eye className="w-6 h-6"/></Button>
-                     </div>
-                   </div>
-                   <CardContent className="p-4">
-                     <Button 
-                       className="w-full bg-purple-600" 
-                       disabled={importingId === video.id.toString()}
-                       onClick={() => handleApprove(video)}
-                     >
-                       {importingId === video.id.toString() ? <Loader2 className="w-4 h-4 animate-spin" /> : "Importar Agora"}
-                     </Button>
-                   </CardContent>
-                 </Card>
-               ))}
+                {loading && Array.from({ length: 8 }).map((_, i) => (
+                  <SkeletonCard key={i} />
+                ))}
+
+                {!loading && filteredResults.map(video => (
+                  <VideoCard 
+                    key={video.id} 
+                    video={video}
+                    onImport={handleApprove}
+                    onPreview={(v) => setSelectedCandidate({
+                      id: 'new',
+                      source: 'pexels',
+                      external_id: v.id.toString(),
+                      preview_url: v.image,
+                      original_url: v.url,
+                      duration: v.duration,
+                      author: v.user.name,
+                      category: 'Manual',
+                      status: 'pendente',
+                      metadata: v,
+                      user_id: '',
+                      discovered_at: new Date().toISOString()
+                    })}
+                    isImporting={importingId === video.id.toString()}
+                    isImported={importedExternalIds.has(video.id.toString())}
+                    formatDuration={formatDuration}
+                    getResolutionInfo={getResolutionInfo}
+                  />
+                ))}
+
+                {!loading && query && results.length === 0 && (
+                  <div className="col-span-full py-20 text-center">
+                    <p className="text-slate-500 italic">Nenhum resultado para "{query}"</p>
+                  </div>
+                )}
              </div>
+
           </TabsContent>
 
           <TabsContent value="candidatos" className="space-y-6">
