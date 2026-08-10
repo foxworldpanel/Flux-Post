@@ -505,63 +505,50 @@ export default function AccountsPage() {
           </DialogContent>
         </Dialog>
 
-        {/* Modal Placeholder Conectar */}
-        <Dialog open={isConnectDialogOpen} onOpenChange={setIsConnectDialogOpen}>
-          <DialogContent className="bg-[#13131F] border-white/10 text-white text-center py-10">
-             <div className="w-20 h-20 bg-purple-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
-                <Globe className="w-10 h-10 text-purple-400" />
-             </div>
-             <DialogHeader>
-                <DialogTitle className="text-center text-xl">Integração Social</DialogTitle>
-             </DialogHeader>
-             <p className="text-slate-400 py-4">A conexão oficial via OAuth será configurada na próxima etapa do desenvolvimento (Fase 3.2).</p>
-             <Button className="bg-[#7C3AED] w-full mt-4" onClick={() => setIsConnectDialogOpen(false)}>Entendido</Button>
-          </DialogContent>
-        </Dialog>
-        {/* Modal de Conexão */}
-        <Dialog open={isConnectDialogOpen} onOpenChange={setIsConnectDialogOpen}>
-          <DialogContent className="bg-[#0A0A0F] border-white/10 text-white">
+        {/* Modal Adicionar Conta — fluxo simples em 2 passos */}
+        <Dialog open={isAddOpen} onOpenChange={(open) => { setIsAddOpen(open); if (!open) { setSelectedPlatform(null); setIsConnecting(false); } }}>
+          <DialogContent className="bg-[#0A0A0F] border-white/10 text-white max-w-lg">
             <DialogHeader>
-              <DialogTitle className="text-xl font-bold font-space">Conectar Conta</DialogTitle>
+              <DialogTitle className="text-xl font-bold font-space">
+                {selectedPlatform ? `Conectar ${PLATFORM_LABEL[selectedPlatform]}` : "Qual rede social você deseja conectar?"}
+              </DialogTitle>
             </DialogHeader>
-            <div className="py-6 space-y-4">
-              <div className="flex items-center gap-4 bg-white/5 p-4 rounded-xl border border-white/10">
-                <div className="w-12 h-12 rounded-full bg-black flex items-center justify-center text-2xl">
-                  {connectingAccount?.platform === 'tiktok' ? '📱' : connectingAccount?.platform === 'instagram' ? '📸' : connectingAccount?.platform === 'youtube' ? '🎥' : '👥'}
-                </div>
-                <div>
-                  <p className="font-bold">{connectingAccount?.account_name}</p>
-                  <p className="text-xs text-slate-500">@{connectingAccount?.username}</p>
-                  <p className="text-[10px] text-purple-400 uppercase mt-1">Via PostPeer Provider</p>
-                </div>
-              </div>
-              <p className="text-sm text-slate-400 leading-relaxed">
-                Você será redirecionado para o <strong>PostPeer</strong> para autorizar a conexão oficial da sua rede social.
-              </p>
-              
-              {connectingAccount?.platform === 'tiktok' && (
-                <div className="pt-2 border-t border-white/5">
-                  <Button 
-                    variant="link" 
-                    className="text-[10px] text-slate-500 p-0 h-auto hover:text-white"
-                    onClick={() => connectingAccount && handleConnectTikTokDirect(connectingAccount)}
+
+            {!selectedPlatform ? (
+              <div className="grid grid-cols-2 gap-4 py-4">
+                {platformList.map(p => (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => setSelectedPlatform(p)}
+                    className="flex flex-col items-center gap-2 p-6 rounded-xl bg-white/5 border border-white/10 hover:border-purple-500/50 hover:bg-purple-500/5 transition-all"
                   >
-                    Alternativa: Usar Conexão Direta TikTok (Fallback)
-                  </Button>
+                    <span className="text-3xl">{PLATFORM_ICON[p]}</span>
+                    <span className="text-sm font-bold">{PLATFORM_LABEL[p]}</span>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="py-6 space-y-5 text-center">
+                <div className="w-16 h-16 rounded-full bg-white/5 border border-white/10 flex items-center justify-center mx-auto text-3xl">
+                  {PLATFORM_ICON[selectedPlatform]}
                 </div>
-              )}
-            </div>
-            <DialogFooter>
-              <Button variant="ghost" onClick={() => setIsConnectDialogOpen(false)} disabled={isConnecting}>CANCELAR</Button>
-              <Button 
-                className="bg-[#7C3AED] hover:bg-[#6D28D9]" 
-                disabled={isConnecting}
-                onClick={() => connectingAccount && handleConnect(connectingAccount)}
-              >
-                {isConnecting ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : null}
-                CONECTAR VIA POSTPEER
-              </Button>
-            </DialogFooter>
+                <p className="text-sm text-slate-400 leading-relaxed px-4">
+                  Você fará login diretamente no {PLATFORM_LABEL[selectedPlatform]}. O Flux Post não recebe sua senha.
+                </p>
+                <Button
+                  className="bg-[#7C3AED] hover:bg-[#6D28D9] w-full h-11"
+                  disabled={isConnecting}
+                  onClick={() => handleStartConnection(selectedPlatform)}
+                >
+                  {isConnecting ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : null}
+                  CONECTAR {PLATFORM_LABEL[selectedPlatform].toUpperCase()}
+                </Button>
+                <Button variant="ghost" className="text-slate-500 text-xs" disabled={isConnecting} onClick={() => setSelectedPlatform(null)}>
+                  Escolher outra rede social
+                </Button>
+              </div>
+            )}
           </DialogContent>
         </Dialog>
       </div>
