@@ -107,17 +107,22 @@ export interface TikTokUserInfoResponse {
 
 export type SocialProviderName = 'postpeer' | 'tiktok_direct' | 'meta_direct' | 'youtube_direct';
 
-export interface PostPeerConnection {
+export interface PostPeerProfile {
   id: string;
-  platform: string;
-  status: string;
-  external_account_id?: string;
-  username?: string;
-  display_name?: string;
-  avatar_url?: string;
-  metadata?: Record<string, unknown>;
+  name: string;
   created_at: string;
-  updated_at: string;
+}
+
+export interface PostPeerIntegration {
+  id: string;
+  profileId: string;
+  platform: string;
+  platformUserId: string;
+  displayName: string;
+  imageUrl: string;
+  status: 'active' | 'expired' | 'error';
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface PostPeerApiError {
@@ -127,11 +132,11 @@ export interface PostPeerApiError {
 }
 
 /**
- * PostPeer API Wrapper
+ * PostPeer API Wrapper (v1 .dev)
  */
 export class PostPeerClient {
   private apiKey: string;
-  private baseUrl = "https://api.postpeer.app/v1"; // Premise: check doc if possible
+  private baseUrl = "https://api.postpeer.dev/v1";
 
   constructor(apiKey: string) {
     this.apiKey = apiKey;
@@ -141,13 +146,18 @@ export class PostPeerClient {
     const response = await fetch(`${this.baseUrl}${endpoint}`, {
       ...options,
       headers: {
-        "Authorization": `Bearer ${this.apiKey}`,
+        "x-access-key": this.apiKey,
         "Content-Type": "application/json",
         ...options.headers,
       },
     });
 
-    const data = await response.json();
+    let data;
+    try {
+      data = await response.json();
+    } catch (e) {
+      data = { error: "invalid_json", message: "Failed to parse API response" };
+    }
 
     if (!response.ok) {
       throw {
@@ -160,26 +170,30 @@ export class PostPeerClient {
     return data as T;
   }
 
-  async createConnection(payload: {
-    platform: string;
-    redirect_url: string;
-    state?: string;
-    metadata?: Record<string, unknown>;
-  }): Promise<{ connection_id: string; authorization_url: string }> {
-    return this.request("/connections", {
+  async createProfile(name: string): Promise<PostPeerProfile> {
+    return this.request("/profiles", {
       method: "POST",
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ name }),
     });
   }
 
-  async getConnection(connectionId: string): Promise<PostPeerConnection> {
-    return this.request(`/connections/${connectionId}`);
+  async getOAuthUrl(platform: string, profileId: string, redirectUri: string): Promise<{ url: string }> {
+    const params = new URLSearchParams({
+      profileId,
+      redirectUri
+    });
+    return this.request(`/connect/${platform}?${params.toString()}`);
   }
 
-  async deleteConnection(connectionId: string): Promise<{ success: boolean }> {
-    return this.request(`/connections/${connectionId}`, {
+  async listIntegrations(profileId: string): Promise<PostPeerIntegration[]> {
+    return this.request(`/connect/integrations?profileId=${profileId}`);
+  }
+
+  async disconnectIntegration(integrationId: string): Promise<{ success: boolean }> {
+    return this.request(`/connect/integrations/${integrationId}`, {
       method: "DELETE",
     });
   }
 }
+
 
