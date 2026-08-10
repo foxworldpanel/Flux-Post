@@ -205,4 +205,3 @@ function Button({ className, ...props }: any) {
   const v = props.variant || 'default';
   return <button className={`${base} ${variants[v]} ${className}`} {...props} />;
 }
-
