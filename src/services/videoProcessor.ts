@@ -36,6 +36,11 @@ export async function processVideo(
   }
 
   try {
+    // Cleanup FS before starting
+    try { await ffmpeg.deleteFile('video.mp4'); } catch(e) {}
+    try { await ffmpeg.deleteFile('music.mp3'); } catch(e) {}
+    try { await ffmpeg.deleteFile('output.mp4'); } catch(e) {}
+
     console.log('1. Baixando vídeo via fetch:', videoUrl);
     const videoResponse = await fetch(videoUrl);
     if (!videoResponse.ok) throw new Error(`Falha ao baixar vídeo: ${videoResponse.statusText}`);

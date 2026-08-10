@@ -53,7 +53,8 @@ serve(async (req) => {
       .select(`
         *,
         social_accounts(platform, provider_connection_id, provider_profile_id),
-        content_library(storage_path)
+        content_library(storage_path),
+        media_renders(storage_path)
       `)
       .eq("id", publicationId)
       .eq("user_id", user.id)
@@ -75,10 +76,13 @@ serve(async (req) => {
 
     // 2. Prepare Media URL (Signed URL for PostPeer to download)
     // Usamos 24 horas para garantir que o PostPeer consiga processar, mesmo se houver delay na fila deles
+    const mediaPath = pub.media_renders?.storage_path || pub.content_library.storage_path;
+    const bucketName = pub.media_renders?.storage_path ? "rendered" : "content-library";
+
     const { data: signedUrlData, error: signedUrlError } = await supabaseAdmin
       .storage
-      .from("content-library")
-      .createSignedUrl(pub.content_library.storage_path, 86400);
+      .from(bucketName)
+      .createSignedUrl(mediaPath, 86400);
 
     if (signedUrlError || !signedUrlData?.signedUrl) {
        throw new Error(`Failed to generate signed URL: ${signedUrlError?.message}`);
