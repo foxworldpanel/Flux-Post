@@ -176,7 +176,7 @@ export const socialService = {
           throw new Error("Configuração PostPeer pendente. Informe a API Key do PostPeer para conectar contas.");
         }
         if (body.error === 'Unauthorized') {
-          throw new Error("Sua sessão expirou. Entre novamente para continuar.");
+          throw new Error("Não foi possível validar sua sessão no servidor.");
         }
         throw new Error(body.message || body.error || error.message);
       } catch (e: any) {
