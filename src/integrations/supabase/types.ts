@@ -896,6 +896,7 @@ export type Database = {
           created_at: string | null
           editorial_profile: string | null
           external_account_id: string | null
+          external_display_name: string | null
           id: string
           last_post_at: string | null
           last_sync_at: string | null
@@ -929,6 +930,7 @@ export type Database = {
           created_at?: string | null
           editorial_profile?: string | null
           external_account_id?: string | null
+          external_display_name?: string | null
           id?: string
           last_post_at?: string | null
           last_sync_at?: string | null
@@ -962,6 +964,7 @@ export type Database = {
           created_at?: string | null
           editorial_profile?: string | null
           external_account_id?: string | null
+          external_display_name?: string | null
           id?: string
           last_post_at?: string | null
           last_sync_at?: string | null

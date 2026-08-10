@@ -105,11 +105,10 @@ serve(async (req) => {
         provider_connection_id: integration.id,
         provider_account_id: integration.platformUserId,
         external_account_id: integration.platformUserId,
+        external_display_name: integration.displayName || undefined,
         provider_status: integration.status,
         connection_status: (integration.status === 'active' || integration.status === 'valid') ? 'conectada' : 'erro',
-        account_name: integration.displayName || account.account_name,
         profile_image_url: integration.imageUrl || account.profile_image_url,
-        username: integration.displayName || account.username,
         connected_at: account.connected_at || new Date().toISOString(),
         last_sync_at: new Date().toISOString()
       })

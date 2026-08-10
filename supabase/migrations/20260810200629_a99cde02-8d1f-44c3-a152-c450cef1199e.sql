@@ -1,0 +1,1 @@
+ALTER TABLE public.social_accounts ADD COLUMN IF NOT EXISTS external_display_name text;
