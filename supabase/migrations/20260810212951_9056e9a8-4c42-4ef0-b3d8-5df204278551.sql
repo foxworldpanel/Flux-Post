@@ -1,0 +1,1 @@
+UPDATE public.social_accounts SET username = '' WHERE username LIKE 'tiktok_conta_%' AND connection_status = 'nao_conectada';
