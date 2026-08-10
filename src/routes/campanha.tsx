@@ -359,10 +359,15 @@ export default function CampanhaPage() {
           data_inicio: formData.data_inicio,
           data_fim: formData.data_fim,
           status: "ativo",
-          user_id: user.id
+          user_id: user.id,
+          distribution_mode: formData.distribution_mode,
+          distribution_variation: formData.distribution_variation,
+          cooldown_days: formData.cooldown_days,
+          editorial_language: formData.editorial_language
         })
         .select()
         .single();
+
 
 
       if (campError) throw campError;
