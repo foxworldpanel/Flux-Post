@@ -40,13 +40,13 @@ export default function DashboardPage() {
       
       const targetAccount = accounts?.[0];
       
-      // 2. Tentar Sincronização Real (Recuperação)
-      let syncResult = null;
+      // 2. Tentar Reparo/Recuperação Real
+      let repairResult = null;
       if (targetAccount) {
-        const { data } = await supabase.functions.invoke('postpeer-sync', {
+        const { data } = await supabase.functions.invoke('postpeer-repair', {
           body: { social_account_id: targetAccount.id }
         });
-        syncResult = data;
+        repairResult = data;
       }
 
       // 3. Rodar diagnóstico de API padrão
@@ -54,14 +54,31 @@ export default function DashboardPage() {
         body: { diagnostic: true }
       });
       
+      // 4. Verificar se a conta agora está sincronizada via postpeer-sync (para validar)
+      let finalSync = null;
+      if (targetAccount) {
+        const { data } = await supabase.functions.invoke('postpeer-sync', {
+          body: { social_account_id: targetAccount.id }
+        });
+        finalSync = data;
+      }
+
+      // Recarregar a conta para ver o estado final do banco
+      const { data: updatedAccount } = await supabase
+        .from('social_accounts')
+        .select('*')
+        .eq('id', targetAccount?.id)
+        .single();
+
       setReport({
         ...diagData,
         recovery: {
           account_found: !!targetAccount,
-          provider_profile_id: targetAccount?.provider_profile_id || 'N/A',
-          sync_success: syncResult?.success,
-          recovered: syncResult?.recovered,
-          status_atual: syncResult?.status
+          provider_profile_id: updatedAccount?.provider_profile_id || 'N/A',
+          provider_connection_id: updatedAccount?.provider_connection_id || 'N/A',
+          repair_success: repairResult?.success,
+          sync_success: finalSync?.success,
+          status_atual: updatedAccount?.connection_status
         }
       });
     } catch (err: any) {
@@ -175,9 +192,14 @@ export default function DashboardPage() {
                   success={report.recovery?.sync_success} 
                 />
                 <ResultItem 
-                  label="L. Status Final da Conta" 
+                  label="L. provider_connection_id?" 
+                  value={report.recovery?.provider_connection_id || 'N/A'} 
+                  success={report.recovery?.provider_connection_id !== 'N/A'} 
+                />
+                <ResultItem 
+                  label="M. Status Final da Conta" 
                   value={report.recovery?.status_atual || 'Pendente'} 
-                  success={report.recovery?.status_atual === 'active' || report.recovery?.status_atual === 'valid'} 
+                  success={report.recovery?.status_atual === 'conectada'} 
                 />
               </div>
 
@@ -210,13 +232,13 @@ export default function DashboardPage() {
                   <div>
                     <h4 className="text-[#7C3AED] font-bold text-sm uppercase tracking-wider mb-1">K. Causa Identificada</h4>
                     <p className="text-slate-300 text-sm leading-relaxed">
-                      {report.error ? "A API PostPeer retornou um erro estruturado. Verifique se as credenciais de plataforma estão configuradas no dashboard da PostPeer ou se o payload JSON mudou na v1." : "Infraestrutura e comunicação com PostPeer v1 (.dev) totalmente operacionais."}
+                      {report.error ? "A API PostPeer retornou um erro estruturado. Verifique se as credenciais de plataforma estão configuradas no dashboard da PostPeer ou se o payload JSON mudou na v1." : (report.recovery?.status_atual === 'conectada' ? "Fluxo de recuperação e persistência auditados. Pronto para operação real." : "Aguardando reparo da conta TikTok Conta 02.")}
                     </p>
                   </div>
                   <div>
                     <h4 className="text-[#7C3AED] font-bold text-sm uppercase tracking-wider mb-1">L. Correção Necessária</h4>
                     <p className="text-slate-300 text-sm leading-relaxed">
-                      {report.error ? "Ajustar o mapeamento de campos (ex: .id vs .data.id) ou atualizar a secret POSTPEER_API_KEY se o status for 401/403." : "Nenhuma correção necessária. O sistema está pronto para produção."}
+                      {report.error ? "Ajustar o mapeamento de campos (ex: .id vs .data.id) ou atualizar a secret POSTPEER_API_KEY." : (report.recovery?.status_atual === 'conectada' ? "Nenhuma correção necessária. Sistema estabilizado." : "Clique em 'Iniciar Auditoria & Recuperação' para reparar a conta.")}
                     </p>
                   </div>
                 </div>

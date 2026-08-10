@@ -166,11 +166,20 @@ serve(async (req) => {
          throw { status: 500, message: "PostPeer profile creation failed to return an ID", full_data: profile };
       }
 
-      // Persistir profileId
-      await supabaseAdmin
+      // CRITICAL FIX: Persistir profileId ANTES de qualquer redirecionamento
+      console.log("PERSISTING_PROFILE_ID_BEFORE_OAUTH", { profileId });
+      const { error: updateError } = await supabaseAdmin
         .from("social_accounts")
         .update({ provider_profile_id: profileId })
         .eq("id", account.id);
+        
+      if (updateError) {
+        console.error("FAILED_TO_PERSIST_PROFILE_ID", updateError);
+        throw { status: 500, message: "Failed to persist Profile ID in database. Connection aborted to prevent orphaned profiles.", details: updateError };
+      }
+      
+      // Confirmar persistência (opcional, mas seguro)
+      console.log("PROFILE_ID_PERSISTED_SUCCESSFULLY");
     }
     console.log("PROFILE_OK", { profileId });
 
