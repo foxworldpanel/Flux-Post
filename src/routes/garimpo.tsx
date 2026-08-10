@@ -14,6 +14,122 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
+interface VideoCardProps {
+  video: any;
+  onImport: (video: any) => void;
+  onPreview: (video: any) => void;
+  isImporting: boolean;
+  isImported: boolean;
+  formatDuration: (s: number) => string;
+  getResolutionInfo: (v: any) => { width: number, height: number, quality: string };
+  isCandidate?: boolean;
+  onDiscard?: (id: string) => void;
+}
+
+function VideoCard({ 
+  video, 
+  onImport, 
+  onPreview, 
+  isImporting, 
+  isImported, 
+  formatDuration, 
+  getResolutionInfo,
+  isCandidate,
+  onDiscard
+}: VideoCardProps) {
+  const res = getResolutionInfo(video);
+  const author = video.user?.name || video.author || "Pexels";
+  const duration = video.duration;
+
+  return (
+    <Card className="bg-[#13131F] border-white/5 overflow-hidden group flex flex-col h-full hover:border-purple-500/30 transition-all">
+      <div 
+        className="aspect-[9/16] relative bg-slate-900 cursor-pointer overflow-hidden"
+        onClick={() => onPreview(video)}
+      >
+        <img 
+          src={video.image || video.preview_url} 
+          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" 
+          loading="lazy"
+        />
+        
+        {/* Hover Overlay */}
+        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+          <div className="bg-white/10 backdrop-blur-md rounded-full p-3 border border-white/20 transform scale-90 group-hover:scale-100 transition-transform">
+            <Play className="w-6 h-6 text-white fill-white" />
+          </div>
+          <span className="absolute bottom-10 text-[10px] font-bold text-white uppercase tracking-widest bg-black/40 px-3 py-1 rounded-full backdrop-blur-sm">
+            Visualizar
+          </span>
+        </div>
+
+        {/* Top Badges */}
+        <div className="absolute top-2 left-2 flex flex-col gap-1">
+          {isImported && (
+             <Badge className="bg-emerald-500 text-white border-none text-[9px] font-bold py-0 h-5">
+               <Check className="w-3 h-3 mr-1" /> NA BIBLIOTECA
+             </Badge>
+          )}
+          {isCandidate && video.status && video.status !== 'pendente' && (
+             <Badge className={cn(
+               "text-[9px] font-bold py-0 h-5 border-none",
+               video.status === 'aprovado' ? "bg-emerald-500 text-white" : "bg-rose-500 text-white"
+             )}>
+               {video.status.toUpperCase()}
+             </Badge>
+          )}
+        </div>
+
+        {/* Bottom Metadata Overlay */}
+        <div className="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black/80 via-black/40 to-transparent flex flex-col gap-1">
+          <div className="flex justify-between items-end">
+            <div className="flex flex-col">
+              <span className="text-[9px] text-white/70 font-medium flex items-center gap-1">
+                <User className="w-2.5 h-2.5" /> {author}
+              </span>
+              <span className="text-[9px] text-white/50 uppercase font-bold tracking-wider">
+                Pexels • {res.width}x{res.height}
+              </span>
+            </div>
+            <div className="bg-black/60 backdrop-blur-md px-1.5 py-0.5 rounded text-[10px] font-bold text-white border border-white/10">
+              {formatDuration(duration)}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <CardContent className="p-3 bg-[#13131F] mt-auto border-t border-white/5">
+        <div className="flex gap-2">
+          {isImported ? (
+            <Button className="w-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs h-8 cursor-default hover:bg-emerald-500/10" disabled>
+              ✓ IMPORTADO
+            </Button>
+          ) : (
+            <Button 
+              className="flex-1 bg-purple-600 hover:bg-purple-700 text-xs h-8 font-bold" 
+              disabled={isImporting}
+              onClick={() => onImport(video)}
+            >
+              {isImporting ? <Loader2 className="w-3 h-3 animate-spin" /> : (isCandidate ? "APROVAR" : "IMPORTAR AGORA")}
+            </Button>
+          )}
+          
+          {isCandidate && video.status === 'pendente' && onDiscard && (
+            <Button 
+              size="icon" 
+              variant="destructive" 
+              className="bg-rose-500/10 text-rose-500 hover:bg-rose-500/20 h-8 w-8"
+              onClick={() => onDiscard(video.id)}
+            >
+              <Trash2 className="w-4 h-4" />
+            </Button>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function GarimpoPage() {
   const [activeTab, setActiveTab] = useState("buscar");
   const [query, setQuery] = useState("");
