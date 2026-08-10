@@ -839,9 +839,10 @@ export default function CampanhaPage() {
                     )}
                   </div>
                 </div>
-
+              </div>
 
               <Button
+
                 onClick={handleIniciar}
                 disabled={saving}
                 className="w-full bg-[#7C3AED] hover:bg-[#6D28D9] text-white py-6 text-lg font-semibold"
