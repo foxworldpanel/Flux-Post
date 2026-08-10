@@ -282,8 +282,6 @@ export default function AccountsPage() {
                     }}>
                       RENOMEAR
                     </Button>
-                      <Edit2 className="w-4 h-4" />
-                    </Button>
                     <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-500 hover:text-white" onClick={() => toggleStatus(account)}>
                       <Power className={`w-4 h-4 ${account.status === 'active' ? 'text-emerald-500' : 'text-slate-500'}`} />
                     </Button>
