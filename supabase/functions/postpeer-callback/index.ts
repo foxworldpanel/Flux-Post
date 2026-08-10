@@ -51,6 +51,16 @@ serve(async (req) => {
     const profileId = stateData.social_accounts?.provider_profile_id;
     const platform = stateData.social_accounts?.platform;
 
+    // Limpa registro pending (criado apenas para iniciar o OAuth) quando o fluxo falha
+    const cleanupPending = async () => {
+      await supabaseAdmin
+        .from("social_accounts")
+        .delete()
+        .eq("id", stateData.social_account_id)
+        .eq("connection_status", "nao_conectada")
+        .is("provider_connection_id", null);
+    };
+
     if (!profileId || !platform) {
       return Response.redirect(`${appUrl}/accounts?error=missing_profile_context`, 302);
     }
@@ -74,6 +84,7 @@ serve(async (req) => {
     const integration = integrations.find(i => i.platform.toLowerCase() === platform.toLowerCase());
 
     if (!integration) {
+      await cleanupPending();
       return Response.redirect(`${appUrl}/accounts?error=integration_not_found`, 302);
     }
 
@@ -87,6 +98,7 @@ serve(async (req) => {
       .single();
 
     if (existingAccount) {
+      await cleanupPending();
       return Response.redirect(`${appUrl}/accounts?error=already_connected&account=${encodeURIComponent(existingAccount.account_name || 'outra')}`, 302);
     }
 
@@ -114,6 +126,7 @@ serve(async (req) => {
 
     if (updateError) {
       console.error("Error updating social account:", updateError);
+      await cleanupPending();
       return Response.redirect(`${appUrl}/accounts?error=database_update_failed`, 302);
     }
 
