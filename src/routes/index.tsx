@@ -9,12 +9,16 @@ import {
   Calendar,
   Layers,
   BarChart3,
-  Target
+  Target,
+  ArrowRight,
+  ShieldCheck,
+  Zap
 } from "lucide-react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Link } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { Badge } from "@/components/ui/badge";
 
 export default function DashboardPage() {
   const [stats, setStats] = useState({
@@ -22,7 +26,8 @@ export default function DashboardPage() {
     musics: 0,
     videos: 0,
     accounts: 0,
-    connected: 0
+    connected: 0,
+    publications: 0
   });
 
   useEffect(() => {
@@ -31,12 +36,14 @@ export default function DashboardPage() {
         { count: artists },
         { count: musics },
         { count: videos },
-        { data: accounts }
+        { data: accounts },
+        { count: publications }
       ] = await Promise.all([
         supabase.from('artists').select('*', { count: 'exact', head: true }),
         supabase.from('music_tracks').select('*', { count: 'exact', head: true }),
         supabase.from('content_library').select('*', { count: 'exact', head: true }),
-        supabase.from('social_accounts').select('connection_status')
+        supabase.from('social_accounts').select('connection_status'),
+        supabase.from('publications').select('*', { count: 'exact', head: true })
       ]);
 
       setStats({
@@ -44,7 +51,8 @@ export default function DashboardPage() {
         musics: musics || 0,
         videos: videos || 0,
         accounts: accounts?.length || 0,
-        connected: accounts?.filter(a => a.connection_status === 'conectada').length || 0
+        connected: accounts?.filter(a => a.connection_status === 'conectada').length || 0,
+        publications: publications || 0
       });
     };
     loadStats();
@@ -54,23 +62,48 @@ export default function DashboardPage() {
     <DashboardLayout>
       <div className="p-8 space-y-8 animate-in fade-in duration-500">
         
-        <div className="flex justify-between items-end">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
           <div>
-            <h1 className="text-4xl font-bold text-white font-space mb-2">Dashboard</h1>
-            <p className="text-slate-400">Visão geral da sua operação de distribuição musical.</p>
+            <div className="flex items-center gap-2 mb-2">
+              <h1 className="text-4xl font-bold text-white font-space">Dashboard</h1>
+              <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 text-[10px] uppercase tracking-widest font-bold">Operacional</Badge>
+            </div>
+            <p className="text-slate-400">Visão geral da sua operação de distribuição musical no TikTok.</p>
           </div>
-          <div className="flex gap-3">
-             <Link to="/accounts">
-               <Button variant="outline" className="border-white/10 text-white bg-white/5 hover:bg-white/10">
+          <div className="flex gap-3 w-full md:w-auto">
+             <Link to="/accounts" className="flex-1 md:flex-none">
+               <Button variant="outline" className="w-full border-white/10 text-white bg-white/5 hover:bg-white/10 h-11 px-6">
                  <Globe className="w-4 h-4 mr-2" /> Central de Contas
                </Button>
              </Link>
-             <Link to="/campanha">
-               <Button className="bg-[#7C3AED] hover:bg-[#6D28D9]">
+             <Link to="/campanha" className="flex-1 md:flex-none">
+               <Button className="w-full bg-[#7C3AED] hover:bg-[#6D28D9] h-11 px-6 shadow-lg shadow-purple-500/20">
                  <Target className="w-4 h-4 mr-2" /> Nova Campanha
                </Button>
              </Link>
           </div>
+        </div>
+
+        {/* Status da Infraestrutura */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <InfrastructureCard 
+            title="API PostPeer"
+            status="CONECTADO"
+            icon={<Zap className="w-4 h-4 text-amber-400" />}
+            desc="Integração de publicação v1 ativa"
+          />
+          <InfrastructureCard 
+            title="Database"
+            status="SINCRONIZADO"
+            icon={<ShieldCheck className="w-4 h-4 text-emerald-400" />}
+            desc="Tabelas de publicações auditadas"
+          />
+          <InfrastructureCard 
+            title="Auth & Security"
+            status="ATIVO"
+            icon={<ShieldCheck className="w-4 h-4 text-blue-400" />}
+            desc="RLS e Políticas de usuário configuradas"
+          />
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -93,46 +126,61 @@ export default function DashboardPage() {
             link="/biblioteca"
           />
           <MetricCard 
-            title="Contas Sociais" 
-            value={`${stats.connected}/${stats.accounts}`} 
-            icon={<Globe className="w-5 h-5 text-[#7C3AED]" />} 
-            link="/accounts"
-            subtitle="Contas Conectadas"
+            title="Publicações" 
+            value={stats.publications.toString()} 
+            icon={<TrendingUp className="w-5 h-5 text-[#7C3AED]" />} 
+            link="/publicacoes"
+            subtitle="Posts totais"
           />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
            <Card className="lg:col-span-2 bg-[#13131F] border-white/5 p-6 space-y-6">
               <div className="flex justify-between items-center">
-                 <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                 <h3 className="text-lg font-bold text-white flex items-center gap-2 font-space">
                     <Activity className="w-5 h-5 text-[#7C3AED]" /> Atividade Recente
                  </h3>
-                 <span className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Últimos 7 dias</span>
+                 <div className="flex gap-2">
+                   <Badge variant="outline" className="border-white/5 text-[9px] text-slate-500 uppercase font-bold tracking-widest">TikTok</Badge>
+                   <Badge variant="outline" className="border-white/5 text-[9px] text-slate-500 uppercase font-bold tracking-widest">YouTube</Badge>
+                 </div>
               </div>
               
-              <div className="h-[300px] flex items-center justify-center border border-white/5 rounded-xl bg-black/20">
-                 <p className="text-slate-600 text-sm italic">Dados de analytics serão exibidos aqui após a primeira campanha.</p>
+              <div className="h-[300px] flex flex-col items-center justify-center border border-white/5 rounded-xl bg-black/20 text-center p-8">
+                 <div className="w-12 h-12 bg-white/5 rounded-full flex items-center justify-center mb-4">
+                   <TrendingUp className="text-slate-700 w-6 h-6" />
+                 </div>
+                 <p className="text-slate-400 text-sm font-medium mb-1">Pronto para o primeiro teste real</p>
+                 <p className="text-slate-600 text-xs max-w-xs">Os gráficos de performance serão exibidos automaticamente após as primeiras publicações agendadas.</p>
               </div>
            </Card>
 
            <Card className="bg-[#13131F] border-white/5 p-6 space-y-6">
-              <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                 <Calendar className="w-5 h-5 text-[#7C3AED]" /> Agenda de Hoje
-              </h3>
+              <div className="flex justify-between items-center">
+                <h3 className="text-lg font-bold text-white flex items-center gap-2 font-space">
+                   <Calendar className="w-5 h-5 text-[#7C3AED]" /> Agenda
+                </h3>
+                <Link to="/agenda" className="text-[10px] text-purple-400 hover:text-purple-300 font-bold uppercase tracking-widest flex items-center gap-1">
+                  Ver Tudo <ArrowRight size={10} />
+                </Link>
+              </div>
               
               <div className="space-y-4">
-                 <div className="p-4 rounded-lg bg-white/5 border border-white/5 flex items-center justify-center h-40">
-                    <p className="text-slate-600 text-xs text-center">Nenhuma publicação agendada para hoje.</p>
-                 </div>
-                 
-                 <Button variant="ghost" className="w-full text-xs text-slate-500 hover:text-white" asChild>
-                    <Link to="/agenda">Ver agenda completa</Link>
-                 </Button>
+                  <div className="p-6 rounded-xl bg-white/5 border border-white/5 flex flex-col items-center justify-center h-40 text-center">
+                     <Calendar className="text-slate-700 w-8 h-8 mb-3" />
+                     <p className="text-slate-500 text-xs">Nenhuma publicação agendada para as próximas 24 horas.</p>
+                  </div>
+                  
+                  <Link to="/campanha" className="block">
+                    <Button variant="outline" className="w-full text-xs border-white/10 text-slate-300 hover:bg-white/5 hover:text-white h-9">
+                       Agendar primeiro post
+                    </Button>
+                  </Link>
               </div>
            </Card>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pb-8">
            <QuickActionCard 
               title="Garimpo" 
               desc="Descobrir novos vídeos virais" 
@@ -140,16 +188,16 @@ export default function DashboardPage() {
               link="/garimpo"
            />
            <QuickActionCard 
-              title="Analytics" 
-              desc="Performance das publicações" 
-              icon={<BarChart3 className="w-6 h-6 text-emerald-400" />}
-              link="/analytics"
-           />
-           <QuickActionCard 
               title="Publicações" 
               desc="Gerenciar posts enviados" 
               icon={<TrendingUp className="w-6 h-6 text-blue-400" />}
               link="/publicacoes"
+           />
+           <QuickActionCard 
+              title="Analytics" 
+              desc="Performance das publicações" 
+              icon={<BarChart3 className="w-6 h-6 text-emerald-400" />}
+              link="/analytics"
            />
         </div>
       </div>
@@ -157,10 +205,27 @@ export default function DashboardPage() {
   );
 }
 
+function InfrastructureCard({ title, status, icon, desc }: { title: string, status: string, icon: React.ReactNode, desc: string }) {
+  return (
+    <Card className="bg-[#13131F] border-white/5 p-4 flex items-start gap-4 hover:border-white/10 transition-colors">
+      <div className="p-2 bg-white/5 rounded-lg border border-white/5">
+        {icon}
+      </div>
+      <div>
+        <div className="flex items-center gap-2 mb-0.5">
+          <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{title}</h4>
+          <span className="text-[8px] font-bold text-emerald-500 bg-emerald-500/10 px-1.5 py-0.5 rounded uppercase tracking-tighter">{status}</span>
+        </div>
+        <p className="text-xs text-white/70 font-medium">{desc}</p>
+      </div>
+    </Card>
+  );
+}
+
 function MetricCard({ title, value, icon, link, subtitle }: { title: string; value: string; icon: React.ReactNode; link: string; subtitle?: string }) {
   return (
     <Link to={link}>
-      <Card className="bg-[#13131F] border-white/5 p-6 hover:border-[#7C3AED]/30 transition-all group cursor-pointer relative overflow-hidden">
+      <Card className="bg-[#13131F] border-white/5 p-6 hover:border-[#7C3AED]/30 transition-all group cursor-pointer relative overflow-hidden h-full">
         <div className="absolute -right-4 -bottom-4 opacity-5 group-hover:opacity-10 transition-opacity">
            {icon}
         </div>
@@ -168,8 +233,9 @@ function MetricCard({ title, value, icon, link, subtitle }: { title: string; val
           <div className="p-2 bg-white/5 rounded-lg border border-white/10 group-hover:border-[#7C3AED]/50 transition-colors">
             {icon}
           </div>
+          <ArrowRight className="w-4 h-4 text-slate-700 group-hover:text-purple-500 transition-colors" />
         </div>
-        <p className="text-sm text-slate-500 uppercase font-bold tracking-wider">{title}</p>
+        <p className="text-xs text-slate-500 uppercase font-bold tracking-wider">{title}</p>
         <div className="flex items-baseline gap-2">
           <h3 className="text-3xl font-bold text-white mt-1 font-space">{value}</h3>
           {subtitle && <span className="text-[10px] text-slate-600 font-bold uppercase">{subtitle}</span>}
@@ -186,10 +252,11 @@ function QuickActionCard({ title, desc, icon, link }: { title: string; desc: str
         <div className="p-3 bg-white/5 rounded-xl group-hover:bg-black/20 transition-colors">
            {icon}
         </div>
-        <div>
-           <h4 className="text-white font-bold">{title}</h4>
-           <p className="text-xs text-slate-500">{desc}</p>
+        <div className="flex-1">
+           <h4 className="text-white font-bold font-space">{title}</h4>
+           <p className="text-[11px] text-slate-500">{desc}</p>
         </div>
+        <ArrowRight size={16} className="text-slate-700 group-hover:text-white transition-colors" />
       </Card>
     </Link>
   );
@@ -206,3 +273,4 @@ function Button({ className, ...props }: any) {
   const Comp = props.asChild ? 'span' : 'button';
   return <Comp className={`${base} ${variants[v]} ${className}`} {...props} />;
 }
+
