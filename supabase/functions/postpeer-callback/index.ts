@@ -82,15 +82,29 @@ serve(async (req) => {
     }
 
     const postpeer = new PostPeerClient(POSTPEER_API_KEY);
+    console.log(`[postpeer-callback] Fetching integrations for profile: ${profileId}`);
     const integrations = await postpeer.listIntegrations(profileId);
+    
+    // Log sanitizado
+    integrations.forEach((i, idx) => {
+      console.log(`[postpeer-callback] Integration ${idx}:`, {
+        id: i.id,
+        profileId: i.profileId,
+        platform: i.platform,
+        status: i.status
+      });
+    });
 
-    // Identificar a integração recém-criada para esta plataforma
+    // Identificar a integração recém-criada para esta plataforma DENTRO deste profile
     const integration = integrations.find(i => i.platform.toLowerCase() === platform.toLowerCase());
 
     if (!integration) {
+      console.error("[postpeer-callback] No matching integration found in PostPeer response for profile/platform.");
       await cleanupPending();
       return Response.redirect(`${appUrl}/accounts?error=integration_not_found`, 302);
     }
+
+    console.log("[postpeer-callback] Matching integration found:", integration.id);
 
     // 3. Verificar duplicidade (server-side)
     const { data: existingAccount } = await supabaseAdmin
@@ -116,6 +130,7 @@ serve(async (req) => {
         provider_status: integration.status,
         external_account_id: integration.platformUserId,
         external_display_name: integration.displayName || undefined,
+        username: integration.username || integration.handle || '', // Preencher com dado real
         profile_image_url: integration.imageUrl || undefined,
         connection_status: 'conectada',
         connected_at: new Date().toISOString(),
