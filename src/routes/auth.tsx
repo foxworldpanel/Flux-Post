@@ -33,6 +33,10 @@ export default function AuthPage() {
         if (!data.session?.user || !data.session.access_token) {
           throw new Error('O login não retornou uma sessão válida. Tente novamente.');
         }
+        const { data: restored, error: sessionError } = await supabase.auth.getSession();
+        if (sessionError || !restored.session?.user || !restored.session.access_token) {
+          throw new Error('A sessão não foi persistida após o login. Recarregue e tente novamente.');
+        }
         const destination = (location.state as { from?: string } | null)?.from || '/';
         navigate(destination, { replace: true });
       } else {
