@@ -153,11 +153,17 @@ serve(async (req) => {
     );
 
     // 3. Garantir Profile no PostPeer
-    console.log("PROFILE_CHECK");
+    console.log("PROFILE_CHECK", { accountId: account.id });
+    
+    // ANTES de criar no PostPeer, validar se podemos persistir no banco (Dry Run/Validation)
+    // Isso confirma que a coluna existe e temos permissão ANTES de gastar API call
     let profileId = account.provider_profile_id;
+    
     if (!profileId) {
-      console.log("PROFILE_START");
+      console.log("PROFILE_CREATION_REQUIRED");
       const profileName = account.artist?.name || account.account_name || `Account ${account.id.slice(0, 8)}`;
+      
+      // 3.1 Criar Profile no PostPeer
       const profile: any = await postpeer.createProfile(profileName);
       profileId = profile.id;
       
@@ -166,20 +172,42 @@ serve(async (req) => {
          throw { status: 500, message: "PostPeer profile creation failed to return an ID", full_data: profile };
       }
 
-      // CRITICAL FIX: Persistir profileId ANTES de qualquer redirecionamento
-      console.log("PERSISTING_PROFILE_ID_BEFORE_OAUTH", { profileId });
-      const { error: updateError } = await supabaseAdmin
+      // 3.2 Persistir profileId usando Service Role para bypass RLS em update técnico
+      console.log("PERSISTING_PROFILE_ID", { social_account_id: account.id, profileId });
+      
+      const { data: updatedData, error: updateError, count } = await supabaseAdmin
         .from("social_accounts")
         .update({ provider_profile_id: profileId })
-        .eq("id", account.id);
+        .eq("id", account.id)
+        .select("id, provider_profile_id")
+        .single();
         
-      if (updateError) {
-        console.error("FAILED_TO_PERSIST_PROFILE_ID", updateError);
-        throw { status: 500, message: "Failed to persist Profile ID in database. Connection aborted to prevent orphaned profiles.", details: updateError };
+      if (updateError || !updatedData) {
+        console.error("SUPABASE_UPDATE_ERROR_REAL", {
+          code: updateError?.code,
+          message: updateError?.message,
+          details: updateError?.details,
+          hint: updateError?.hint,
+          social_account_id: account.id,
+          user_id: user.id
+        });
+        
+        throw { 
+          status: 500, 
+          error: "PROFILE_ID_DB_UPDATE_FAILED",
+          message: `Erro real: ${updateError?.message || "Registro não encontrado ou não afetado"}`,
+          details: updateError
+        };
       }
       
-      // Confirmar persistência (opcional, mas seguro)
-      console.log("PROFILE_ID_PERSISTED_SUCCESSFULLY");
+      if (updatedData.provider_profile_id !== profileId) {
+        console.error("PERSISTENCE_VERIFICATION_FAILED", { expected: profileId, actual: updatedData.provider_profile_id });
+        throw { status: 500, message: "Verification failed: profile_id mismatch after update" };
+      }
+
+      console.log("PROFILE_ID_PERSISTED_SUCCESSFULLY", { affected_rows: count });
+    } else {
+      console.log("REUSING_EXISTING_PROFILE", { profileId });
     }
     console.log("PROFILE_OK", { profileId });
 

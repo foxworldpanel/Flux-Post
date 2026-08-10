@@ -910,6 +910,7 @@ export type Database = {
           provider: string | null
           provider_account_id: string | null
           provider_connection_id: string | null
+          provider_profile_id: string | null
           provider_status: string | null
           receive_all_campaigns: boolean | null
           status: string | null
@@ -944,6 +945,7 @@ export type Database = {
           provider?: string | null
           provider_account_id?: string | null
           provider_connection_id?: string | null
+          provider_profile_id?: string | null
           provider_status?: string | null
           receive_all_campaigns?: boolean | null
           status?: string | null
@@ -978,6 +980,7 @@ export type Database = {
           provider?: string | null
           provider_account_id?: string | null
           provider_connection_id?: string | null
+          provider_profile_id?: string | null
           provider_status?: string | null
           receive_all_campaigns?: boolean | null
           status?: string | null
