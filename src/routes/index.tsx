@@ -40,13 +40,13 @@ export default function DashboardPage() {
       
       const targetAccount = accounts?.[0];
       
-      // 2. Tentar Sincronização Real (Recuperação)
-      let syncResult = null;
+      // 2. Tentar Reparo/Recuperação Real
+      let repairResult = null;
       if (targetAccount) {
-        const { data } = await supabase.functions.invoke('postpeer-sync', {
+        const { data } = await supabase.functions.invoke('postpeer-repair', {
           body: { social_account_id: targetAccount.id }
         });
-        syncResult = data;
+        repairResult = data;
       }
 
       // 3. Rodar diagnóstico de API padrão
@@ -54,14 +54,31 @@ export default function DashboardPage() {
         body: { diagnostic: true }
       });
       
+      // 4. Verificar se a conta agora está sincronizada via postpeer-sync (para validar)
+      let finalSync = null;
+      if (targetAccount) {
+        const { data } = await supabase.functions.invoke('postpeer-sync', {
+          body: { social_account_id: targetAccount.id }
+        });
+        finalSync = data;
+      }
+
+      // Recarregar a conta para ver o estado final do banco
+      const { data: updatedAccount } = await supabase
+        .from('social_accounts')
+        .select('*')
+        .eq('id', targetAccount?.id)
+        .single();
+
       setReport({
         ...diagData,
         recovery: {
           account_found: !!targetAccount,
-          provider_profile_id: targetAccount?.provider_profile_id || 'N/A',
-          sync_success: syncResult?.success,
-          recovered: syncResult?.recovered,
-          status_atual: syncResult?.status
+          provider_profile_id: updatedAccount?.provider_profile_id || 'N/A',
+          provider_connection_id: updatedAccount?.provider_connection_id || 'N/A',
+          repair_success: repairResult?.success,
+          sync_success: finalSync?.success,
+          status_atual: updatedAccount?.connection_status
         }
       });
     } catch (err: any) {
@@ -175,9 +192,14 @@ export default function DashboardPage() {
                   success={report.recovery?.sync_success} 
                 />
                 <ResultItem 
-                  label="L. Status Final da Conta" 
+                  label="L. provider_connection_id?" 
+                  value={report.recovery?.provider_connection_id || 'N/A'} 
+                  success={report.recovery?.provider_connection_id !== 'N/A'} 
+                />
+                <ResultItem 
+                  label="M. Status Final da Conta" 
                   value={report.recovery?.status_atual || 'Pendente'} 
-                  success={report.recovery?.status_atual === 'active' || report.recovery?.status_atual === 'valid'} 
+                  success={report.recovery?.status_atual === 'conectada'} 
                 />
               </div>
 
