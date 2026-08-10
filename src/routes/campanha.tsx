@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -12,12 +12,21 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import {
   Megaphone,
-  Music,
+  Music as MusicIcon,
   Calendar,
   Clock,
   RotateCcw,
@@ -29,18 +38,23 @@ import {
   X,
   Filter,
   Loader2,
+  Plus,
+  Globe,
+  LayoutDashboard,
+  CheckCircle2,
+  AlertTriangle,
 } from "lucide-react";
 import { format, addDays, differenceInDays } from "date-fns";
 import { artistService } from "@/services/artists";
 import { contentService } from "@/services/content";
-import { socialService } from "@/services/social";
-
+import { socialService, type SocialAccount } from "@/services/social";
 
 type MusicTrack = {
   id: string;
   nome: string;
   artista: string;
   artist_id: string;
+  storage_path: string | null;
 };
 
 type Artist = {
@@ -72,11 +86,22 @@ export default function CampanhaPage() {
   const [musicas, setMusicas] = useState<MusicTrack[]>([]);
   const [artistas, setArtistas] = useState<Artist[]>([]);
   const [biblioteca, setBiblioteca] = useState<any[]>([]);
+  const [socialAccounts, setSocialAccounts] = useState<SocialAccount[]>([]);
   const [selectedContentIds, setSelectedContentIds] = useState<string[]>([]);
+  const [selectedAccountIds, setSelectedAccountIds] = useState<string[]>([]);
   const [contentFilter, setContentFilter] = useState("todos");
   const [signedUrls, setSignedUrls] = useState<Record<string, string>>({});
   const [loadingUrls, setLoadingUrls] = useState<Record<string, boolean>>({});
   const [totalPosts, setTotalPosts] = useState(0);
+  
+  // Modal states for new music
+  const [isMusicModalOpen, setIsMusicModalOpen] = useState(false);
+  const [newMusicData, setNewMusicData] = useState({
+    nome: "",
+    file: null as File | null,
+    uploading: false
+  });
+  const musicFileInputRef = useRef<HTMLInputElement>(null);
 
   // Form states
   const [formData, setFormData] = useState({
@@ -90,6 +115,8 @@ export default function CampanhaPage() {
     intervalo_max: 90,
     data_inicio: format(new Date(), "yyyy-MM-dd"),
     data_fim: format(addDays(new Date(), 30), "yyyy-MM-dd"),
+    timezone: "America/Sao_Paulo",
+    schedulingMode: "distribute" as "manual" | "distribute"
   });
 
   useEffect(() => {
@@ -99,10 +126,13 @@ export default function CampanhaPage() {
   async function fetchData() {
     setLoading(true);
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
       // 1. Check for active campaign
       const { data: campanhas, error: campError } = await supabase
         .from("campanhas")
-        .select("*, music_tracks(id, nome, artista), artists(id, name)")
+        .select("*, music_tracks(id, nome, artista, storage_path, artist_id), artists(id, name)")
         .eq("status", "ativo")
         .maybeSingle();
 
@@ -111,7 +141,7 @@ export default function CampanhaPage() {
       if (campanhas) {
         setCampanhaAtiva(campanhas as any);
 
-        // Count posts realized from the canonical publications table
+        // Count posts
         const { count, error: countError } = await supabase
           .from("publications")
           .select("*", { count: "exact", head: true })
@@ -119,7 +149,6 @@ export default function CampanhaPage() {
           .eq("status", "published");
 
         if (!countError) setTotalPosts(count || 0);
-
 
         // Fetch campaign contents
         const { data: campaignContents, error: contentsError } = await supabase
@@ -130,13 +159,24 @@ export default function CampanhaPage() {
         if (!contentsError && campaignContents) {
           setSelectedContentIds(campaignContents.map((c) => c.content_id));
         }
+
+        // Fetch campaign social accounts
+        const { data: campaignAccounts, error: accountsRelError } = await supabase
+          .from("campaign_social_accounts")
+          .select("social_account_id")
+          .eq("campaign_id", campanhas.id);
+        
+        if (!accountsRelError && campaignAccounts) {
+          setSelectedAccountIds(campaignAccounts.map(a => a.social_account_id));
+        }
       }
 
       // Fetch data for new/existing campaign
-      const [artistsRes, tracksRes, libraryRes] = await Promise.all([
+      const [artistsRes, tracksRes, libraryRes, accountsRes] = await Promise.all([
         artistService.getArtists(),
-        supabase.from("music_tracks").select("id, nome, artista, artist_id"),
+        supabase.from("music_tracks").select("id, nome, artista, artist_id, storage_path"),
         supabase.from("content_library").select("*").order("created_at", { ascending: false }),
+        socialService.getConnectedAccounts()
       ]);
 
       if (tracksRes.error) throw tracksRes.error;
@@ -145,8 +185,9 @@ export default function CampanhaPage() {
       setArtistas(artistsRes || []);
       setMusicas(tracksRes.data || []);
       setBiblioteca(libraryRes.data || []);
+      setSocialAccounts(accountsRes || []);
 
-      // Pre-fetch signed URLs for library items
+      // Pre-fetch signed URLs
       if (libraryRes.data) {
         libraryRes.data.forEach((item) => {
           loadSignedUrl(item.id, item.storage_path);
@@ -173,6 +214,59 @@ export default function CampanhaPage() {
     }
   }
 
+  async function handleCreateMusic() {
+    if (!newMusicData.nome || !newMusicData.file || !formData.artist_id) {
+      toast.error("Preencha o nome, escolha um arquivo e certifique-se de que um artista está selecionado.");
+      return;
+    }
+
+    setNewMusicData(prev => ({ ...prev, uploading: true }));
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Usuário não autenticado");
+
+      // 1. Upload file
+      const fileExt = newMusicData.file.name.split('.').pop();
+      const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+      const filePath = `music/${user.id}/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('musicas')
+        .upload(filePath, newMusicData.file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('musicas')
+        .getPublicUrl(filePath);
+
+      // 2. Insert into DB
+      const { data: music, error: dbError } = await supabase
+        .from('music_tracks')
+        .insert({
+          nome: newMusicData.nome,
+          artist_id: formData.artist_id,
+          storage_path: publicUrl,
+          user_id: user.id
+        })
+        .select()
+        .single();
+
+      if (dbError) throw dbError;
+
+      // 3. Update local state and select it
+      setMusicas(prev => [music as any, ...prev]);
+      setFormData(prev => ({ ...prev, music_track_id: music.id }));
+      setIsMusicModalOpen(false);
+      setNewMusicData({ nome: "", file: null, uploading: false });
+      toast.success("Música adicionada e selecionada!");
+    } catch (error: any) {
+      toast.error("Erro ao adicionar música: " + error.message);
+    } finally {
+      setNewMusicData(prev => ({ ...prev, uploading: false }));
+    }
+  }
+
   async function handleIniciar() {
     if (!formData.nome || !formData.music_track_id || !formData.artist_id) {
       toast.error("Preencha o nome, escolha um artista e uma música");
@@ -184,11 +278,14 @@ export default function CampanhaPage() {
       return;
     }
 
+    if (selectedAccountIds.length === 0) {
+      toast.error("Selecione pelo menos uma conta social para publicação");
+      return;
+    }
+
     setSaving(true);
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Usuário não autenticado");
 
       // 1. Create campaign
@@ -228,28 +325,25 @@ export default function CampanhaPage() {
 
       if (contentError) throw contentError;
 
-      // 3. Update music track
+      // 3. Link social accounts
+      const accountInserts = selectedAccountIds.map(accountId => ({
+        campaign_id: newCamp.id,
+        social_account_id: accountId
+      }));
+
+      const { error: accountRelError } = await supabase
+        .from("campaign_social_accounts")
+        .insert(accountInserts);
+      
+      if (accountRelError) throw accountRelError;
+
+      // 4. Update music track
       await supabase
         .from("music_tracks")
         .update({ campanha_ativa: true })
         .eq("id", formData.music_track_id);
 
-      // 4. PREPARAR MVP: Agendar automaticamente 1 post de teste se houver conta conectada
-      const connectedAccounts = await socialService.getConnectedAccounts();
-      if (connectedAccounts.length > 0 && selectedContentIds.length > 0) {
-        toast.info("Agendando primeiro post de teste...");
-        await socialService.createPublication({
-          content_id: selectedContentIds[0],
-          account_id: connectedAccounts[0].id,
-          platform: connectedAccounts[0].platform,
-          caption: `Lançamento: ${musicas.find(m => m.id === formData.music_track_id)?.nome || 'Nova Música'} #fluxpost`,
-          scheduled_at: new Date(Date.now() + 10 * 60000).toISOString(), // 10 min a frente
-          timezone: "America/Sao_Paulo"
-        });
-        toast.success("Primeiro post agendado para daqui a 10 minutos!");
-      }
-
-      toast.success("Campanha iniciada com sucesso!");
+      toast.success("Campanha criada com sucesso! Você pode revisar a programação agora.");
       fetchData();
     } catch (error: any) {
       toast.error("Erro ao iniciar campanha: " + error.message);
@@ -257,7 +351,6 @@ export default function CampanhaPage() {
       setSaving(false);
     }
   }
-
 
   async function handleUpdateStatus(status: string) {
     if (!campanhaAtiva) return;
@@ -272,7 +365,6 @@ export default function CampanhaPage() {
       if (error) throw error;
 
       if (status === "encerrado") {
-        // Clear music track active flag
         await supabase
           .from("music_tracks")
           .update({ campanha_ativa: false })
@@ -291,6 +383,18 @@ export default function CampanhaPage() {
       setSaving(false);
     }
   }
+
+  const filteredMusics = useMemo(() => {
+    if (!formData.artist_id) return [];
+    return musicas.filter(m => m.artist_id === formData.artist_id);
+  }, [musicas, formData.artist_id]);
+
+  const toggleAccount = (id: string) => {
+    setSelectedAccountIds(prev => 
+      prev.includes(id) ? prev.filter(a => a !== id) : [...prev, id]
+    );
+  };
+
 
   if (loading) {
     return (
