@@ -7,8 +7,11 @@ import {
 } from "../_shared/social-helpers.ts";
 
 serve(async (req) => {
+  console.log("FUNCTION_STARTED", { method: req.method, url: req.url });
+  
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders, status: 204 });
+    console.log("OPTIONS_OK");
+    return new Response(null, { headers: corsHeaders, status: 204 });
   }
 
   try {
@@ -18,13 +21,16 @@ serve(async (req) => {
       { global: { headers: { Authorization: req.headers.get("Authorization")! } } }
     );
 
+    console.log("AUTH_START");
     const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
     if (authError || !user) {
+      console.error("AUTH_FAILED", authError);
       return new Response(JSON.stringify({ error: "Unauthorized" }), { 
         status: 401, 
         headers: { ...corsHeaders, "Content-Type": "application/json" } 
       });
     }
+    console.log("AUTH_OK", { userId: user.id });
 
     const { social_account_id } = await req.json();
 
@@ -51,13 +57,16 @@ serve(async (req) => {
     }
 
     // 2. Verificar PostPeer API Key
+    console.log("POSTPEER_KEY_CHECK");
     const POSTPEER_API_KEY = Deno.env.get("POSTPEER_API_KEY");
     if (!POSTPEER_API_KEY) {
+      console.error("POSTPEER_KEY_MISSING");
       return new Response(JSON.stringify({ error: "postpeer_config_pending", message: "Configuração PostPeer pendente." }), { 
         status: 412, 
         headers: { ...corsHeaders, "Content-Type": "application/json" } 
       });
     }
+    console.log("POSTPEER_KEY_PRESENT");
 
     const postpeer = new PostPeerClient(POSTPEER_API_KEY);
     const supabaseAdmin = createClient(
