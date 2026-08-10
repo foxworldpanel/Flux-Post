@@ -15,7 +15,6 @@ serve(async (req) => {
 
   try {
     const url = new URL(req.url);
-    const connection_id = url.searchParams.get("connection_id");
     const state = url.searchParams.get("state");
     const errorParam = url.searchParams.get("error");
 
@@ -24,8 +23,8 @@ serve(async (req) => {
       return Response.redirect(`${appUrl}/accounts?error=${encodeURIComponent(errorParam)}`, 302);
     }
 
-    if (!connection_id || !state) {
-      return Response.redirect(`${appUrl}/accounts?error=missing_parameters`, 302);
+    if (!state) {
+      return Response.redirect(`${appUrl}/accounts?error=missing_state`, 302);
     }
 
     const supabaseAdmin = createClient(
@@ -36,7 +35,7 @@ serve(async (req) => {
     // 1. Validar state
     const { data: stateData, error: stateFetchError } = await supabaseAdmin
       .from("social_oauth_states")
-      .select("*")
+      .select("*, social_accounts(provider_profile_id, platform)")
       .eq("state", state)
       .is("used_at", null)
       .single();
@@ -49,58 +48,66 @@ serve(async (req) => {
       return Response.redirect(`${appUrl}/accounts?error=state_expired`, 302);
     }
 
+    const profileId = stateData.social_accounts?.provider_profile_id;
+    const platform = stateData.social_accounts?.platform;
+
+    if (!profileId || !platform) {
+      return Response.redirect(`${appUrl}/accounts?error=missing_profile_context`, 302);
+    }
+
     // Marcar state como usado
     await supabaseAdmin
       .from("social_oauth_states")
       .update({ used_at: new Date().toISOString() })
       .eq("id", stateData.id);
 
-    // 2. Verificar conexão no PostPeer
+    // 2. Consultar integrações no PostPeer (GET /connect/integrations?profileId=...)
     const POSTPEER_API_KEY = Deno.env.get("POSTPEER_API_KEY");
     if (!POSTPEER_API_KEY) {
       return Response.redirect(`${appUrl}/accounts?error=config_pending`, 302);
     }
 
     const postpeer = new PostPeerClient(POSTPEER_API_KEY);
-    const connection = await postpeer.getConnection(connection_id);
+    const integrations = await postpeer.listIntegrations(profileId);
 
-    if (connection.status !== 'connected' && connection.status !== 'active') {
-      return Response.redirect(`${appUrl}/accounts?error=connection_not_ready&status=${connection.status}`, 302);
+    // Identificar a integração recém-criada para esta plataforma
+    const integration = integrations.find(i => i.platform.toLowerCase() === platform.toLowerCase());
+
+    if (!integration) {
+      return Response.redirect(`${appUrl}/accounts?error=integration_not_found`, 302);
     }
 
-    // 3. Verificar duplicidade (mesmo provedor e conta externa)
-    if (connection.external_account_id) {
-      const { data: existingAccount } = await supabaseAdmin
-        .from("social_accounts")
-        .select("id, user_id, account_name")
-        .eq("provider", "postpeer")
-        .eq("external_account_id", connection.external_account_id)
-        .neq("id", stateData.social_account_id)
-        .single();
+    // 3. Verificar duplicidade (server-side)
+    const { data: existingAccount } = await supabaseAdmin
+      .from("social_accounts")
+      .select("id, account_name")
+      .eq("provider", "postpeer")
+      .eq("provider_account_id", integration.platformUserId)
+      .neq("id", stateData.social_account_id)
+      .single();
 
-      if (existingAccount) {
-        return Response.redirect(`${appUrl}/accounts?error=already_connected&account=${encodeURIComponent(existingAccount.account_name || 'outra')}`, 302);
-      }
+    if (existingAccount) {
+      return Response.redirect(`${appUrl}/accounts?error=already_connected&account=${encodeURIComponent(existingAccount.account_name || 'outra')}`, 302);
     }
 
-    // 4. Atualizar social_account
+    // 4. Atualizar social_account com dados reais do PostPeer
     const { error: updateError } = await supabaseAdmin
       .from("social_accounts")
       .update({
         provider: 'postpeer',
-        provider_connection_id: connection.id,
-        provider_account_id: connection.external_account_id,
-        provider_status: connection.status,
-        external_account_id: connection.external_account_id,
-        username: connection.username || undefined,
-        account_name: connection.display_name || undefined,
-        profile_image_url: connection.avatar_url || undefined,
+        provider_connection_id: integration.id,
+        provider_account_id: integration.platformUserId,
+        provider_status: integration.status,
+        external_account_id: integration.platformUserId,
+        username: integration.displayName || undefined,
+        account_name: integration.displayName || undefined,
+        profile_image_url: integration.imageUrl || undefined,
         connection_status: 'conectada',
         connected_at: new Date().toISOString(),
         last_sync_at: new Date().toISOString(),
         metadata: {
-          ...connection.metadata,
-          postpeer_updated_at: connection.updated_at
+          postpeer_integration_id: integration.id,
+          postpeer_updated_at: integration.updatedAt
         }
       })
       .eq("id", stateData.social_account_id);
