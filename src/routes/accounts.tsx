@@ -276,10 +276,12 @@ export default function AccountsPage() {
                   )}
 
                   <div className="flex gap-1">
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-500 hover:text-white" onClick={() => {
+                    <Button variant="ghost" size="sm" className="h-8 px-2 text-[10px] text-slate-500 hover:text-white uppercase font-bold" onClick={() => {
                       setEditingAccount(account);
                       setIsDialogOpen(true);
                     }}>
+                      RENOMEAR
+                    </Button>
                       <Edit2 className="w-4 h-4" />
                     </Button>
                     <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-500 hover:text-white" onClick={() => toggleStatus(account)}>
