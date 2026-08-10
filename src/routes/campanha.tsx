@@ -189,7 +189,7 @@ export default function CampanhaPage() {
       } = await supabase.auth.getUser();
       if (!user) throw new Error("Usuário não autenticado");
 
-      // Parse hours to integers
+      // 1. Create campaign
       const startHour = parseInt(formData.hora_inicio.split(":")[0]);
       const endHour = parseInt(formData.hora_fim.split(":")[0]);
 
@@ -214,7 +214,7 @@ export default function CampanhaPage() {
 
       if (campError) throw campError;
 
-      // Create campaign contents
+      // 2. Link contents
       const contentInserts = selectedContentIds.map((contentId) => ({
         campaign_id: newCamp.id,
         content_id: contentId,
@@ -226,13 +226,26 @@ export default function CampanhaPage() {
 
       if (contentError) throw contentError;
 
-      // Update music track
-      const { error: trackError } = await supabase
+      // 3. Update music track
+      await supabase
         .from("music_tracks")
         .update({ campanha_ativa: true })
         .eq("id", formData.music_track_id);
 
-      if (trackError) throw trackError;
+      // 4. PREPARAR MVP: Agendar automaticamente 1 post de teste se houver conta conectada
+      const connectedAccounts = await socialService.getConnectedAccounts();
+      if (connectedAccounts.length > 0 && selectedContentIds.length > 0) {
+        toast.info("Agendando primeiro post de teste...");
+        await socialService.createPublication({
+          content_id: selectedContentIds[0],
+          account_id: connectedAccounts[0].id,
+          platform: connectedAccounts[0].platform,
+          caption: `Lançamento: ${musicas.find(m => m.id === formData.music_track_id)?.nome || 'Nova Música'} #fluxpost`,
+          scheduled_at: new Date(Date.now() + 10 * 60000).toISOString(), // 10 min a frente
+          timezone: "America/Sao_Paulo"
+        });
+        toast.success("Primeiro post agendado para daqui a 10 minutos!");
+      }
 
       toast.success("Campanha iniciada com sucesso!");
       fetchData();
@@ -242,6 +255,7 @@ export default function CampanhaPage() {
       setSaving(false);
     }
   }
+
 
   async function handleUpdateStatus(status: string) {
     if (!campanhaAtiva) return;
