@@ -1,7 +1,6 @@
-import { useNavigate } from 'react-router-dom';
-import { useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { lovable } from '@/integrations/lovable/index';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -14,6 +13,13 @@ export default function AuthPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
+  const location = useLocation();
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) navigate('/', { replace: true });
+    });
+  }, [navigate]);
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -22,13 +28,30 @@ export default function AuthPage() {
 
     try {
       if (isLogin) {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
+        if (!data.session?.user || !data.session.access_token) {
+          throw new Error('O login não retornou uma sessão válida. Tente novamente.');
+        }
+        const { data: restored, error: sessionError } = await supabase.auth.getSession();
+        if (sessionError || !restored.session?.user || !restored.session.access_token) {
+          throw new Error('A sessão não foi persistida após o login. Recarregue e tente novamente.');
+        }
+        const destination = (location.state as { from?: string } | null)?.from || '/';
+        navigate(destination, { replace: true });
       } else {
-        const { error } = await supabase.auth.signUp({ email, password });
+        const { data, error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: { emailRedirectTo: window.location.origin },
+        });
         if (error) throw error;
+        if (!data.session) {
+          setError('Confira seu email para confirmar o cadastro antes de entrar.');
+          return;
+        }
+        navigate('/', { replace: true });
       }
-      navigate('/');
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -40,9 +63,7 @@ export default function AuthPage() {
     setLoading(true);
     setError(null);
     try {
-      // Temporarily disabled for stability during testing
-      console.log("OAuth login clicked");
-      setError("OAuth login temporarily disabled for preview stability.");
+      setError("Login com Google ainda não está disponível. Use email e senha.");
     } catch (err: any) {
       setError(err.message);
     } finally {

@@ -20,6 +20,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
 
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -42,8 +43,9 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
     { label: "Segurança", icon: ShieldCheck, href: "/security-report" },
   ];
 
-  const handleLogout = () => {
-    navigate("/auth");
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    navigate("/auth", { replace: true });
   };
 
   if (loading) return <div className="flex h-screen items-center justify-center bg-[#0A0A0F] text-white">Carregando...</div>;
