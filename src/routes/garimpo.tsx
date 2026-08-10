@@ -5,12 +5,143 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Play, Check, Loader2, Trash2, RotateCw, Plus, X, Search, Eye, Filter, CheckCircle2, XCircle, Clock } from "lucide-react";
+import { Play, Check, Loader2, Trash2, RotateCw, Plus, X, Search, Eye, Filter, CheckCircle2, XCircle, Clock, Video, Maximize2, Monitor, User } from "lucide-react";
 import { contentService, DiscoverySettings, DiscoveryCategory, ContentCandidate, DiscoveryReport } from "@/services/content";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
+
+function SkeletonCard() {
+  return (
+    <Card className="bg-[#13131F] border-white/5 overflow-hidden flex flex-col h-full">
+      <div className="aspect-[9/16] relative bg-slate-900">
+        <Skeleton className="w-full h-full rounded-none" />
+      </div>
+      <CardContent className="p-3 space-y-2">
+        <Skeleton className="h-8 w-full" />
+      </CardContent>
+    </Card>
+  );
+}
+
+interface VideoCardProps {
+  video: any;
+  onImport: (video: any) => void;
+  onPreview: (video: any) => void;
+  isImporting: boolean;
+  isImported: boolean;
+  formatDuration: (s: number) => string;
+  getResolutionInfo: (v: any) => { width: number, height: number, quality: string };
+  isCandidate?: boolean;
+  onDiscard?: (id: string) => void;
+}
+
+function VideoCard({ 
+  video, 
+  onImport, 
+  onPreview, 
+  isImporting, 
+  isImported, 
+  formatDuration, 
+  getResolutionInfo,
+  isCandidate,
+  onDiscard
+}: VideoCardProps) {
+  const res = getResolutionInfo(video);
+  const author = video.user?.name || video.author || "Pexels";
+  const duration = video.duration;
+
+  return (
+    <Card className="bg-[#13131F] border-white/5 overflow-hidden group flex flex-col h-full hover:border-purple-500/30 transition-all">
+      <div 
+        className="aspect-[9/16] relative bg-slate-900 cursor-pointer overflow-hidden"
+        onClick={() => onPreview(video)}
+      >
+        <img 
+          src={video.image || video.preview_url} 
+          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" 
+          loading="lazy"
+        />
+        
+        {/* Hover Overlay */}
+        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+          <div className="bg-white/10 backdrop-blur-md rounded-full p-3 border border-white/20 transform scale-90 group-hover:scale-100 transition-transform">
+            <Play className="w-6 h-6 text-white fill-white" />
+          </div>
+          <span className="absolute bottom-10 text-[10px] font-bold text-white uppercase tracking-widest bg-black/40 px-3 py-1 rounded-full backdrop-blur-sm">
+            Visualizar
+          </span>
+        </div>
+
+        {/* Top Badges */}
+        <div className="absolute top-2 left-2 flex flex-col gap-1">
+          {isImported && (
+             <Badge className="bg-emerald-500 text-white border-none text-[9px] font-bold py-0 h-5">
+               <Check className="w-3 h-3 mr-1" /> NA BIBLIOTECA
+             </Badge>
+          )}
+          {isCandidate && video.status && video.status !== 'pendente' && (
+             <Badge className={cn(
+               "text-[9px] font-bold py-0 h-5 border-none",
+               video.status === 'aprovado' ? "bg-emerald-500 text-white" : "bg-rose-500 text-white"
+             )}>
+               {video.status.toUpperCase()}
+             </Badge>
+          )}
+        </div>
+
+        {/* Bottom Metadata Overlay */}
+        <div className="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black/80 via-black/40 to-transparent flex flex-col gap-1">
+          <div className="flex justify-between items-end">
+            <div className="flex flex-col">
+              <span className="text-[9px] text-white/70 font-medium flex items-center gap-1">
+                <User className="w-2.5 h-2.5" /> {author}
+              </span>
+              <span className="text-[9px] text-white/50 uppercase font-bold tracking-wider">
+                Pexels • {res.width}x{res.height}
+              </span>
+            </div>
+            <div className="bg-black/60 backdrop-blur-md px-1.5 py-0.5 rounded text-[10px] font-bold text-white border border-white/10">
+              {formatDuration(duration)}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <CardContent className="p-3 bg-[#13131F] mt-auto border-t border-white/5">
+        <div className="flex gap-2">
+          {isImported ? (
+            <Button className="w-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs h-8 cursor-default hover:bg-emerald-500/10" disabled>
+              ✓ IMPORTADO
+            </Button>
+          ) : (
+            <Button 
+              className="flex-1 bg-purple-600 hover:bg-purple-700 text-xs h-8 font-bold" 
+              disabled={isImporting}
+              onClick={() => onImport(video)}
+            >
+              {isImporting ? <Loader2 className="w-3 h-3 animate-spin" /> : (isCandidate ? "APROVAR" : "IMPORTAR AGORA")}
+            </Button>
+          )}
+          
+          {isCandidate && video.status === 'pendente' && onDiscard && (
+            <Button 
+              size="icon" 
+              variant="destructive" 
+              className="bg-rose-500/10 text-rose-500 hover:bg-rose-500/20 h-8 w-8"
+              onClick={() => onDiscard(video.id)}
+            >
+              <Trash2 className="w-4 h-4" />
+            </Button>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function GarimpoPage() {
   const [activeTab, setActiveTab] = useState("buscar");
@@ -22,13 +153,25 @@ export default function GarimpoPage() {
   const [selectedCandidate, setSelectedCandidate] = useState<ContentCandidate | null>(null);
   const [candidateFilter, setCandidateFilter] = useState<'pendente' | 'aprovado' | 'descartado'>('pendente');
   const [importingId, setImportingId] = useState<string | null>(null);
+  const [importedExternalIds, setImportedExternalIds] = useState<Set<string>>(new Set());
 
   const [settings, setSettings] = useState<DiscoverySettings | null>(null);
   const [discoveryCategories, setDiscoveryCategories] = useState<DiscoveryCategory[]>([]);
   const [loadingSettings, setLoadingSettings] = useState(false);
   const [lastReport, setLastReport] = useState<DiscoveryReport | null>(null);
 
+  // Filters state
+  const [filterOrientation, setFilterOrientation] = useState<string>("portrait");
+  const [filterDuration, setFilterDuration] = useState<string>("all");
+  const [filterQuality, setFilterQuality] = useState<string>("all");
+  const [sortBy, setSortBy] = useState<string>("none");
+
   const fetchData = async () => {
+    // Load imported IDs for deduplication display
+    const library = await contentService.getLibrary();
+    const ids = new Set(library.map(item => item.metadata?.pexels_id?.toString()).filter(Boolean));
+    setImportedExternalIds(ids as Set<string>);
+
     if (activeTab === "candidatos") {
       setLoadingCandidates(true);
       const { data, error } = await supabase
@@ -59,14 +202,62 @@ export default function GarimpoPage() {
     if (!query) return toast.error("Digite um termo");
     setLoading(true);
     try {
-      const data = await contentService.searchPexels({ query, orientation: 'portrait' });
+      const data = await contentService.searchPexels({ 
+        query, 
+        orientation: filterOrientation as any 
+      });
       setResults(data.videos || []);
+      if (data.videos?.length === 0) toast.info("Nenhum vídeo encontrado.");
     } catch (err: any) {
       toast.error("Erro: " + err.message);
     } finally {
       setLoading(false);
     }
   };
+
+  const formatDuration = (seconds: number) => {
+    if (!seconds) return "0:00";
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    if (mins === 0) return `0:${secs.toString().padStart(2, '0')}`;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const getResolutionInfo = (video: any) => {
+    const portrait = video.video_files?.find((f: any) => f.height > f.width) || video.video_files?.[0];
+    if (portrait) {
+      return {
+        width: portrait.width,
+        height: portrait.height,
+        quality: portrait.quality // 'hd', 'sd', etc.
+      };
+    }
+    return { width: video.width, height: video.height, quality: 'hd' };
+  };
+
+  const filteredResults = results.filter(video => {
+    // Duration filter
+    if (filterDuration !== "all") {
+      const d = video.duration;
+      if (filterDuration === "15" && d > 15) return false;
+      if (filterDuration === "15-30" && (d < 15 || d > 30)) return false;
+      if (filterDuration === "30-60" && (d < 30 || d > 60)) return false;
+      if (filterDuration === "60+" && d < 60) return false;
+    }
+    
+    // Quality filter
+    if (filterQuality !== "all") {
+      const res = getResolutionInfo(video);
+      if (filterQuality === "hd+" && res.height < 720) return false;
+      if (filterQuality === "fullhd+" && res.height < 1080) return false;
+    }
+
+    return true;
+  }).sort((a, b) => {
+    if (sortBy === "short") return a.duration - b.duration;
+    if (sortBy === "long") return b.duration - a.duration;
+    return 0;
+  });
 
   const handleApprove = async (item: any, candidateId?: string) => {
     const vidId = item.id || (item.metadata?.pexels_id) || parseInt(item.external_id);
@@ -158,57 +349,122 @@ export default function GarimpoPage() {
           </TabsList>
 
           <TabsContent value="buscar" className="space-y-6">
-             <div className="bg-[#13131F] p-6 rounded-2xl border border-white/5 flex gap-4">
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-                  <Input 
-                    className="bg-white/5 border-white/10 pl-10" 
-                    value={query} 
-                    onChange={(e) => setQuery(e.target.value)} 
-                    onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                    placeholder="Pesquisar no Pexels..." 
-                  />
+             <div className="bg-[#13131F] p-6 rounded-2xl border border-white/5 space-y-6">
+                <div className="flex gap-4">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                    <Input 
+                      className="bg-white/5 border-white/10 pl-10" 
+                      value={query} 
+                      onChange={(e) => setQuery(e.target.value)} 
+                      onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                      placeholder="Pesquisar no Pexels..." 
+                    />
+                  </div>
+                  <Button onClick={handleSearch} disabled={loading} className="bg-purple-600 px-8">
+                    {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Search className="w-4 h-4 mr-2" />}
+                    Buscar
+                  </Button>
                 </div>
-                <Button onClick={handleSearch} disabled={loading} className="bg-purple-600">
-                  {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Search className="w-4 h-4 mr-2" />}
-                  Buscar
-                </Button>
+
+                <div className="flex flex-wrap gap-4 pt-4 border-t border-white/5 items-center">
+                  <div className="flex items-center gap-2">
+                    <Filter className="w-3.5 h-3.5 text-slate-500" />
+                    <span className="text-[10px] text-slate-500 uppercase font-bold">Filtros:</span>
+                  </div>
+                  
+                  <Select value={filterOrientation} onValueChange={setFilterOrientation}>
+                    <SelectTrigger className="w-[140px] bg-white/5 border-white/10 h-8 text-xs">
+                      <SelectValue placeholder="Orientação" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="portrait">Vertical</SelectItem>
+                      <SelectItem value="landscape">Horizontal</SelectItem>
+                      <SelectItem value="square">Quadrado</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  <Select value={filterDuration} onValueChange={setFilterDuration}>
+                    <SelectTrigger className="w-[140px] bg-white/5 border-white/10 h-8 text-xs">
+                      <SelectValue placeholder="Duração" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todas Duração</SelectItem>
+                      <SelectItem value="15">até 15s</SelectItem>
+                      <SelectItem value="15-30">15–30s</SelectItem>
+                      <SelectItem value="30-60">30–60s</SelectItem>
+                      <SelectItem value="60+">60s+</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  <Select value={filterQuality} onValueChange={setFilterQuality}>
+                    <SelectTrigger className="w-[140px] bg-white/5 border-white/10 h-8 text-xs">
+                      <SelectValue placeholder="Qualidade" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todas Qualidades</SelectItem>
+                      <SelectItem value="hd+">HD+</SelectItem>
+                      <SelectItem value="fullhd+">Full HD+</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  <Select value={sortBy} onValueChange={setSortBy}>
+                    <SelectTrigger className="w-[140px] bg-white/5 border-white/10 h-8 text-xs">
+                      <SelectValue placeholder="Ordenar" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Mais Relevantes</SelectItem>
+                      <SelectItem value="short">Mais Curtos</SelectItem>
+                      <SelectItem value="long">Mais Longos</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  {results.length > 0 && (
+                    <span className="ml-auto text-[10px] text-slate-500 font-mono uppercase">
+                      {filteredResults.length} vídeos encontrados
+                    </span>
+                  )}
+                </div>
              </div>
              
              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-               {results.map(video => (
-                 <Card key={video.id} className="bg-[#13131F] border-white/5 overflow-hidden group">
-                   <div className="aspect-[9/16] relative bg-slate-900">
-                     <img src={video.image} className="w-full h-full object-cover" />
-                     <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-3">
-                       <Button size="icon" variant="secondary" className="rounded-full h-12 w-12" onClick={() => setSelectedCandidate({
-                         id: 'new',
-                         source: 'pexels',
-                         external_id: video.id.toString(),
-                         preview_url: video.image,
-                         original_url: video.url,
-                         duration: video.duration,
-                         author: video.user.name,
-                         category: 'Manual',
-                         status: 'pendente',
-                         metadata: video,
-                         user_id: '',
-                         discovered_at: new Date().toISOString()
-                       })}><Eye className="w-6 h-6"/></Button>
-                     </div>
-                   </div>
-                   <CardContent className="p-4">
-                     <Button 
-                       className="w-full bg-purple-600" 
-                       disabled={importingId === video.id.toString()}
-                       onClick={() => handleApprove(video)}
-                     >
-                       {importingId === video.id.toString() ? <Loader2 className="w-4 h-4 animate-spin" /> : "Importar Agora"}
-                     </Button>
-                   </CardContent>
-                 </Card>
-               ))}
+                {loading && Array.from({ length: 8 }).map((_, i) => (
+                  <SkeletonCard key={i} />
+                ))}
+
+                {!loading && filteredResults.map(video => (
+                  <VideoCard 
+                    key={video.id} 
+                    video={video}
+                    onImport={handleApprove}
+                    onPreview={(v) => setSelectedCandidate({
+                      id: 'new',
+                      source: 'pexels',
+                      external_id: v.id.toString(),
+                      preview_url: v.image,
+                      original_url: v.url,
+                      duration: v.duration,
+                      author: v.user.name,
+                      category: 'Manual',
+                      status: 'pendente',
+                      metadata: v,
+                      user_id: '',
+                      discovered_at: new Date().toISOString()
+                    })}
+                    isImporting={importingId === video.id.toString()}
+                    isImported={importedExternalIds.has(video.id.toString())}
+                    formatDuration={formatDuration}
+                    getResolutionInfo={getResolutionInfo}
+                  />
+                ))}
+
+                {!loading && query && results.length === 0 && (
+                  <div className="col-span-full py-20 text-center">
+                    <p className="text-slate-500 italic">Nenhum resultado para "{query}"</p>
+                  </div>
+                )}
              </div>
+
           </TabsContent>
 
           <TabsContent value="candidatos" className="space-y-6">
@@ -237,49 +493,37 @@ export default function GarimpoPage() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {candidates.map(cand => (
-                <Card key={cand.id} className="bg-[#13131F] border-white/5 overflow-hidden group">
-                  <div className="aspect-[9/16] relative bg-slate-900">
-                    <img src={cand.preview_url} className="w-full h-full object-cover" />
-                    <div className="absolute top-2 right-2">
-                       <Badge className="bg-black/60 backdrop-blur-md border-white/10">{cand.duration}s</Badge>
-                    </div>
-                  </div>
-                  <CardContent className="p-4 space-y-4">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <p className="text-xs font-bold text-purple-400 uppercase">{cand.category}</p>
-                        <p className="text-[10px] text-slate-500 mt-1 truncate max-w-[140px]">De: {cand.author}</p>
-                      </div>
-                      {getStatusIcon(cand.status)}
-                    </div>
-                    <div className="flex gap-2">
-                      <Button 
-                        variant="secondary" 
-                        className="flex-1 bg-white/5 hover:bg-white/10" 
-                        onClick={() => setSelectedCandidate(cand)}
-                      >
-                        VISUALIZAR
-                      </Button>
-                      {cand.status === 'pendente' && (
-                        <Button 
-                          size="icon" 
-                          variant="destructive" 
-                          className="bg-rose-500/10 text-rose-500 hover:bg-rose-500/20"
-                          onClick={() => {
-                            contentService.discardCandidate(cand.id);
-                            fetchData();
-                            toast.info("Descartado");
-                          }}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+              {loadingCandidates ? (
+                Array.from({ length: 8 }).map((_, i) => (
+                  <SkeletonCard key={i} />
+                ))
+              ) : (
+                candidates.map(cand => (
+                  <VideoCard 
+                    key={cand.id} 
+                    video={{
+                      ...cand,
+                      id: cand.external_id,
+                      image: cand.preview_url,
+                      user: { name: cand.author }
+                    }}
+                    onImport={(v) => handleApprove(v, cand.id)}
+                    onPreview={() => setSelectedCandidate(cand)}
+                    isImporting={importingId === cand.id}
+                    isImported={cand.status === 'aprovado' || importedExternalIds.has(cand.external_id)}
+                    formatDuration={formatDuration}
+                    getResolutionInfo={getResolutionInfo}
+                    isCandidate={true}
+                    onDiscard={(id) => {
+                      contentService.discardCandidate(cand.id);
+                      fetchData();
+                      toast.info("Descartado");
+                    }}
+                  />
+                ))
+              )}
             </div>
+
           </TabsContent>
 
           <TabsContent value="automacao" className="space-y-6">
@@ -436,74 +680,121 @@ export default function GarimpoPage() {
         </Tabs>
 
         <Dialog open={!!selectedCandidate} onOpenChange={() => setSelectedCandidate(null)}>
-          <DialogContent className="max-w-4xl bg-[#0A0A0F] border-white/10 p-0 overflow-hidden">
+          <DialogContent className="max-w-4xl bg-[#0A0A0F] border-white/10 p-0 overflow-hidden ring-0">
              {selectedCandidate && (
-               <div className="flex flex-col md:flex-row h-full">
-                  <div className="md:w-1/2 aspect-[9/16] bg-black">
+               <div className="flex flex-col md:flex-row h-full max-h-[90vh]">
+                  <div className="md:w-[45%] aspect-[9/16] bg-black flex items-center justify-center relative group">
                      <video 
                        src={selectedCandidate.metadata?.video_files?.find((f: any) => f.height > f.width)?.link || selectedCandidate.original_url} 
                        controls 
                        autoPlay 
+                       loop
                        className="w-full h-full object-contain" 
                      />
+                     <div className="absolute top-4 left-4">
+                       <Badge className="bg-black/60 backdrop-blur-md border-white/10 text-[10px] font-bold">PREVIEW</Badge>
+                     </div>
                   </div>
-                  <div className="md:w-1/2 p-8 space-y-6 bg-[#0D0D15]">
-                     <DialogHeader>
-                        <DialogTitle className="text-2xl font-space font-bold">Detalhes do Candidato</DialogTitle>
+                  
+                  <div className="md:w-[55%] p-8 space-y-8 bg-[#0D0D15] overflow-y-auto">
+                     <DialogHeader className="space-y-1">
+                        <div className="flex items-center gap-2 text-purple-400 mb-1">
+                          <Video className="w-4 h-4" />
+                          <span className="text-[10px] font-bold uppercase tracking-wider">Garimpo Inteligente</span>
+                        </div>
+                        <DialogTitle className="text-3xl font-space font-bold text-white">Visualização Técnica</DialogTitle>
+                        <p className="text-slate-500 text-sm">Analise os metadados antes de importar para sua biblioteca.</p>
                      </DialogHeader>
                      
-                     <div className="space-y-4">
-                        <div className="grid grid-cols-2 gap-4">
-                           <div className="bg-white/5 p-4 rounded-xl border border-white/5">
-                              <p className="text-[10px] text-slate-500 font-bold uppercase">Categoria</p>
-                              <p className="text-white font-medium">{selectedCandidate.category}</p>
+                     <div className="grid grid-cols-2 gap-4">
+                        <div className="bg-white/[0.03] p-4 rounded-2xl border border-white/5 space-y-1">
+                           <div className="flex items-center gap-2 text-slate-500">
+                             <Filter className="w-3.5 h-3.5" />
+                             <span className="text-[10px] font-bold uppercase tracking-tighter">Categoria</span>
                            </div>
-                           <div className="bg-white/5 p-4 rounded-xl border border-white/5">
-                              <p className="text-[10px] text-slate-500 font-bold uppercase">Duração</p>
-                              <p className="text-white font-medium">{selectedCandidate.duration} segundos</p>
+                           <p className="text-white font-medium text-lg">{selectedCandidate.category || "Manual"}</p>
+                        </div>
+                        
+                        <div className="bg-white/[0.03] p-4 rounded-2xl border border-white/5 space-y-1">
+                           <div className="flex items-center gap-2 text-slate-500">
+                             <Clock className="w-3.5 h-3.5" />
+                             <span className="text-[10px] font-bold uppercase tracking-tighter">Duração</span>
                            </div>
+                           <p className="text-white font-medium text-lg">{formatDuration(selectedCandidate.duration || 0)}</p>
                         </div>
 
-                        <div className="bg-white/5 p-4 rounded-xl border border-white/5">
-                           <p className="text-[10px] text-slate-500 font-bold uppercase">Autor / Fonte</p>
-                           <p className="text-white font-medium">{selectedCandidate.author || "Pexels"}</p>
+                        <div className="bg-white/[0.03] p-4 rounded-2xl border border-white/5 space-y-1">
+                           <div className="flex items-center gap-2 text-slate-500">
+                             <User className="w-3.5 h-3.5" />
+                             <span className="text-[10px] font-bold uppercase tracking-tighter">Autor</span>
+                           </div>
+                           <p className="text-white font-medium text-lg truncate">{selectedCandidate.author || "Pexels"}</p>
                         </div>
 
-                        <div className="bg-white/5 p-4 rounded-xl border border-white/5">
-                           <p className="text-[10px] text-slate-500 font-bold uppercase">Status Atual</p>
-                           <div className="flex items-center gap-2 mt-1">
-                              {getStatusIcon(selectedCandidate.status)}
-                              <span className="capitalize text-white">{selectedCandidate.status}</span>
+                        <div className="bg-white/[0.03] p-4 rounded-2xl border border-white/5 space-y-1">
+                           <div className="flex items-center gap-2 text-slate-500">
+                             <Maximize2 className="w-3.5 h-3.5" />
+                             <span className="text-[10px] font-bold uppercase tracking-tighter">Resolução</span>
                            </div>
+                           <p className="text-white font-medium text-lg">
+                             {getResolutionInfo(selectedCandidate.metadata || selectedCandidate).width}x{getResolutionInfo(selectedCandidate.metadata || selectedCandidate).height}
+                           </p>
                         </div>
                      </div>
 
-                     <div className="pt-8 flex gap-3">
-                        {selectedCandidate.status === 'pendente' && (
+                     <div className="bg-purple-500/5 p-4 rounded-2xl border border-purple-500/10 flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className={cn(
+                            "p-2 rounded-full",
+                            selectedCandidate.status === 'aprovado' ? "bg-emerald-500/10" : 
+                            selectedCandidate.status === 'descartado' ? "bg-rose-500/10" : "bg-amber-500/10"
+                          )}>
+                            {getStatusIcon(selectedCandidate.status)}
+                          </div>
+                          <div>
+                            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-tight">Status da Descoberta</p>
+                            <p className="text-white font-medium capitalize">{selectedCandidate.status}</p>
+                          </div>
+                        </div>
+                        <Badge className="bg-white/5 text-white/40 border-none font-mono text-[9px]">ID: {selectedCandidate.external_id || selectedCandidate.id}</Badge>
+                     </div>
+
+                     <div className="pt-6 flex gap-4">
+                        {selectedCandidate.status === 'pendente' || selectedCandidate.id === 'new' ? (
                            <>
                              <Button 
-                               className="flex-1 bg-emerald-600 hover:bg-emerald-700" 
-                               onClick={() => handleApprove(selectedCandidate, selectedCandidate.id)}
-                               disabled={importingId === selectedCandidate.id}
+                               className="flex-[2] bg-purple-600 hover:bg-purple-700 h-12 text-sm font-bold shadow-lg shadow-purple-900/20" 
+                               onClick={() => handleApprove(selectedCandidate.metadata || selectedCandidate, selectedCandidate.id !== 'new' ? selectedCandidate.id : undefined)}
+                               disabled={importingId === (selectedCandidate.external_id || selectedCandidate.id)}
                              >
-                               {importingId === selectedCandidate.id ? <Loader2 className="w-4 h-4 animate-spin" /> : "APROVAR E IMPORTAR"}
+                               {importingId === (selectedCandidate.external_id || selectedCandidate.id) ? (
+                                 <Loader2 className="w-5 h-5 animate-spin" />
+                               ) : (
+                                 <>
+                                   <CheckCircle2 className="w-4 h-4 mr-2" />
+                                   APROVAR E IMPORTAR
+                                 </>
+                               )}
                              </Button>
-                             <Button 
-                               variant="destructive" 
-                               onClick={() => {
-                                 contentService.discardCandidate(selectedCandidate.id);
-                                 setSelectedCandidate(null);
-                                 fetchData();
-                               }}
-                             >
-                               DESCARTAR
-                             </Button>
+                             {selectedCandidate.id !== 'new' && (
+                               <Button 
+                                 variant="destructive" 
+                                 className="flex-1 h-12 text-sm font-bold bg-rose-500/10 text-rose-500 hover:bg-rose-500/20 border-rose-500/20"
+                                 onClick={() => {
+                                   contentService.discardCandidate(selectedCandidate.id);
+                                   setSelectedCandidate(null);
+                                   fetchData();
+                                 }}
+                               >
+                                 DESCARTAR
+                               </Button>
+                             )}
                            </>
-                        )}
-                        {selectedCandidate.status !== 'pendente' && (
-                           <Button variant="outline" className="w-full" onClick={() => setSelectedCandidate(null)}>FECHAR</Button>
+                        ) : (
+                           <Button variant="outline" className="w-full h-12 border-white/10 hover:bg-white/5" onClick={() => setSelectedCandidate(null)}>FECHAR VISUALIZAÇÃO</Button>
                         )}
                      </div>
+
                   </div>
                </div>
              )}
