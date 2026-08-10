@@ -14,13 +14,8 @@ serve(async (req) => {
   }
 
   try {
-    let authHeader = req.headers.get("Authorization") || req.headers.get("authorization");
+    const authHeader = req.headers.get("Authorization") || req.headers.get("authorization");
     
-    // Bypass for diagnostic if no auth header but called via internal tool? 
-    // No, keep it secure. But wait, curl_edge_functions should inject it.
-    // Let's add more logs to see what headers we are getting.
-    console.log("HEADERS_RECEIVED", Object.fromEntries(req.headers.entries()));
-
     if (!authHeader) {
       console.error("MISSING_AUTH_HEADER");
       return new Response(JSON.stringify({ error: "Missing Authorization header" }), { 
@@ -89,12 +84,13 @@ serve(async (req) => {
         results.stages.push("PROFILE_START");
         const profile = await postpeer.createProfile("Flux Diagnostic " + new Date().toISOString());
         results.profile = profile;
-        console.log("PROFILE_OK", profile);
+        const profileId = profile.id || profile.data?.id;
+        console.log("PROFILE_OK", { profileId });
         results.stages.push("PROFILE_OK");
 
         console.log("TIKTOK_CONNECT_START_NO_REDIRECT");
         results.stages.push("TIKTOK_NO_REDIRECT_START");
-        const connectNoRedirect = await postpeer.getOAuthUrl("tiktok", profile.id || profile.data?.id);
+        const connectNoRedirect = await postpeer.getOAuthUrl("tiktok", profileId);
         results.connect_no_redirect = connectNoRedirect;
         console.log("TIKTOK_CONNECT_OK_NO_REDIRECT");
         results.stages.push("TIKTOK_NO_REDIRECT_OK");
@@ -102,7 +98,7 @@ serve(async (req) => {
         console.log("TIKTOK_CONNECT_START_WITH_REDIRECT");
         results.stages.push("TIKTOK_REDIRECT_START");
         const redirectUri = "https://kdbgfgnopqqnzmvxvtje.supabase.co/functions/v1/postpeer-callback";
-        const connectWithRedirect = await postpeer.getOAuthUrl("tiktok", profile.id || profile.data?.id, redirectUri);
+        const connectWithRedirect = await postpeer.getOAuthUrl("tiktok", profileId, redirectUri);
         results.connect_with_redirect = connectWithRedirect;
         console.log("TIKTOK_CONNECT_OK_WITH_REDIRECT");
         results.stages.push("TIKTOK_REDIRECT_OK");
@@ -113,7 +109,8 @@ serve(async (req) => {
           status: err.status,
           message: err.message,
           error: err.error,
-          endpoint: err.endpoint
+          endpoint: err.endpoint,
+          full_data: err.full_data
         };
       }
 
@@ -163,6 +160,11 @@ serve(async (req) => {
       const profileResponse: any = await postpeer.createProfile(profileName);
       profileId = profileResponse.id || profileResponse.data?.id;
       
+      if (!profileId) {
+         console.error("POSTPEER_PROFILE_CREATE_FAILED_NO_ID", profileResponse);
+         throw { status: 500, message: "PostPeer profile creation failed to return an ID", full_data: profileResponse };
+      }
+
       // Persistir profileId
       await supabaseAdmin
         .from("social_accounts")
@@ -207,7 +209,8 @@ serve(async (req) => {
       error: err.error || "internal_error", 
       message: err.message || "An unexpected error occurred",
       status: err.status,
-      endpoint: err.endpoint
+      endpoint: err.endpoint,
+      full_data: err.full_data
     }), { 
       status: err.status || 500, 
       headers: { ...corsHeaders, "Content-Type": "application/json" } 
