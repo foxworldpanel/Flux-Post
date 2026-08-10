@@ -1,5 +1,5 @@
 /**
- * DIAGNÓSTICO FINAL — postpeer-connect
+ * DIAGNÓSTICO POSTPEER REAL
  */
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -15,84 +15,170 @@ import {
   AlertCircle,
   Terminal,
   CheckCircle2,
-  XCircle
+  XCircle,
+  Bug,
+  Activity
 } from "lucide-react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Link } from "react-router-dom";
+import { useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
 
 export default function DashboardPage() {
+  const [loading, setLoading] = useState(false);
+  const [report, setReport] = useState<any>(null);
+
+  const runDiagnostic = async () => {
+    setLoading(true);
+    setReport(null);
+    try {
+      const { data, error } = await supabase.functions.invoke('postpeer-connect', {
+        body: { diagnostic: true }
+      });
+      if (error) {
+        // Tenta extrair corpo do erro se for FunctionsHttpError
+        let details = error.message;
+        try {
+          const ctx = (error as any).context;
+          if (ctx && typeof ctx.text === 'function') {
+            details = await ctx.text();
+          }
+        } catch(e) {}
+        setReport({ error: true, details: JSON.parse(details || '{}') });
+      } else {
+        setReport(data);
+      }
+    } catch (err: any) {
+      setReport({ error: true, message: err.message });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <DashboardLayout>
       <div className="p-8 space-y-8 animate-in fade-in duration-500">
         
-        {/* RESULTADO DA AUDITORIA OBRIGATÓRIA */}
         <Card className="bg-[#0A0A0F] border-[#7C3AED]/30 p-8 space-y-6 relative overflow-hidden">
           <div className="absolute top-0 right-0 p-4 opacity-10">
-            <Terminal size={120} className="text-[#7C3AED]" />
+            <Bug size={120} className="text-[#7C3AED]" />
           </div>
           
           <div className="space-y-2">
             <h2 className="text-2xl font-bold text-white font-space flex items-center gap-3">
-              <ShieldCheck className="text-[#7C3AED]" /> Relatório de Diagnóstico: postpeer-connect
+              <ShieldCheck className="text-[#7C3AED]" /> Diagnóstico Operacional PostPeer
             </h2>
-            <p className="text-slate-400">Status final da investigação de conectividade da Edge Function.</p>
+            <p className="text-slate-400 text-sm">Investigação profunda de status HTTP e payloads da API PostPeer.</p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4">
-            <ResultItem label="A. postpeer-connect está deployada?" value="SIM" success={true} />
-            <ResultItem label="B. Frontend e Function no mesmo projeto?" value="SIM (kdbgf...)" success={true} />
-            <ResultItem label="C. Secret POSTPEER_API_KEY presente?" value="SIM" success={true} />
-            <ResultItem label="D. OPTIONS (CORS) funciona?" value="SIM (Status 204)" success={true} />
-            <ResultItem label="E. HTTP Status Real?" value="401 (Auth Required)" success={true} />
-            <ResultItem label="F. Function iniciou?" value="SIM" success={true} />
-            <ResultItem label="G. Último estágio alcançado?" value="AUTH_START" success={true} />
-            <ResultItem label="H. Erro nos logs remotos?" value="AUTH_FAILED (Invalid Token)" success={false} />
-          </div>
-
-          <div className="bg-white/5 border border-white/10 rounded-xl p-6 space-y-4">
-            <div>
-              <h4 className="text-[#7C3AED] font-bold text-sm uppercase tracking-wider mb-1">I. Causa Exata</h4>
-              <p className="text-slate-300 text-sm leading-relaxed">
-                A Edge Function foi deployada com sucesso e está acessível. O erro "Failed to send request" no frontend era causado por um erro 500 silencioso no preflight (OPTIONS) da função que retornava body em um status 204 (inválido no Deno). Além disso, o teste via `curl_edge_functions` falhou com 401 porque exige um JWT de usuário real que não pode ser simulado via CLI sem uma sessão ativa.
-              </p>
-            </div>
-            <div>
-              <h4 className="text-[#7C3AED] font-bold text-sm uppercase tracking-wider mb-1">J. Correção Aplicada</h4>
-              <p className="text-slate-300 text-sm leading-relaxed">
-                1. Corrigido handler de OPTIONS para retornar `null` body no status 204.<br/>
-                2. Adicionado logging detalhado (FUNCTION_STARTED, AUTH_START) para rastreamento.<br/>
-                3. Implementada extração robusta de headers de autorização.<br/>
-                4. **Ação:** Teste agora através da UI real (/accounts) para enviar o JWT válido do navegador.
-              </p>
-            </div>
-          </div>
-          
-          <div className="flex justify-end">
-            <Link to="/accounts">
-              <Button className="bg-[#7C3AED] hover:bg-[#6D28D9] gap-2">
-                Testar Conexão Real <Share2 size={16} />
+          {!report && !loading && (
+            <div className="py-8 text-center">
+              <Button onClick={runDiagnostic} className="bg-[#7C3AED] hover:bg-[#6D28D9] gap-2 px-8 py-6 text-lg h-auto">
+                <Activity className="w-5 h-5" /> Iniciar Teste de API Real
               </Button>
-            </Link>
-          </div>
+              <p className="text-slate-500 text-xs mt-4">Isso executará chamadas health, profile e connect contra api.postpeer.dev</p>
+            </div>
+          )}
+
+          {loading && (
+            <div className="py-12 flex flex-col items-center justify-center space-y-4">
+              <div className="w-12 h-12 border-4 border-[#7C3AED]/20 border-t-[#7C3AED] rounded-full animate-spin" />
+              <p className="text-[#7C3AED] font-bold animate-pulse">EXECUTANDO STAGES DIAGNÓSTICOS...</p>
+            </div>
+          )}
+
+          {report && (
+            <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <ResultItem 
+                  label="A. health/auth Status" 
+                  value={report.error?.endpoint === '/health/auth' ? report.error.status : (report.health ? '200 OK' : 'Pendente')} 
+                  success={!!report.health} 
+                />
+                <ResultItem 
+                  label="B. health/auth OK?" 
+                  value={report.health?.ok ? 'SIM' : 'NÃO'} 
+                  success={report.health?.ok === true} 
+                />
+                <ResultItem 
+                  label="C. create profile Status" 
+                  value={report.error?.endpoint === '/profiles' ? report.error.status : (report.profile ? '200/201' : 'Pendente')} 
+                  success={!!report.profile} 
+                />
+                <ResultItem 
+                  label="D. profile.id retornado?" 
+                  value={report.profile?.id || report.profile?.data?.id || 'NÃO'} 
+                  success={!!(report.profile?.id || report.profile?.data?.id)} 
+                />
+                <ResultItem 
+                  label="E. connect/tiktok Status" 
+                  value={report.error?.endpoint?.includes('/connect/tiktok') ? report.error.status : (report.connect_no_redirect ? '200 OK' : 'Pendente')} 
+                  success={!!report.connect_no_redirect} 
+                />
+                <ResultItem 
+                  label="F. connect/tiktok retornou URL?" 
+                  value={report.connect_no_redirect?.url ? 'SIM' : 'NÃO'} 
+                  success={!!report.connect_no_redirect?.url} 
+                />
+                <ResultItem 
+                  label="G. Funciona sem redirectUri?" 
+                  value={report.connect_no_redirect ? 'SIM' : 'NÃO'} 
+                  success={!!report.connect_no_redirect} 
+                />
+                <ResultItem 
+                  label="H. Funciona com redirectUri?" 
+                  value={report.connect_with_redirect ? 'SIM' : 'NÃO'} 
+                  success={!!report.connect_with_redirect} 
+                />
+              </div>
+
+              <div className="bg-white/5 border border-white/10 rounded-xl p-6 space-y-4">
+                <div>
+                  <h4 className="text-[#7C3AED] font-bold text-sm uppercase tracking-wider mb-1">I. Body/Mensagem do Erro Real</h4>
+                  <pre className="text-amber-400 text-xs bg-black/40 p-3 rounded-lg overflow-x-auto whitespace-pre-wrap">
+                    {report.error ? JSON.stringify(report.error.full_data || report.error.message || report.details, null, 2) : "Nenhum erro detectado."}
+                  </pre>
+                </div>
+                <div>
+                  <h4 className="text-[#7C3AED] font-bold text-sm uppercase tracking-wider mb-1">J. Etapa Exata que Falhou</h4>
+                  <p className="text-white text-sm font-mono">
+                    {report.stages?.[report.stages.length - 1] || "START"} 
+                    {report.error ? ` -> FAILED AT ${report.error.endpoint}` : " -> ALL STAGES OK"}
+                  </p>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <h4 className="text-[#7C3AED] font-bold text-sm uppercase tracking-wider mb-1">K. Causa Identificada</h4>
+                    <p className="text-slate-300 text-sm leading-relaxed">
+                      {report.error ? "A API PostPeer retornou um erro estruturado. Verifique se as credenciais de plataforma estão configuradas no dashboard da PostPeer ou se o payload JSON mudou na v1." : "Infraestrutura e comunicação com PostPeer v1 (.dev) totalmente operacionais."}
+                    </p>
+                  </div>
+                  <div>
+                    <h4 className="text-[#7C3AED] font-bold text-sm uppercase tracking-wider mb-1">L. Correção Necessária</h4>
+                    <p className="text-slate-300 text-sm leading-relaxed">
+                      {report.error ? "Ajustar o mapeamento de campos (ex: .id vs .data.id) ou atualizar a secret POSTPEER_API_KEY se o status for 401/403." : "Nenhuma correção necessária. O sistema está pronto para produção."}
+                    </p>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex justify-between items-center">
+                <Button variant="ghost" onClick={() => setReport(null)} className="text-slate-500 hover:text-white">Limpar Relatório</Button>
+                <Link to="/accounts">
+                  <Button className="bg-[#7C3AED] hover:bg-[#6D28D9] gap-2">
+                    Ir para Central de Contas <Share2 size={16} />
+                  </Button>
+                </Link>
+              </div>
+            </div>
+          )}
         </Card>
 
-        {/* Dashboard Original Reduzido */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <MetricCard title="Artistas" value="0" icon={<Users className="w-5 h-5" />} />
           <MetricCard title="Músicas" value="0" icon={<Music className="w-5 h-5" />} />
           <MetricCard title="Vídeos" value="0" icon={<Video className="w-5 h-5" />} />
           <MetricCard title="Contas Sociais" value="0" icon={<Globe className="w-5 h-5" />} />
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <Card className="bg-[#13131F] border-white/5 p-6 space-y-4">
-            <h3 className="text-lg font-bold text-white flex items-center gap-2">
-              <AlertCircle className="w-5 h-5 text-amber-500" /> Notas de Versão
-            </h3>
-            <p className="text-sm text-slate-400 leading-relaxed">
-              Infraestrutura PostPeer v1 (.dev) ativa. Tokens são criptografados em repouso via AES-GCM 256-bit. O redirect_uri aponta para a função interna de callback.
-            </p>
-          </Card>
         </div>
       </div>
     </DashboardLayout>
@@ -103,9 +189,9 @@ function ResultItem({ label, value, success }: { label: string; value: string; s
   return (
     <div className="flex items-center justify-between p-3 bg-white/5 rounded-lg border border-white/5">
       <span className="text-xs text-slate-400">{label}</span>
-      <div className="flex items-center gap-2">
-        <span className={`text-xs font-bold ${success ? 'text-emerald-400' : 'text-amber-400'}`}>{value}</span>
-        {success ? <CheckCircle2 size={14} className="text-emerald-500" /> : <XCircle size={14} className="text-amber-500" />}
+      <div className="flex items-center gap-2 max-w-[60%] overflow-hidden">
+        <span className={`text-[10px] font-bold truncate ${success ? 'text-emerald-400' : 'text-amber-400'}`}>{value}</span>
+        {success ? <CheckCircle2 size={14} className="text-emerald-500 shrink-0" /> : <XCircle size={14} className="text-amber-500 shrink-0" />}
       </div>
     </div>
   );
