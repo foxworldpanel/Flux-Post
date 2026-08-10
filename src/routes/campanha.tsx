@@ -123,7 +123,11 @@ export default function CampanhaPage() {
     cooldown_days: 30,
     distribution_interval_minutes: 5,
     editorial_language: "pt-BR",
-    editorial_style: "engaging"
+    editorial_style: "engaging",
+    audio_mode: 'music_plus_original' as 'only_music' | 'music_plus_original' | 'only_original',
+    music_volume: 80,
+    original_audio_volume: 20,
+    music_start_ms: 0
   });
 
 
@@ -377,7 +381,11 @@ export default function CampanhaPage() {
           distribution_mode: formData.distribution_mode,
           distribution_variation: formData.distribution_variation,
           cooldown_days: formData.cooldown_days,
-          editorial_language: formData.editorial_language
+          editorial_language: formData.editorial_language,
+          audio_mode: formData.audio_mode,
+          music_volume: formData.music_volume,
+          original_audio_volume: formData.original_audio_volume,
+          music_start_ms: formData.music_start_ms
         })
         .select()
         .single();
@@ -738,7 +746,70 @@ export default function CampanhaPage() {
                           <SelectItem value="es-ES">Español</SelectItem>
                         </SelectContent>
                       </Select>
+                </div>
+                
+                <div className="space-y-4 pt-4 border-t border-white/5">
+                  <Label className="text-white text-base font-semibold uppercase">Processamento de Mídia</Label>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <Label className="text-white/80">Modo de Áudio</Label>
+                      <Select
+                        value={formData.audio_mode}
+                        onValueChange={(v: any) => setFormData({ ...formData, audio_mode: v })}
+                      >
+                        <SelectTrigger className="bg-white/5 border-white/10 text-white">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="bg-[#13131F] border-white/10 text-white">
+                          <SelectItem value="music_plus_original">Música + Áudio Original (Mix)</SelectItem>
+                          <SelectItem value="only_music">Somente Música</SelectItem>
+                          <SelectItem value="only_original">Somente Áudio Original (Sem Processar)</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
+
+                    <div className="space-y-2">
+                      <Label className="text-white/80">Início da Música (Segundos)</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        className="bg-white/5 border-white/10 text-white"
+                        value={formData.music_start_ms / 1000}
+                        onChange={(e) => setFormData({ ...formData, music_start_ms: Math.max(0, parseInt(e.target.value) || 0) * 1000 })}
+                      />
+                    </div>
+                  </div>
+
+                  {formData.audio_mode !== 'only_original' && (
+                    <div className="grid grid-cols-2 gap-6">
+                      <div className="space-y-2">
+                        <Label className="text-white/80">Volume Música ({formData.music_volume}%)</Label>
+                        <input
+                          type="range"
+                          min="0"
+                          max="100"
+                          className="w-full accent-[#7C3AED]"
+                          value={formData.music_volume}
+                          onChange={(e) => setFormData({ ...formData, music_volume: parseInt(e.target.value) })}
+                        />
+                      </div>
+                      {formData.audio_mode === 'music_plus_original' && (
+                        <div className="space-y-2">
+                          <Label className="text-white/80">Volume Original ({formData.original_audio_volume}%)</Label>
+                          <input
+                            type="range"
+                            min="0"
+                            max="100"
+                            className="w-full accent-[#7C3AED]"
+                            value={formData.original_audio_volume}
+                            onChange={(e) => setFormData({ ...formData, original_audio_volume: parseInt(e.target.value) })}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
                   </div>
                 </div>
 

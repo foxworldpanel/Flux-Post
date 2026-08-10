@@ -12,9 +12,9 @@ import {
 } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
 import { supabase } from "@/integrations/supabase/client";
-import { processVideo } from "@/services/videoProcessor";
+import { renderService } from "@/services/renderService";
 import { toast } from "sonner";
-import { Play, Save, Loader2, Video as VideoIcon, Music, CheckCircle2 } from "lucide-react";
+import { Play, Save, Loader2, Video as VideoIcon, Music, CheckCircle2, History } from "lucide-react";
 
 interface LibraryItem {
   id: string;
@@ -54,29 +54,35 @@ export default function ProcessarPage() {
       return;
     }
 
-    const video = videos.find(v => v.id === selectedVideo);
-    const music = musics.find(m => m.id === selectedMusic);
-
-    if (!video || !music) return;
-
     try {
       setStep("loading-ffmpeg");
       setProgress(10);
       setResultBlob(null);
 
-      const blob = await processVideo(
-        video.storage_path,
-        music.storage_path,
-        (message) => {
-          if (message.includes("Writing file")) setStep("downloading");
-          if (message.includes("Running command")) setStep("processing");
-        }
-      );
+      const render = await renderService.requestRender({
+        videoId: selectedVideo,
+        musicId: selectedMusic,
+        audioMode: 'music_plus_original',
+        musicVolume: 80,
+        originalAudioVolume: 20
+      }, (stepName, progressVal) => {
+        if (stepName === 'downloading') setStep('downloading');
+        if (stepName === 'processing') setStep('processing');
+        setProgress(progressVal);
+      });
+
+      // Get the signed URL for the resulting video
+      const { data: signedUrlData } = await supabase.storage
+        .from('rendered')
+        .createSignedUrl(render.storage_path!, 3600);
+
+      const response = await fetch(signedUrlData?.signedUrl || '');
+      const blob = await response.blob();
 
       setStep("completed");
       setProgress(100);
       setResultBlob(blob);
-      toast.success("Vídeo processado com sucesso!");
+      toast.success("Vídeo processado com sucesso (Engine Centralizada)!");
     } catch (error: any) {
       console.error(error);
       setStep("idle");
