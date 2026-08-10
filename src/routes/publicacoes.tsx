@@ -1,76 +1,171 @@
-import { DashboardLayout } from '@/components/DashboardLayout'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Badge } from '@/components/ui/badge'
+import { DashboardLayout } from "@/components/DashboardLayout";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { 
+  TrendingUp, 
+  Calendar, 
+  ExternalLink, 
+  RefreshCw, 
+  AlertCircle,
+  Clock,
+  CheckCircle2,
+  Send,
+  MoreVertical
+} from "lucide-react";
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import { toast } from "sonner";
+import { socialService } from "@/services/social";
 
 export default function PublicacoesPage() {
-  const statusCards = [
-    { label: "Planejadas", value: "0", color: "text-slate-400" },
-    { label: "Processando", value: "0", color: "text-blue-400" },
-    { label: "Agendadas", value: "0", color: "text-amber-400" },
-    { label: "Publicadas", value: "0", color: "text-emerald-400" },
-    { label: "Falhas", value: "0", color: "text-rose-400" },
-  ]
+  const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
+  const [publications, setPublications] = useState<any[]>([]);
+
+  const fetchPublications = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('publications')
+        .select(`
+          *,
+          content_library(title, storage_path, thumbnail_url),
+          social_accounts(account_name, username)
+        `)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setPublications(data || []);
+    } catch (err: any) {
+      toast.error("Erro ao carregar publicações: " + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchPublications();
+  }, []);
+
+  const handleSync = async () => {
+    setSyncing(true);
+    try {
+      await socialService.syncPostStatuses();
+      await fetchPublications();
+      toast.success("Status sincronizados com sucesso");
+    } catch (err: any) {
+      toast.error("Erro ao sincronizar: " + err.message);
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const getStatusBadge = (status: string) => {
+    const s = status?.toLowerCase();
+    switch (s) {
+      case 'published':
+        return <Badge className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20"><CheckCircle2 size={12} className="mr-1" /> PUBLICADO</Badge>;
+      case 'scheduled':
+        return <Badge className="bg-blue-500/10 text-blue-500 border-blue-500/20"><Calendar size={12} className="mr-1" /> AGENDADO</Badge>;
+      case 'publishing':
+        return <Badge className="bg-amber-500/10 text-amber-500 border-amber-500/20"><RefreshCw size={12} className="mr-1 animate-spin" /> PUBLICANDO</Badge>;
+      case 'failed':
+        return <Badge className="bg-red-500/10 text-red-500 border-red-500/20"><AlertCircle size={12} className="mr-1" /> FALHOU</Badge>;
+      default:
+        return <Badge variant="outline" className="text-white/40 border-white/10 uppercase">{status}</Badge>;
+    }
+  };
 
   return (
     <DashboardLayout>
-      <div className="space-y-8">
-        <h1 className="text-3xl font-display font-bold text-[#0A0A0F]">Publicações</h1>
-
-        {/* Stats Summary */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-          {statusCards.map(stat => (
-            <Card key={stat.label} className="bg-[#13131F] border-white/5">
-              <CardContent className="pt-6">
-                <p className="text-sm text-slate-400">{stat.label}</p>
-                <p className={`text-2xl font-bold ${stat.color}`}>{stat.value}</p>
-              </CardContent>
-            </Card>
-          ))}
+      <div className="p-8 space-y-8 animate-in fade-in duration-500">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
+          <div>
+            <h1 className="text-4xl font-bold text-white font-space mb-2">Publicações</h1>
+            <p className="text-slate-400">Histórico e status de todos os posts distribuídos.</p>
+          </div>
+          <Button 
+            onClick={handleSync} 
+            disabled={syncing || loading}
+            variant="outline" 
+            className="border-white/10 text-white bg-white/5 hover:bg-white/10"
+          >
+            <RefreshCw className={`w-4 h-4 mr-2 ${syncing ? 'animate-spin' : ''}`} />
+            Sincronizar Status
+          </Button>
         </div>
 
-        {/* Filters */}
-        <div className="bg-[#13131F] p-4 rounded-xl border border-white/5 flex flex-wrap gap-4 items-end">
-          <div className="flex-1 min-w-[200px] space-y-2">
-            <label className="text-sm text-slate-400">Campanha</label>
-            <Select><SelectTrigger className="bg-white/5 border-white/10"><SelectValue placeholder="Filtrar Campanha" /></SelectTrigger><SelectContent><SelectItem value="all">Todas</SelectItem></SelectContent></Select>
-          </div>
-          <div className="w-40 space-y-2">
-            <label className="text-sm text-slate-400">Plataforma</label>
-            <Select><SelectTrigger className="bg-white/5 border-white/10"><SelectValue placeholder="Plataforma" /></SelectTrigger><SelectContent><SelectItem value="tiktok">TikTok</SelectItem></SelectContent></Select>
-          </div>
-          <div className="w-40 space-y-2">
-            <label className="text-sm text-slate-400">Status</label>
-            <Select><SelectTrigger className="bg-white/5 border-white/10"><SelectValue placeholder="Status" /></SelectTrigger><SelectContent><SelectItem value="all">Todos</SelectItem></SelectContent></Select>
-          </div>
-        </div>
+        <div className="grid grid-cols-1 gap-4">
+          {loading ? (
+            <div className="py-20 flex flex-col items-center justify-center border border-dashed border-white/10 rounded-2xl bg-white/5">
+              <RefreshCw className="w-8 h-8 text-primary animate-spin mb-4" />
+              <p className="text-slate-400">Carregando publicações...</p>
+            </div>
+          ) : publications.length === 0 ? (
+            <div className="py-20 flex flex-col items-center justify-center border border-dashed border-white/10 rounded-2xl bg-white/5 text-center">
+              <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mb-6">
+                <Send className="w-8 h-8 text-slate-700" />
+              </div>
+              <h3 className="text-xl font-bold text-white mb-2">Nenhuma publicação encontrada</h3>
+              <p className="text-slate-400 max-w-sm">Comece criando uma campanha ou agendando posts diretamente da biblioteca.</p>
+              <Button className="mt-6 bg-[#7C3AED]" onClick={() => window.location.href = '/campanha'}>
+                Criar Primeira Campanha
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {publications.map((pub) => (
+                <Card key={pub.id} className="bg-[#13131F] border-white/5 hover:border-white/10 transition-colors overflow-hidden">
+                  <div className="flex flex-col md:flex-row">
+                    <div className="w-full md:w-48 aspect-video bg-black/40 relative">
+                       {/* Aqui usaremos a thumbnail se disponível */}
+                       <div className="w-full h-full flex items-center justify-center text-slate-700">
+                          <TrendingUp size={32} />
+                       </div>
+                    </div>
+                    
+                    <CardContent className="flex-1 p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                      <div className="space-y-2 flex-1">
+                        <div className="flex items-center gap-2">
+                           {getStatusBadge(pub.status)}
+                           <Badge variant="outline" className="border-white/5 text-[10px] text-slate-500 uppercase font-bold tracking-widest">{pub.platform}</Badge>
+                        </div>
+                        <h4 className="text-white font-medium line-clamp-1">{pub.caption || "Sem legenda"}</h4>
+                        <div className="flex items-center gap-4 text-xs text-slate-500">
+                          <span className="flex items-center gap-1">
+                            <Clock size={12} /> {format(new Date(pub.created_at), "dd 'de' MMM, HH:mm", { locale: ptBR })}
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <TrendingUp size={12} /> {pub.social_accounts?.account_name || pub.social_accounts?.username}
+                          </span>
+                        </div>
+                      </div>
 
-        {/* Table / List Area */}
-        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden min-h-[400px]">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Conteúdo</TableHead>
-                <TableHead>Campanha</TableHead>
-                <TableHead>Música</TableHead>
-                <TableHead>Plataforma</TableHead>
-                <TableHead>Conta</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Views</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              <TableRow>
-                <TableCell colSpan={7} className="h-64 text-center text-slate-400">
-                  Nenhuma publicação encontrada.
-                </TableCell>
-              </TableRow>
-            </TableBody>
-          </Table>
+                      <div className="flex items-center gap-3 w-full md:w-auto">
+                        {pub.post_url && (
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="flex-1 md:flex-none border-white/10 text-white text-xs h-8"
+                            onClick={() => window.open(pub.post_url, '_blank')}
+                          >
+                            <ExternalLink size={14} className="mr-1" /> Ver Post
+                          </Button>
+                        )}
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-500">
+                           <MoreVertical size={16} />
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </DashboardLayout>
-  )
+  );
 }
