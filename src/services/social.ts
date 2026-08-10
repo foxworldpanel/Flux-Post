@@ -12,6 +12,7 @@ export interface SocialAccount {
   platform: SocialPlatform;
   account_name: string;
   username: string;
+  external_display_name?: string;
   external_account_id?: string;
   profile_image_url?: string;
   status: OperationalStatus;
@@ -145,9 +146,15 @@ export const socialService = {
   },
 
   async updateAccount(id: string, updates: Partial<SocialAccount>) {
+    // Apenas permitir renomear internal account_name via UI simplificada
+    const safeUpdates = {
+      account_name: updates.account_name,
+      status: updates.status
+    };
+
     const { data, error } = await supabase
       .from('social_accounts')
-      .update(updates)
+      .update(safeUpdates)
       .eq('id', id)
       .select()
       .single();
