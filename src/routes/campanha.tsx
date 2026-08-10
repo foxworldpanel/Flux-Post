@@ -118,8 +118,14 @@ export default function CampanhaPage() {
     data_inicio: format(new Date(), "yyyy-MM-dd"),
     data_fim: format(addDays(new Date(), 7), "yyyy-MM-dd"),
     timezone: "America/Sao_Paulo",
-    schedulingMode: "distribute" as "manual" | "distribute"
+    distribution_mode: "intelligent" as "all" | "intelligent",
+    distribution_variation: "medium" as "low" | "medium" | "high",
+    cooldown_days: 30,
+    distribution_interval_minutes: 5,
+    editorial_language: "pt-BR",
+    editorial_style: "engaging"
   });
+
 
   // Calculate Scheduling Preview
   const schedulingPreview = useMemo(() => {
@@ -146,19 +152,33 @@ export default function CampanhaPage() {
         
         if (isBefore(postTime, startDate) || isAfter(postTime, endDate)) continue;
 
-        selectedAccountIds.forEach((accountId) => {
+        selectedAccountIds.forEach((accountId, accIdx) => {
           const account = socialAccounts.find(a => a.id === accountId);
+          
+          let effectiveVideoIdx;
+          if (formData.distribution_mode === 'all') {
+            // MODO A: Todos recebem o mesmo conteúdo
+            effectiveVideoIdx = videoIndex % selectedContentIds.length;
+          } else {
+            // MODO B: Distribuição Inteligente (Randomizada com variação)
+            // Usamos uma lógica determinística baseada na data e índice da conta para simular pool
+            const seed = postTime.getTime() + accIdx;
+            effectiveVideoIdx = Math.floor(Math.abs(Math.sin(seed) * selectedContentIds.length));
+          }
+
           preview.push({
             date: postTime,
             accountId,
             accountName: account?.account_name || "Conta",
-            videoIndex: videoIndex % selectedContentIds.length
+            videoIndex: effectiveVideoIdx,
+            platform: account?.platform || "tiktok"
           });
         });
         videoIndex++;
       }
       currentDay = addDays(currentDay, 1);
     }
+
 
     return preview.sort((a, b) => a.date.getTime() - b.date.getTime());
   }, [formData, selectedAccountIds, selectedContentIds, socialAccounts]);
@@ -353,10 +373,15 @@ export default function CampanhaPage() {
           data_inicio: formData.data_inicio,
           data_fim: formData.data_fim,
           status: "ativo",
-          user_id: user.id
+          user_id: user.id,
+          distribution_mode: formData.distribution_mode,
+          distribution_variation: formData.distribution_variation,
+          cooldown_days: formData.cooldown_days,
+          editorial_language: formData.editorial_language
         })
         .select()
         .single();
+
 
 
       if (campError) throw campError;
@@ -642,7 +667,83 @@ export default function CampanhaPage() {
                   </div>
                 </div>
 
+                <div className="space-y-4 pt-4 border-t border-white/5">
+                  <Label className="text-white text-base font-semibold uppercase">Distribuição e IA</Label>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <Label className="text-white/80">Modo de Distribuição</Label>
+                      <Select
+                        value={formData.distribution_mode}
+                        onValueChange={(v: any) => setFormData({ ...formData, distribution_mode: v })}
+                      >
+                        <SelectTrigger className="bg-white/5 border-white/10 text-white">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="bg-[#13131F] border-white/10 text-white">
+                          <SelectItem value="all">Todos recebem o mesmo conteúdo</SelectItem>
+                          <SelectItem value="intelligent">Distribuição Inteligente (Recomendado)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label className="text-white/80">Variação Editorial</Label>
+                      <Select
+                        value={formData.distribution_variation}
+                        onValueChange={(v: any) => setFormData({ ...formData, distribution_variation: v })}
+                      >
+                        <SelectTrigger className="bg-white/5 border-white/10 text-white">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="bg-[#13131F] border-white/10 text-white">
+                          <SelectItem value="low">Baixa (Mais repetições)</SelectItem>
+                          <SelectItem value="medium">Média (Equilibrado)</SelectItem>
+                          <SelectItem value="high">Alta (Máxima diversidade)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <Label className="text-white/80">Cooldown de Conteúdo</Label>
+                      <Select
+                        value={formData.cooldown_days.toString()}
+                        onValueChange={(v) => setFormData({ ...formData, cooldown_days: parseInt(v) })}
+                      >
+                        <SelectTrigger className="bg-white/5 border-white/10 text-white">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="bg-[#13131F] border-white/10 text-white">
+                          <SelectItem value="7">7 dias</SelectItem>
+                          <SelectItem value="15">15 dias</SelectItem>
+                          <SelectItem value="30">30 dias</SelectItem>
+                          <SelectItem value="60">60 dias</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label className="text-white/80">Idioma da IA</Label>
+                      <Select
+                        value={formData.editorial_language}
+                        onValueChange={(v) => setFormData({ ...formData, editorial_language: v })}
+                      >
+                        <SelectTrigger className="bg-white/5 border-white/10 text-white">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="bg-[#13131F] border-white/10 text-white">
+                          <SelectItem value="pt-BR">Português (Brasil)</SelectItem>
+                          <SelectItem value="en-US">English (US)</SelectItem>
+                          <SelectItem value="es-ES">Español</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label className="text-white/80">Data Início</Label>
@@ -687,14 +788,35 @@ export default function CampanhaPage() {
                 </div>
 
                 <div className="space-y-4 pt-4 border-t border-white/5">
-                  <div className="space-y-1">
-                    <Label className="text-white text-base font-semibold uppercase">
-                      Contas de Publicação
-                    </Label>
-                    <p className="text-white/40 text-xs">
-                      Selecione onde os vídeos serão postados
-                    </p>
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-1">
+                      <Label className="text-white text-base font-semibold uppercase">
+                        Contas de Publicação
+                      </Label>
+                      <p className="text-white/40 text-xs">
+                        Selecione onde os vídeos serão postados
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="text-[10px] h-7 px-2 border-white/10 text-slate-400 hover:text-white"
+                        onClick={() => setSelectedAccountIds(socialAccounts.map(a => a.id))}
+                      >
+                        Selecionar Todas
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="text-[10px] h-7 px-2 border-white/10 text-slate-400 hover:text-white"
+                        onClick={() => setSelectedAccountIds([])}
+                      >
+                        Limpar
+                      </Button>
+                    </div>
                   </div>
+
                   
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     {socialAccounts.length === 0 ? (
@@ -780,15 +902,24 @@ export default function CampanhaPage() {
                           <tbody className="divide-y divide-white/5">
                             {schedulingPreview.map((item, idx) => (
                               <tr key={idx} className="hover:bg-white/5 transition-colors">
-                                <td className="px-4 py-3 text-white font-medium">
+                                <td className="px-4 py-3 text-white font-medium flex items-center gap-2">
                                   {format(item.date, "dd/MM HH:mm", { locale: ptBR })}
+                                  <Badge variant="outline" className="text-[8px] h-3 px-1 border-white/5 text-slate-500 uppercase">
+                                    {item.platform}
+                                  </Badge>
                                 </td>
                                 <td className="px-4 py-3 text-white/70">
                                   {item.accountName}
                                 </td>
-                                <td className="px-4 py-3 text-[#7C3AED] font-bold">
-                                  Vídeo #{item.videoIndex + 1}
+                                <td className="px-4 py-3 space-y-1">
+                                  <div className="text-[#7C3AED] font-bold">
+                                    Vídeo #{item.videoIndex + 1}
+                                  </div>
+                                  <div className="text-[9px] text-slate-500 italic truncate max-w-[200px]">
+                                    IA: {formData.editorial_language === 'pt-BR' ? 'Legenda criativa variada...' : 'Creative varying caption...'}
+                                  </div>
                                 </td>
+
                               </tr>
                             ))}
                           </tbody>
