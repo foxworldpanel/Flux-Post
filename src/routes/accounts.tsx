@@ -224,7 +224,7 @@ export default function AccountsPage() {
                         <span className="text-lg font-bold text-white group-hover:text-purple-400 transition-colors">
                           {account.external_display_name || account.username || 'Identidade Pendente'}
                         </span>
-                        {account.username && account.username !== account.external_display_name && (
+                        {account.username && account.username !== account.external_display_name && !account.username.startsWith('tiktok_conta_') && (
                            <span className="text-xs text-slate-500">@{account.username}</span>
                         )}
                       </div>
@@ -276,11 +276,11 @@ export default function AccountsPage() {
                   )}
 
                   <div className="flex gap-1">
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-500 hover:text-white" onClick={() => {
+                    <Button variant="ghost" size="sm" className="h-8 px-2 text-[10px] text-slate-500 hover:text-white uppercase font-bold" onClick={() => {
                       setEditingAccount(account);
                       setIsDialogOpen(true);
                     }}>
-                      <Edit2 className="w-4 h-4" />
+                      RENOMEAR
                     </Button>
                     <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-500 hover:text-white" onClick={() => toggleStatus(account)}>
                       <Power className={`w-4 h-4 ${account.status === 'active' ? 'text-emerald-500' : 'text-slate-500'}`} />
