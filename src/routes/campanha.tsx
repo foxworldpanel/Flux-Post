@@ -45,7 +45,8 @@ import {
   CheckCircle2,
   AlertTriangle,
 } from "lucide-react";
-import { format, addDays, differenceInDays } from "date-fns";
+import { format, addDays, differenceInDays, isBefore, isAfter, startOfDay, addMinutes, setHours, setMinutes } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import { artistService } from "@/services/artists";
 import { contentService } from "@/services/content";
 import { socialService, type SocialAccount } from "@/services/social";
