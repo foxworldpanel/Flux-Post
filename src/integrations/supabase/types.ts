@@ -107,6 +107,42 @@ export type Database = {
           },
         ]
       }
+      campaign_social_accounts: {
+        Row: {
+          campaign_id: string
+          created_at: string
+          id: string
+          social_account_id: string
+        }
+        Insert: {
+          campaign_id: string
+          created_at?: string
+          id?: string
+          social_account_id: string
+        }
+        Update: {
+          campaign_id?: string
+          created_at?: string
+          id?: string
+          social_account_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campaign_social_accounts_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campanhas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campaign_social_accounts_social_account_id_fkey"
+            columns: ["social_account_id"]
+            isOneToOne: false
+            referencedRelation: "social_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       campaigns: {
         Row: {
           created_at: string
