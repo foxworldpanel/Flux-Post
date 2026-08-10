@@ -106,6 +106,30 @@ export default function GarimpoPage() {
     return { width: video.width, height: video.height, quality: 'hd' };
   };
 
+  const filteredResults = results.filter(video => {
+    // Duration filter
+    if (filterDuration !== "all") {
+      const d = video.duration;
+      if (filterDuration === "15" && d > 15) return false;
+      if (filterDuration === "15-30" && (d < 15 || d > 30)) return false;
+      if (filterDuration === "30-60" && (d < 30 || d > 60)) return false;
+      if (filterDuration === "60+" && d < 60) return false;
+    }
+    
+    // Quality filter
+    if (filterQuality !== "all") {
+      const res = getResolutionInfo(video);
+      if (filterQuality === "hd+" && res.height < 720) return false;
+      if (filterQuality === "fullhd+" && res.height < 1080) return false;
+    }
+
+    return true;
+  }).sort((a, b) => {
+    if (sortBy === "short") return a.duration - b.duration;
+    if (sortBy === "long") return b.duration - a.duration;
+    return 0;
+  });
+
   const handleApprove = async (item: any, candidateId?: string) => {
     const vidId = item.id || (item.metadata?.pexels_id) || parseInt(item.external_id);
     setImportingId(candidateId || vidId.toString());
