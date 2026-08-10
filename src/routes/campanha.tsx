@@ -353,10 +353,11 @@ export default function CampanhaPage() {
           data_inicio: formData.data_inicio,
           data_fim: formData.data_fim,
           status: "ativo",
-          user_id: user.id,
+          user_id: user.id
         })
         .select()
         .single();
+
 
       if (campError) throw campError;
 
