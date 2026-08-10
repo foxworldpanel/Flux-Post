@@ -24,11 +24,18 @@ export default function GarimpoPage() {
   const [selectedCandidate, setSelectedCandidate] = useState<ContentCandidate | null>(null);
   const [candidateFilter, setCandidateFilter] = useState<'pendente' | 'aprovado' | 'descartado'>('pendente');
   const [importingId, setImportingId] = useState<string | null>(null);
+  const [importedExternalIds, setImportedExternalIds] = useState<Set<string>>(new Set());
 
   const [settings, setSettings] = useState<DiscoverySettings | null>(null);
   const [discoveryCategories, setDiscoveryCategories] = useState<DiscoveryCategory[]>([]);
   const [loadingSettings, setLoadingSettings] = useState(false);
   const [lastReport, setLastReport] = useState<DiscoveryReport | null>(null);
+
+  // Filters state
+  const [filterOrientation, setFilterOrientation] = useState<string>("portrait");
+  const [filterDuration, setFilterDuration] = useState<string>("all");
+  const [filterQuality, setFilterQuality] = useState<string>("all");
+  const [sortBy, setSortBy] = useState<string>("none");
 
   const fetchData = async () => {
     if (activeTab === "candidatos") {
