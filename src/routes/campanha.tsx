@@ -696,71 +696,150 @@ export default function CampanhaPage() {
                 </div>
 
 
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
-                  {biblioteca
-                    .filter((c) => c.status !== "arquivado" && c.status !== "descartado")
-                    .filter((c) => {
-                      if (contentFilter === "todos") return true;
-                      if (contentFilter === "artist") return c.artist_id === formData.artist_id;
-                      return c.category === contentFilter;
-                    })
-                    .map((item) => {
-                      const isSelected = selectedContentIds.includes(item.id);
-                      return (
-                        <div
-                          key={item.id}
-                          onClick={() => {
-                            if (isSelected) {
-                              setSelectedContentIds((prev) => prev.filter((id) => id !== item.id));
-                            } else {
-                              setSelectedContentIds((prev) => [...prev, item.id]);
-                            }
-                          }}
-                          className={`relative aspect-video rounded-lg overflow-hidden border-2 cursor-pointer transition-all ${
-                            isSelected
-                              ? "border-primary"
-                              : "border-transparent hover:border-white/20"
-                          }`}
-                        >
-                          {loadingUrls[item.id] ? (
-                            <div className="w-full h-full flex items-center justify-center bg-white/5">
-                              <Loader2 className="w-4 h-4 text-primary animate-spin" />
-                            </div>
-                          ) : signedUrls[item.id] ? (
-                            <video
-                              src={signedUrls[item.id]}
-                              className="w-full h-full object-cover"
-                            />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center bg-white/5">
-                              <X className="w-4 h-4 text-red-500/50" />
-                            </div>
-                          )}
-                          <div className="absolute inset-0 bg-black/40 flex flex-col justify-end p-2">
-                            <p className="text-[10px] text-white font-medium truncate">
-                              {item.title}
-                            </p>
-                            <Badge className="w-fit text-[8px] h-3 px-1 mt-1 bg-white/20 hover:bg-white/20 border-none">
-                              {item.category}
-                            </Badge>
-                          </div>
-                          {isSelected && (
-                            <div className="absolute top-1 right-1 bg-primary rounded-full p-0.5">
-                              <Check size={10} className="text-white" />
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  {biblioteca.length === 0 && (
-                    <div className="col-span-full py-8 text-center border border-dashed border-white/10 rounded-xl">
-                      <p className="text-white/40 text-sm">
-                        Biblioteca vazia. Faça upload em Biblioteca primeiro.
+                <div className="space-y-4 pt-4 border-t border-white/5">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-1">
+                      <Label className="text-white text-base font-semibold uppercase">
+                        Programação Sugerida
+                      </Label>
+                      <p className="text-white/40 text-xs">
+                        Cronograma de postagens baseado nas configurações
                       </p>
                     </div>
-                  )}
+                    {schedulingPreview.length > 0 && (
+                      <Badge variant="outline" className="bg-[#7C3AED]/10 text-[#7C3AED] border-[#7C3AED]/20">
+                        {totalEstimatedPosts} Posts Total
+                      </Badge>
+                    )}
+                  </div>
+
+                  <div className="bg-black/20 rounded-xl border border-white/5 overflow-hidden">
+                    {schedulingPreview.length === 0 ? (
+                      <div className="p-8 text-center">
+                        <p className="text-white/40 text-sm italic">
+                          Selecione as datas, horários e contas para ver a prévia da programação.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="max-h-[300px] overflow-y-auto custom-scrollbar">
+                        <table className="w-full text-left text-xs">
+                          <thead className="sticky top-0 bg-[#1A1A2E] text-white/60 uppercase tracking-tighter font-bold border-b border-white/5">
+                            <tr>
+                              <th className="px-4 py-3">Data/Hora</th>
+                              <th className="px-4 py-3">Conta</th>
+                              <th className="px-4 py-3">Conteúdo</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-white/5">
+                            {schedulingPreview.map((item, idx) => (
+                              <tr key={idx} className="hover:bg-white/5 transition-colors">
+                                <td className="px-4 py-3 text-white font-medium">
+                                  {format(item.date, "dd/MM HH:mm", { locale: ptBR })}
+                                </td>
+                                <td className="px-4 py-3 text-white/70">
+                                  {item.accountName}
+                                </td>
+                                <td className="px-4 py-3 text-[#7C3AED] font-bold">
+                                  Vídeo #{item.videoIndex + 1}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
+
+                <div className="space-y-4 pt-4 border-t border-white/5">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-1">
+                      <Label className="text-white text-base font-semibold uppercase">
+                        Biblioteca de Conteúdos
+                      </Label>
+                      <p className="text-white/40 text-xs">
+                        {selectedContentIds.length} selecionados para rodízio
+                      </p>
+                    </div>
+                    <Select value={contentFilter} onValueChange={setContentFilter}>
+                      <SelectTrigger className="w-[150px] bg-white/5 border-white/10 text-white text-xs h-8">
+                        <div className="flex items-center gap-2">
+                          <Filter size={12} />
+                          <SelectValue placeholder="Filtrar" />
+                        </div>
+                      </SelectTrigger>
+                      <SelectContent className="bg-[#13131F] border-white/10 text-white">
+                        <SelectItem value="todos">Todos</SelectItem>
+                        <SelectItem value="raw">Raw</SelectItem>
+                        <SelectItem value="processed">Processados</SelectItem>
+                        <SelectItem value="artist">Do Artista</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                    {biblioteca
+                      .filter((c) => c.status !== "arquivado" && c.status !== "descartado")
+                      .filter((c) => {
+                        if (contentFilter === "todos") return true;
+                        if (contentFilter === "artist") return c.artist_id === formData.artist_id;
+                        return c.category === contentFilter;
+                      })
+                      .map((item) => {
+                        const isSelected = selectedContentIds.includes(item.id);
+                        return (
+                          <div
+                            key={item.id}
+                            onClick={() => {
+                              if (isSelected) {
+                                setSelectedContentIds((prev) => prev.filter((id) => id !== item.id));
+                              } else {
+                                setSelectedContentIds((prev) => [...prev, item.id]);
+                              }
+                            }}
+                            className={`relative aspect-[9/16] rounded-lg overflow-hidden border-2 cursor-pointer transition-all ${
+                              isSelected
+                                ? "border-[#7C3AED]"
+                                : "border-transparent hover:border-white/20"
+                            }`}
+                          >
+                            {loadingUrls[item.id] ? (
+                              <div className="w-full h-full flex items-center justify-center bg-white/5">
+                                <Loader2 className="w-4 h-4 text-[#7C3AED] animate-spin" />
+                              </div>
+                            ) : signedUrls[item.id] ? (
+                              <video
+                                src={signedUrls[item.id]}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center bg-white/5">
+                                <X className="w-4 h-4 text-red-500/50" />
+                              </div>
+                            )}
+                            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-2">
+                              <p className="text-[10px] text-white font-medium truncate">
+                                {item.title}
+                              </p>
+                            </div>
+                            {isSelected && (
+                              <div className="absolute top-2 right-2 bg-[#7C3AED] rounded-full p-1 shadow-lg">
+                                <Check size={12} className="text-white" />
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    {biblioteca.length === 0 && (
+                      <div className="col-span-full py-8 text-center border border-dashed border-white/10 rounded-xl">
+                        <p className="text-white/40 text-sm">
+                          Biblioteca vazia. Faça upload em Biblioteca primeiro.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
 
               <Button
                 onClick={handleIniciar}
