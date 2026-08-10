@@ -38,6 +38,72 @@ export interface SocialAccount {
 }
 
 export const socialService = {
+  async requireUser() {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) throw new Error("Sua sessão expirou. Entre novamente para continuar.");
+    const { data: { user }, error } = await supabase.auth.getUser();
+    if (error || !user) throw new Error("Sua sessão expirou. Entre novamente para continuar.");
+    return user;
+  },
+
+  /** Gera nome interno automático: "TikTok Conta 01" */
+  async generateAccountName(platform: SocialPlatform) {
+    const label = platform === 'tiktok' ? 'TikTok'
+      : platform === 'instagram' ? 'Instagram'
+      : platform === 'youtube' ? 'YouTube' : 'Facebook';
+
+    const { data, error } = await supabase
+      .from('social_accounts')
+      .select('account_name')
+      .eq('platform', platform);
+
+    if (error) throw error;
+
+    let max = 0;
+    (data || []).forEach((row: { account_name: string | null }) => {
+      const match = row.account_name?.match(/Conta\s+(\d+)$/i);
+      if (match) max = Math.max(max, parseInt(match[1], 10));
+    });
+    const next = Math.max(max, (data?.length || 0)) + 1;
+    return `${label} Conta ${String(next).padStart(2, '0')}`;
+  },
+
+  /** Cria registro pending mínimo e inicia OAuth via PostPeer. Limpa o pending em caso de falha. */
+  async startConnection(platform: SocialPlatform) {
+    const user = await this.requireUser();
+    const accountName = await this.generateAccountName(platform);
+
+    const { data: pending, error: insertError } = await supabase
+      .from('social_accounts')
+      .insert({
+        user_id: user.id,
+        platform,
+        account_name: accountName,
+        username: accountName.toLowerCase().replace(/\s+/g, '_'),
+        provider: 'postpeer',
+        connection_status: 'nao_conectada',
+        status: 'active',
+        posts_per_day: 3,
+        timezone: 'America/Sao_Paulo',
+        receive_all_campaigns: true,
+        preferred_categories: [],
+      })
+      .select()
+      .single();
+
+    if (insertError) throw insertError;
+
+    try {
+      const { authorization_url } = await this.connectAccount(pending.id);
+      if (!authorization_url) throw new Error("PostPeer não retornou a URL de autorização.");
+      return { authorization_url, account: pending };
+    } catch (err) {
+      // Não deixar lixo no banco
+      await supabase.from('social_accounts').delete().eq('id', pending.id);
+      throw err;
+    }
+  },
+
   async getAccounts() {
     const { data, error } = await supabase
       .from('social_accounts')
@@ -52,8 +118,7 @@ export const socialService = {
   },
 
   async createAccount(account: Partial<SocialAccount>) {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error("User not authenticated");
+    const user = await this.requireUser();
 
     const { data, error } = await supabase
       .from('social_accounts')
@@ -87,19 +152,28 @@ export const socialService = {
   },
 
   async connectAccount(socialAccountId: string) {
+    await this.requireUser();
     const { data, error } = await supabase.functions.invoke('postpeer-connect', {
       body: { social_account_id: socialAccountId }
     });
     
     if (error) {
-      // Tratar erro específico de configuração pendente
+      let details = '';
       try {
-        const errorBody = JSON.parse(await error.response.text());
-        if (errorBody.error === 'postpeer_config_pending') {
-          throw new Error("Configuração PostPeer pendente.");
+        const ctx = (error as any).context;
+        details = ctx ? await ctx.text() : '';
+        const body = JSON.parse(details);
+        if (body.error === 'postpeer_config_pending') {
+          throw new Error("Configuração PostPeer pendente. Informe a API Key do PostPeer para conectar contas.");
         }
-      } catch (e) {}
-      throw error;
+        if (body.error === 'Unauthorized') {
+          throw new Error("Sua sessão expirou. Entre novamente para continuar.");
+        }
+        throw new Error(body.message || body.error || error.message);
+      } catch (e: any) {
+        if (e instanceof Error && e.message) throw e;
+        throw new Error(details || error.message);
+      }
     }
     
     return data; // { authorization_url }

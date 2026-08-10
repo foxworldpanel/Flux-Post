@@ -31,13 +31,27 @@ const CONNECTION_STATUS_MAP: Record<ConnectionStatus, { label: string; color: st
   token_expirado: { label: "Token Expirado", color: "bg-orange-500/10 text-orange-400" },
 };
 
+const PLATFORM_LABEL: Record<SocialPlatform, string> = {
+  tiktok: "TikTok",
+  instagram: "Instagram",
+  facebook: "Facebook",
+  youtube: "YouTube",
+};
+
+const PLATFORM_ICON: Record<SocialPlatform, string> = {
+  tiktok: "📱",
+  instagram: "📸",
+  facebook: "👥",
+  youtube: "🎥",
+};
+
 export default function AccountsPage() {
   const [accounts, setAccounts] = useState<SocialAccountWithArtist[]>([]);
   const [artists, setArtists] = useState<{ id: string; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [isConnectDialogOpen, setIsConnectDialogOpen] = useState(false);
-  const [connectingAccount, setConnectingAccount] = useState<SocialAccountWithArtist | null>(null);
+  const [isAddOpen, setIsAddOpen] = useState(false);
+  const [selectedPlatform, setSelectedPlatform] = useState<SocialPlatform | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
   const [editingAccount, setEditingAccount] = useState<Partial<SocialAccountWithArtist> | null>(null);
   const [filterPlatform, setFilterPlatform] = useState<string>("Todas");
@@ -135,38 +149,29 @@ export default function AccountsPage() {
     }
   };
 
-  const handleConnect = async (account: SocialAccount) => {
+  /** Fluxo novo: cria pending mínimo e vai direto para o OAuth do PostPeer */
+  const handleStartConnection = async (platform: SocialPlatform) => {
     try {
       setIsConnecting(true);
-      
-      // PostPeer é o provider padrão para todas as plataformas na Fase 3.2B
-      const { authorization_url } = await socialService.connectAccount(account.id);
-      
-      if (authorization_url) {
-        window.location.href = authorization_url;
-      }
+      const { authorization_url } = await socialService.startConnection(platform);
+      window.location.href = authorization_url;
     } catch (err: any) {
       console.error(err);
       toast.error(err.message || "Erro ao iniciar conexão.");
-    } finally {
       setIsConnecting(false);
-      setIsConnectDialogOpen(false);
     }
   };
 
-  const handleConnectTikTokDirect = async (account: SocialAccount) => {
+  /** Reconectar uma conta já existente (card CONECTAR) */
+  const handleReconnect = async (account: SocialAccount) => {
     try {
       setIsConnecting(true);
-      const { authorization_url } = await socialService.startTikTokOAuth(account.id);
-      if (authorization_url) {
-        window.location.href = authorization_url;
-      }
+      const { authorization_url } = await socialService.connectAccount(account.id);
+      if (authorization_url) window.location.href = authorization_url;
     } catch (err: any) {
-      console.error(err);
-      toast.error(err.message || "Erro ao iniciar conexão TikTok Direta.");
+      toast.error(err.message || "Erro ao iniciar conexão.");
     } finally {
       setIsConnecting(false);
-      setIsConnectDialogOpen(false);
     }
   };
 
@@ -200,17 +205,7 @@ export default function AccountsPage() {
             <h1 className="text-4xl font-bold text-white mb-2 font-space">Central de Contas Sociais</h1>
             <p className="text-slate-400">Gerencie suas identidades editoriais para distribuição.</p>
           </div>
-          <Button className="bg-[#7C3AED] hover:bg-[#6D28D9]" onClick={() => {
-            setEditingAccount({
-              platform: 'tiktok',
-              posts_per_day: 3,
-              timezone: 'America/Sao_Paulo',
-              status: 'active',
-              receive_all_campaigns: true,
-              preferred_categories: []
-            });
-            setIsDialogOpen(true);
-          }}>
+          <Button className="bg-[#7C3AED] hover:bg-[#6D28D9]" onClick={() => { setSelectedPlatform(null); setIsAddOpen(true); }}>
             <Plus className="mr-2 h-4 w-4" /> Adicionar Conta
           </Button>
         </div>
@@ -319,10 +314,8 @@ export default function AccountsPage() {
                   </Button>
                   {account.connection_status === 'nao_conectada' && (
                     <Button variant="outline" size="sm" className="flex-1 border-purple-500/30 text-purple-400 hover:bg-purple-500/10 text-xs h-8" 
-                      onClick={() => {
-                        setConnectingAccount(account);
-                        setIsConnectDialogOpen(true);
-                      }}>
+                      disabled={isConnecting}
+                      onClick={() => handleReconnect(account)}>
                       CONECTAR
                     </Button>
                   )}
@@ -333,8 +326,10 @@ export default function AccountsPage() {
                     </Button>
                   )}
                   {account.connection_status === 'conectada' && (
-                    <Button variant="outline" size="sm" className="flex-1 border-white/10 hover:bg-white/5 text-slate-400 text-xs h-8" 
-                      onClick={() => socialService.syncAccount(account.id).then(() => toast.success("Sincronizado!"))}>
+                <Button variant="outline" size="sm" className="flex-1 border-white/10 hover:bg-white/5 text-slate-400 text-xs h-8" 
+                      onClick={() => socialService.syncAccount(account.id)
+                        .then(() => { toast.success("Sincronizado!"); loadData(); })
+                        .catch((e: Error) => toast.error(e.message))}>
                       SINCRONIZAR
                     </Button>
                   )}
@@ -356,11 +351,8 @@ export default function AccountsPage() {
                    <Plus className="text-slate-600" />
                 </div>
                 <h3 className="text-xl font-bold text-white mb-2">Nenhuma conta social encontrada</h3>
-                <p className="text-slate-500 mb-6">Cadastre suas contas existentes para preparar a distribuição multicanal.</p>
-                <Button className="bg-[#7C3AED]" onClick={() => {
-                  setEditingAccount({ platform: 'tiktok', posts_per_day: 3, timezone: 'America/Sao_Paulo', status: 'active', receive_all_campaigns: true, preferred_categories: [] });
-                  setIsDialogOpen(true);
-                }}>
+                <p className="text-slate-500 mb-6">Conecte uma rede social em poucos cliques. O login é feito na própria plataforma.</p>
+                <Button className="bg-[#7C3AED]" onClick={() => { setSelectedPlatform(null); setIsAddOpen(true); }}>
                   ADICIONAR PRIMEIRA CONTA
                 </Button>
               </div>
@@ -372,9 +364,7 @@ export default function AccountsPage() {
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogContent className="bg-[#0A0A0F] border-white/10 text-white max-w-2xl overflow-y-auto max-h-[90vh]">
             <DialogHeader>
-              <DialogTitle className="text-2xl font-space font-bold">
-                {editingAccount?.id ? 'Configurar Conta' : 'Adicionar Nova Conta Social'}
-              </DialogTitle>
+              <DialogTitle className="text-2xl font-space font-bold">Configurar Conta</DialogTitle>
             </DialogHeader>
             <form onSubmit={handleSaveAccount} className="space-y-6 pt-4">
               <div className="grid grid-cols-2 gap-4">
@@ -514,63 +504,50 @@ export default function AccountsPage() {
           </DialogContent>
         </Dialog>
 
-        {/* Modal Placeholder Conectar */}
-        <Dialog open={isConnectDialogOpen} onOpenChange={setIsConnectDialogOpen}>
-          <DialogContent className="bg-[#13131F] border-white/10 text-white text-center py-10">
-             <div className="w-20 h-20 bg-purple-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
-                <Globe className="w-10 h-10 text-purple-400" />
-             </div>
-             <DialogHeader>
-                <DialogTitle className="text-center text-xl">Integração Social</DialogTitle>
-             </DialogHeader>
-             <p className="text-slate-400 py-4">A conexão oficial via OAuth será configurada na próxima etapa do desenvolvimento (Fase 3.2).</p>
-             <Button className="bg-[#7C3AED] w-full mt-4" onClick={() => setIsConnectDialogOpen(false)}>Entendido</Button>
-          </DialogContent>
-        </Dialog>
-        {/* Modal de Conexão */}
-        <Dialog open={isConnectDialogOpen} onOpenChange={setIsConnectDialogOpen}>
-          <DialogContent className="bg-[#0A0A0F] border-white/10 text-white">
+        {/* Modal Adicionar Conta — fluxo simples em 2 passos */}
+        <Dialog open={isAddOpen} onOpenChange={(open) => { setIsAddOpen(open); if (!open) { setSelectedPlatform(null); setIsConnecting(false); } }}>
+          <DialogContent className="bg-[#0A0A0F] border-white/10 text-white max-w-lg">
             <DialogHeader>
-              <DialogTitle className="text-xl font-bold font-space">Conectar Conta</DialogTitle>
+              <DialogTitle className="text-xl font-bold font-space">
+                {selectedPlatform ? `Conectar ${PLATFORM_LABEL[selectedPlatform]}` : "Qual rede social você deseja conectar?"}
+              </DialogTitle>
             </DialogHeader>
-            <div className="py-6 space-y-4">
-              <div className="flex items-center gap-4 bg-white/5 p-4 rounded-xl border border-white/10">
-                <div className="w-12 h-12 rounded-full bg-black flex items-center justify-center text-2xl">
-                  {connectingAccount?.platform === 'tiktok' ? '📱' : connectingAccount?.platform === 'instagram' ? '📸' : connectingAccount?.platform === 'youtube' ? '🎥' : '👥'}
-                </div>
-                <div>
-                  <p className="font-bold">{connectingAccount?.account_name}</p>
-                  <p className="text-xs text-slate-500">@{connectingAccount?.username}</p>
-                  <p className="text-[10px] text-purple-400 uppercase mt-1">Via PostPeer Provider</p>
-                </div>
-              </div>
-              <p className="text-sm text-slate-400 leading-relaxed">
-                Você será redirecionado para o <strong>PostPeer</strong> para autorizar a conexão oficial da sua rede social.
-              </p>
-              
-              {connectingAccount?.platform === 'tiktok' && (
-                <div className="pt-2 border-t border-white/5">
-                  <Button 
-                    variant="link" 
-                    className="text-[10px] text-slate-500 p-0 h-auto hover:text-white"
-                    onClick={() => connectingAccount && handleConnectTikTokDirect(connectingAccount)}
+
+            {!selectedPlatform ? (
+              <div className="grid grid-cols-2 gap-4 py-4">
+                {platformList.map(p => (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => setSelectedPlatform(p)}
+                    className="flex flex-col items-center gap-2 p-6 rounded-xl bg-white/5 border border-white/10 hover:border-purple-500/50 hover:bg-purple-500/5 transition-all"
                   >
-                    Alternativa: Usar Conexão Direta TikTok (Fallback)
-                  </Button>
+                    <span className="text-3xl">{PLATFORM_ICON[p]}</span>
+                    <span className="text-sm font-bold">{PLATFORM_LABEL[p]}</span>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="py-6 space-y-5 text-center">
+                <div className="w-16 h-16 rounded-full bg-white/5 border border-white/10 flex items-center justify-center mx-auto text-3xl">
+                  {PLATFORM_ICON[selectedPlatform]}
                 </div>
-              )}
-            </div>
-            <DialogFooter>
-              <Button variant="ghost" onClick={() => setIsConnectDialogOpen(false)} disabled={isConnecting}>CANCELAR</Button>
-              <Button 
-                className="bg-[#7C3AED] hover:bg-[#6D28D9]" 
-                disabled={isConnecting}
-                onClick={() => connectingAccount && handleConnect(connectingAccount)}
-              >
-                {isConnecting ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : null}
-                CONECTAR VIA POSTPEER
-              </Button>
-            </DialogFooter>
+                <p className="text-sm text-slate-400 leading-relaxed px-4">
+                  Você fará login diretamente no {PLATFORM_LABEL[selectedPlatform]}. O Flux Post não recebe sua senha.
+                </p>
+                <Button
+                  className="bg-[#7C3AED] hover:bg-[#6D28D9] w-full h-11"
+                  disabled={isConnecting}
+                  onClick={() => handleStartConnection(selectedPlatform)}
+                >
+                  {isConnecting ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : null}
+                  CONECTAR {PLATFORM_LABEL[selectedPlatform].toUpperCase()}
+                </Button>
+                <Button variant="ghost" className="text-slate-500 text-xs" disabled={isConnecting} onClick={() => setSelectedPlatform(null)}>
+                  Escolher outra rede social
+                </Button>
+              </div>
+            )}
           </DialogContent>
         </Dialog>
       </div>
@@ -578,23 +555,3 @@ export default function AccountsPage() {
   );
 }
 
-function Globe(props: any) {
-  return (
-    <svg
-      {...props}
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <circle cx="12" cy="12" r="10" />
-      <path d="M12 2a14.5 14.5 0 0 0 0 20" />
-      <path d="M2 12h20" />
-    </svg>
-  )
-}
