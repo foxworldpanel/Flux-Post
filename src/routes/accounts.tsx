@@ -31,6 +31,20 @@ const CONNECTION_STATUS_MAP: Record<ConnectionStatus, { label: string; color: st
   token_expirado: { label: "Token Expirado", color: "bg-orange-500/10 text-orange-400" },
 };
 
+const PLATFORM_LABEL: Record<SocialPlatform, string> = {
+  tiktok: "TikTok",
+  instagram: "Instagram",
+  facebook: "Facebook",
+  youtube: "YouTube",
+};
+
+const PLATFORM_ICON: Record<SocialPlatform, string> = {
+  tiktok: "📱",
+  instagram: "📸",
+  facebook: "👥",
+  youtube: "🎥",
+};
+
 export default function AccountsPage() {
   const [accounts, setAccounts] = useState<SocialAccountWithArtist[]>([]);
   const [artists, setArtists] = useState<{ id: string; name: string }[]>([]);
