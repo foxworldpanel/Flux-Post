@@ -28,8 +28,10 @@ export interface SocialAccount {
   provider?: SocialProviderName;
   provider_connection_id?: string;
   provider_account_id?: string;
+  provider_profile_id?: string;
   provider_status?: string;
   connected_at?: string;
+
   metadata: any;
   created_at: string;
   updated_at: string;
