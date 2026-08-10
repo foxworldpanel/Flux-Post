@@ -65,20 +65,39 @@ serve(async (req) => {
     }
 
     const postpeer = new PostPeerClient(POSTPEER_API_KEY);
+    console.log(`[postpeer-sync] Fetching integrations for profile: ${account.provider_profile_id}`);
     const integrations = await postpeer.listIntegrations(account.provider_profile_id);
     
+    console.log(`[postpeer-sync] PostPeer response - count: ${integrations.length}`);
+    
+    // Log sanitizado para diagnóstico
+    integrations.forEach((i, idx) => {
+      console.log(`[postpeer-sync] Integration ${idx}:`, {
+        id: i.id,
+        profileId: i.profileId,
+        platform: i.platform,
+        platformUserId: i.platformUserId,
+        displayName: i.displayName,
+        status: i.status,
+        hasUsername: !!(i.username || i.handle),
+        hasImageUrl: !!i.imageUrl
+      });
+    });
+
     // Tenta encontrar por ID de conexão ou tenta recuperar pela plataforma se ID for nulo
     let integration = integrations.find(i => i.id === account.provider_connection_id);
     
     if (!integration && !account.provider_connection_id) {
       // LINK/RECOVERY: Se não temos ID local mas temos o profileId, pegamos a primeira da plataforma
+      // Nota: listIntegrations já filtra por profileId, então aqui pegamos o match da plataforma dentro do profile
       integration = integrations.find(i => i.platform.toLowerCase() === account.platform.toLowerCase());
-      console.log("[postpeer-sync] Link recovery attempted", { found: !!integration });
+      console.log("[postpeer-sync] Link recovery attempted by platform match", { found: !!integration });
     }
 
     if (!integration) {
       // Se não encontrar, e já tínhamos um ID, talvez tenha sido deletada
       if (account.provider_connection_id) {
+        console.log("[postpeer-sync] Previously connected integration not found. Marking as requiring reconnection.");
         await supabaseAdmin
           .from("social_accounts")
           .update({ 
@@ -98,6 +117,11 @@ serve(async (req) => {
       });
     }
 
+    console.log("[postpeer-sync] Integration matched. Updating database...", { 
+      integrationId: integration.id,
+      displayName: integration.displayName
+    });
+
     // Atualizar dados locais (Reconciliação)
     await supabaseAdmin
       .from("social_accounts")
@@ -106,6 +130,7 @@ serve(async (req) => {
         provider_account_id: integration.platformUserId,
         external_account_id: integration.platformUserId,
         external_display_name: integration.displayName || undefined,
+        username: integration.username || integration.handle || '', // Prioriza dados reais
         provider_status: integration.status,
         connection_status: (integration.status === 'active' || integration.status === 'valid') ? 'conectada' : 'erro',
         profile_image_url: integration.imageUrl || account.profile_image_url,

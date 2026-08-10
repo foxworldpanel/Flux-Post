@@ -227,12 +227,16 @@ serve(async (req) => {
 
     // 5. Obter URL de Autorização
     console.log("OAUTH_START");
-    const appUrl = Deno.env.get("APP_URL");
-    if (!appUrl) {
-      console.error("CRITICAL: APP_URL environment variable is missing.");
-      throw { status: 500, error: "app_url_missing", message: "Configuração APP_URL pendente no servidor." };
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    if (!supabaseUrl) {
+      console.error("CRITICAL: SUPABASE_URL environment variable is missing.");
+      throw { status: 500, error: "supabase_url_missing", message: "Configuração do servidor pendente." };
     }
-    const callbackUrl = `${appUrl}/accounts?success=postpeer_connected`;
+    
+    // O redirectUri do PostPeer DEVE ser a nossa Edge Function de callback
+    // Ela processará a reconciliação e então redirecionará para o frontend (APP_URL)
+    const callbackUrl = `${supabaseUrl}/functions/v1/postpeer-callback?state=${state}`;
+    console.log("CALLBACK_URL_GENERATED", { callbackUrl });
     
     const { url } = await postpeer.getOAuthUrl(
       account.platform,

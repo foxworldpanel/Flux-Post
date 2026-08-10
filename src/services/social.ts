@@ -90,7 +90,7 @@ export const socialService = {
         user_id: user.id,
         platform,
         account_name: accountName,
-        username: accountName.toLowerCase().replace(/\s+/g, '_'),
+        username: '', // Removido username fake. Será preenchido na sincronização real.
         provider: 'postpeer',
         connection_status: 'nao_conectada',
         status: 'active',
