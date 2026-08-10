@@ -18,6 +18,12 @@ export async function loadFFmpeg() {
 export async function processVideo(
   videoUrl: string,
   musicUrl: string,
+  options: {
+    musicStartMs?: number;
+    musicVolume?: number;
+    originalAudioVolume?: number;
+    audioMode: 'only_music' | 'music_plus_original' | 'only_original';
+  },
   onLog?: (message: string) => void
 ): Promise<Blob> {
   await loadFFmpeg();
