@@ -12,9 +12,9 @@ import {
 } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
 import { supabase } from "@/integrations/supabase/client";
-import { processVideo } from "@/services/videoProcessor";
+import { renderService } from "@/services/renderService";
 import { toast } from "sonner";
-import { Play, Save, Loader2, Video as VideoIcon, Music, CheckCircle2 } from "lucide-react";
+import { Play, Save, Loader2, Video as VideoIcon, Music, CheckCircle2, History } from "lucide-react";
 
 interface LibraryItem {
   id: string;
