@@ -1,6 +1,5 @@
 /**
- * secret key api m0kxgi8Lt4ohfu
- * postpeer
+ * POSTPEER_API_KEY = m0kxgi8Lt4ohfu
  */
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
