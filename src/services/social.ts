@@ -39,11 +39,20 @@ export interface SocialAccount {
 
 export const socialService = {
   async requireUser() {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) throw new Error("Sua sessão expirou. Entre novamente para continuar.");
-    const { data: { user }, error } = await supabase.auth.getUser();
-    if (error || !user) throw new Error("Sua sessão expirou. Entre novamente para continuar.");
-    return user;
+    const { data: { session }, error } = await supabase.auth.getSession();
+    if (error) {
+      console.error("[social] erro ao ler sessão local:", error.message);
+      throw new Error("Não foi possível ler sua sessão local. Recarregue a página e tente novamente.");
+    }
+    if (!session?.user) {
+      throw new Error("Sua sessão do Flux Post expirou. Entre novamente.");
+    }
+    console.debug("[social] sessão", {
+      sessionExists: true,
+      userIdExists: !!session.user.id,
+      accessTokenExists: !!session.access_token,
+    });
+    return session.user;
   },
 
   /** Gera nome interno automático: "TikTok Conta 01" */
@@ -167,7 +176,7 @@ export const socialService = {
           throw new Error("Configuração PostPeer pendente. Informe a API Key do PostPeer para conectar contas.");
         }
         if (body.error === 'Unauthorized') {
-          throw new Error("Sua sessão expirou. Entre novamente para continuar.");
+          throw new Error("Não foi possível validar sua sessão no servidor.");
         }
         throw new Error(body.message || body.error || error.message);
       } catch (e: any) {
