@@ -205,17 +205,7 @@ export default function AccountsPage() {
             <h1 className="text-4xl font-bold text-white mb-2 font-space">Central de Contas Sociais</h1>
             <p className="text-slate-400">Gerencie suas identidades editoriais para distribuição.</p>
           </div>
-          <Button className="bg-[#7C3AED] hover:bg-[#6D28D9]" onClick={() => {
-            setEditingAccount({
-              platform: 'tiktok',
-              posts_per_day: 3,
-              timezone: 'America/Sao_Paulo',
-              status: 'active',
-              receive_all_campaigns: true,
-              preferred_categories: []
-            });
-            setIsDialogOpen(true);
-          }}>
+          <Button className="bg-[#7C3AED] hover:bg-[#6D28D9]" onClick={() => { setSelectedPlatform(null); setIsAddOpen(true); }}>
             <Plus className="mr-2 h-4 w-4" /> Adicionar Conta
           </Button>
         </div>
@@ -360,10 +350,7 @@ export default function AccountsPage() {
                 </div>
                 <h3 className="text-xl font-bold text-white mb-2">Nenhuma conta social encontrada</h3>
                 <p className="text-slate-500 mb-6">Cadastre suas contas existentes para preparar a distribuição multicanal.</p>
-                <Button className="bg-[#7C3AED]" onClick={() => {
-                  setEditingAccount({ platform: 'tiktok', posts_per_day: 3, timezone: 'America/Sao_Paulo', status: 'active', receive_all_campaigns: true, preferred_categories: [] });
-                  setIsDialogOpen(true);
-                }}>
+                <Button className="bg-[#7C3AED]" onClick={() => { setSelectedPlatform(null); setIsAddOpen(true); }}>
                   ADICIONAR PRIMEIRA CONTA
                 </Button>
               </div>
