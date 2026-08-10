@@ -720,7 +720,7 @@ export default function GarimpoPage() {
                              <Clock className="w-3.5 h-3.5" />
                              <span className="text-[10px] font-bold uppercase tracking-tighter">Duração</span>
                            </div>
-                           <p className="text-white font-medium text-lg">{formatDuration(selectedCandidate.duration)}</p>
+                           <p className="text-white font-medium text-lg">{formatDuration(selectedCandidate.duration || 0)}</p>
                         </div>
 
                         <div className="bg-white/[0.03] p-4 rounded-2xl border border-white/5 space-y-1">
