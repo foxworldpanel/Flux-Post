@@ -63,7 +63,7 @@ export class PostPeerClient {
       method: "POST",
       body: JSON.stringify({ name }),
     });
-    // PostPeer v1 returns { success: boolean, profile: { id, ... } }
+    // PostPeer v1 returns { success: true, profile: { id, ... } }
     return data.profile || data;
   }
 
@@ -76,6 +76,15 @@ export class PostPeerClient {
     const data = await this.request<any>(`/connect/${platform}?${params.toString()}`);
     // PostPeer v1 returns { url: string } or { success: boolean, url: string }
     return data;
+  }
+
+  async listIntegrations(profileId: string): Promise<any[]> {
+    if (!profileId) {
+      throw { error: "missing_profile_id", message: "profileId is required", status: 400 };
+    }
+    const data = await this.request<any>(`/connect/integrations?profileId=${profileId}`);
+    // PostPeer v1 returns { success: true, count: number, integrations: [...] }
+    return data.integrations || [];
   }
 }
 
