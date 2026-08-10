@@ -686,7 +686,7 @@ export default function CampanhaPage() {
                     <span>{campanhaAtiva.artists?.name}</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Music size={16} />
+                    <MusicIcon size={16} />
                     <span>{campanhaAtiva.music_tracks?.nome}</span>
                   </div>
                 </div>
