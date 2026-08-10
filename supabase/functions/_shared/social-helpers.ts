@@ -59,10 +59,12 @@ export class PostPeerClient {
   }
 
   async createProfile(name: string): Promise<any> {
-    return this.request("/profiles", {
+    const data = await this.request<any>("/profiles", {
       method: "POST",
       body: JSON.stringify({ name }),
     });
+    // PostPeer v1 returns { success: boolean, profile: { id, ... } }
+    return data.profile || data;
   }
 
   async getOAuthUrl(platform: string, profileId: string, redirectUri?: string): Promise<{ url: string }> {
@@ -71,7 +73,9 @@ export class PostPeerClient {
     }
     const params = new URLSearchParams({ profileId });
     if (redirectUri) params.append("redirectUri", redirectUri);
-    return this.request(`/connect/${platform}?${params.toString()}`);
+    const data = await this.request<any>(`/connect/${platform}?${params.toString()}`);
+    // PostPeer v1 returns { url: string } or { success: boolean, url: string }
+    return data;
   }
 }
 

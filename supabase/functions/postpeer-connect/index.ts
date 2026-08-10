@@ -84,7 +84,7 @@ serve(async (req) => {
         results.stages.push("PROFILE_START");
         const profile = await postpeer.createProfile("Flux Diagnostic " + new Date().toISOString());
         results.profile = profile;
-        const profileId = profile.id || profile.data?.id;
+        const profileId = profile.id;
         console.log("PROFILE_OK", { profileId });
         results.stages.push("PROFILE_OK");
 
@@ -153,16 +153,17 @@ serve(async (req) => {
     );
 
     // 3. Garantir Profile no PostPeer
-    console.log("PROFILE_START");
+    console.log("PROFILE_CHECK");
     let profileId = account.provider_profile_id;
     if (!profileId) {
+      console.log("PROFILE_START");
       const profileName = account.artist?.name || account.account_name || `Account ${account.id.slice(0, 8)}`;
-      const profileResponse: any = await postpeer.createProfile(profileName);
-      profileId = profileResponse.id || profileResponse.data?.id;
+      const profile: any = await postpeer.createProfile(profileName);
+      profileId = profile.id;
       
       if (!profileId) {
-         console.error("POSTPEER_PROFILE_CREATE_FAILED_NO_ID", profileResponse);
-         throw { status: 500, message: "PostPeer profile creation failed to return an ID", full_data: profileResponse };
+         console.error("POSTPEER_PROFILE_CREATE_FAILED_NO_ID", profile);
+         throw { status: 500, message: "PostPeer profile creation failed to return an ID", full_data: profile };
       }
 
       // Persistir profileId
