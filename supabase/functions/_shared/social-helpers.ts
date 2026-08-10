@@ -63,7 +63,7 @@ export class PostPeerClient {
       method: "POST",
       body: JSON.stringify({ name }),
     });
-    // PostPeer v1 returns { success: boolean, profile: { id, ... } }
+    // PostPeer v1 returns { success: true, profile: { id, ... } }
     return data.profile || data;
   }
 
@@ -77,6 +77,7 @@ export class PostPeerClient {
     // PostPeer v1 returns { url: string } or { success: boolean, url: string }
     return data;
   }
+
   async listIntegrations(profileId: string): Promise<any[]> {
     if (!profileId) {
       throw { error: "missing_profile_id", message: "profileId is required", status: 400 };
@@ -86,8 +87,6 @@ export class PostPeerClient {
     return data.integrations || [];
   }
 }
-
-
 
 export async function encryptToken(text: string, secretKey: string): Promise<string> {
   if (!secretKey) throw new Error("Encryption key missing");
