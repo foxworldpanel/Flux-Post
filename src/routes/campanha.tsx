@@ -381,7 +381,11 @@ export default function CampanhaPage() {
           distribution_mode: formData.distribution_mode,
           distribution_variation: formData.distribution_variation,
           cooldown_days: formData.cooldown_days,
-          editorial_language: formData.editorial_language
+          editorial_language: formData.editorial_language,
+          audio_mode: formData.audio_mode,
+          music_volume: formData.music_volume,
+          original_audio_volume: formData.original_audio_volume,
+          music_start_ms: formData.music_start_ms
         })
         .select()
         .single();
