@@ -14,8 +14,13 @@ serve(async (req) => {
   }
 
   try {
-    const authHeader = req.headers.get("Authorization") || req.headers.get("authorization");
+    let authHeader = req.headers.get("Authorization") || req.headers.get("authorization");
     
+    // Bypass for diagnostic if no auth header but called via internal tool? 
+    // No, keep it secure. But wait, curl_edge_functions should inject it.
+    // Let's add more logs to see what headers we are getting.
+    console.log("HEADERS_RECEIVED", Object.fromEntries(req.headers.entries()));
+
     if (!authHeader) {
       console.error("MISSING_AUTH_HEADER");
       return new Response(JSON.stringify({ error: "Missing Authorization header" }), { 
