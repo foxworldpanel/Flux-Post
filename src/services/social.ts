@@ -65,7 +65,8 @@ export const socialService = {
     const { data, error } = await supabase
       .from('social_accounts')
       .select('account_name')
-      .eq('platform', platform);
+      .eq('platform', platform)
+      .neq('status', 'archived');
 
     if (error) throw error;
 
