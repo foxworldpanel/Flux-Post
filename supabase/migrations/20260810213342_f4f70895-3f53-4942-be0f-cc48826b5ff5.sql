@@ -1,0 +1,2 @@
+UPDATE public.social_accounts SET account_name = 'TikTok Conta 01' WHERE id = '3a97ba4d-482c-472d-9ad7-8ceb68420125';
+UPDATE public.social_accounts SET account_name = 'TikTok Conta 02' WHERE id = 'cc12db23-5c67-4f8a-a763-202f10c8e7c6';
