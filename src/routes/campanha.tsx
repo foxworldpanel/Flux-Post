@@ -118,8 +118,14 @@ export default function CampanhaPage() {
     data_inicio: format(new Date(), "yyyy-MM-dd"),
     data_fim: format(addDays(new Date(), 7), "yyyy-MM-dd"),
     timezone: "America/Sao_Paulo",
-    schedulingMode: "distribute" as "manual" | "distribute"
+    distribution_mode: "intelligent" as "all" | "intelligent",
+    distribution_variation: "medium" as "low" | "medium" | "high",
+    cooldown_days: 30,
+    distribution_interval_minutes: 5,
+    editorial_language: "pt-BR",
+    editorial_style: "engaging"
   });
+
 
   // Calculate Scheduling Preview
   const schedulingPreview = useMemo(() => {
@@ -642,7 +648,83 @@ export default function CampanhaPage() {
                   </div>
                 </div>
 
+                <div className="space-y-4 pt-4 border-t border-white/5">
+                  <Label className="text-white text-base font-semibold uppercase">Distribuição e IA</Label>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <Label className="text-white/80">Modo de Distribuição</Label>
+                      <Select
+                        value={formData.distribution_mode}
+                        onValueChange={(v: any) => setFormData({ ...formData, distribution_mode: v })}
+                      >
+                        <SelectTrigger className="bg-white/5 border-white/10 text-white">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="bg-[#13131F] border-white/10 text-white">
+                          <SelectItem value="all">Todos recebem o mesmo conteúdo</SelectItem>
+                          <SelectItem value="intelligent">Distribuição Inteligente (Recomendado)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label className="text-white/80">Variação Editorial</Label>
+                      <Select
+                        value={formData.distribution_variation}
+                        onValueChange={(v: any) => setFormData({ ...formData, distribution_variation: v })}
+                      >
+                        <SelectTrigger className="bg-white/5 border-white/10 text-white">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="bg-[#13131F] border-white/10 text-white">
+                          <SelectItem value="low">Baixa (Mais repetições)</SelectItem>
+                          <SelectItem value="medium">Média (Equilibrado)</SelectItem>
+                          <SelectItem value="high">Alta (Máxima diversidade)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <Label className="text-white/80">Cooldown de Conteúdo</Label>
+                      <Select
+                        value={formData.cooldown_days.toString()}
+                        onValueChange={(v) => setFormData({ ...formData, cooldown_days: parseInt(v) })}
+                      >
+                        <SelectTrigger className="bg-white/5 border-white/10 text-white">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="bg-[#13131F] border-white/10 text-white">
+                          <SelectItem value="7">7 dias</SelectItem>
+                          <SelectItem value="15">15 dias</SelectItem>
+                          <SelectItem value="30">30 dias</SelectItem>
+                          <SelectItem value="60">60 dias</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label className="text-white/80">Idioma da IA</Label>
+                      <Select
+                        value={formData.editorial_language}
+                        onValueChange={(v) => setFormData({ ...formData, editorial_language: v })}
+                      >
+                        <SelectTrigger className="bg-white/5 border-white/10 text-white">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="bg-[#13131F] border-white/10 text-white">
+                          <SelectItem value="pt-BR">Português (Brasil)</SelectItem>
+                          <SelectItem value="en-US">English (US)</SelectItem>
+                          <SelectItem value="es-ES">Español</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label className="text-white/80">Data Início</Label>
