@@ -13,25 +13,29 @@ import PublicacoesPage from "./routes/publicacoes";
 import AnalyticsPage from "./routes/analytics";
 import SecurityReportPage from "./routes/security-report";
 import { Toaster } from "sonner";
+import { ProtectedRoute } from "./components/ProtectedRoute";
 
 function App() {
   return (
     <>
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<DashboardPage />} />
           <Route path="/auth" element={<AuthPage />} />
-          <Route path="/videos" element={<VideosPage />} />
-          <Route path="/musics" element={<MusicsPage />} />
-          <Route path="/accounts" element={<AccountsPage />} />
-          <Route path="/campanha" element={<CampanhaPage />} />
-          <Route path="/schedule" element={<SchedulePage />} />
-          <Route path="/processar" element={<ProcessarPage />} />
-          <Route path="/artistas" element={<ArtistasPage />} />
-          <Route path="/garimpo" element={<GarimpoPage />} />
-          <Route path="/publicacoes" element={<PublicacoesPage />} />
-          <Route path="/analytics" element={<AnalyticsPage />} />
-          <Route path="/security-report" element={<SecurityReportPage />} />
+          <Route path="/login" element={<AuthPage />} />
+          <Route element={<ProtectedRoute />}>
+            <Route path="/" element={<DashboardPage />} />
+            <Route path="/videos" element={<VideosPage />} />
+            <Route path="/musics" element={<MusicsPage />} />
+            <Route path="/accounts" element={<AccountsPage />} />
+            <Route path="/campanha" element={<CampanhaPage />} />
+            <Route path="/schedule" element={<SchedulePage />} />
+            <Route path="/processar" element={<ProcessarPage />} />
+            <Route path="/artistas" element={<ArtistasPage />} />
+            <Route path="/garimpo" element={<GarimpoPage />} />
+            <Route path="/publicacoes" element={<PublicacoesPage />} />
+            <Route path="/analytics" element={<AnalyticsPage />} />
+            <Route path="/security-report" element={<SecurityReportPage />} />
+          </Route>
         </Routes>
       </BrowserRouter>
       <Toaster position="top-right" />
