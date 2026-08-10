@@ -127,8 +127,9 @@ export default function CampanhaPage() {
       return [];
     }
 
-    const preview = [];
+    const preview: any[] = [];
     const startDate = new Date(formData.data_inicio + "T00:00:00");
+
     const endDate = new Date(formData.data_fim + "T23:59:59");
     const [startH, startM] = formData.hora_inicio.split(":").map(Number);
     const [endH, endM] = formData.hora_fim.split(":").map(Number);
