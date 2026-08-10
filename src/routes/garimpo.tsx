@@ -5,12 +5,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Play, Check, Loader2, Trash2, RotateCw, Plus, X, Search, Eye, Filter, CheckCircle2, XCircle, Clock } from "lucide-react";
+import { Play, Check, Loader2, Trash2, RotateCw, Plus, X, Search, Eye, Filter, CheckCircle2, XCircle, Clock, Video, Maximize2, Monitor, User } from "lucide-react";
 import { contentService, DiscoverySettings, DiscoveryCategory, ContentCandidate, DiscoveryReport } from "@/services/content";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 
 export default function GarimpoPage() {
   const [activeTab, setActiveTab] = useState("buscar");
