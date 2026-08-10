@@ -902,15 +902,24 @@ export default function CampanhaPage() {
                           <tbody className="divide-y divide-white/5">
                             {schedulingPreview.map((item, idx) => (
                               <tr key={idx} className="hover:bg-white/5 transition-colors">
-                                <td className="px-4 py-3 text-white font-medium">
+                                <td className="px-4 py-3 text-white font-medium flex items-center gap-2">
                                   {format(item.date, "dd/MM HH:mm", { locale: ptBR })}
+                                  <Badge variant="outline" className="text-[8px] h-3 px-1 border-white/5 text-slate-500 uppercase">
+                                    {item.platform}
+                                  </Badge>
                                 </td>
                                 <td className="px-4 py-3 text-white/70">
                                   {item.accountName}
                                 </td>
-                                <td className="px-4 py-3 text-[#7C3AED] font-bold">
-                                  Vídeo #{item.videoIndex + 1}
+                                <td className="px-4 py-3 space-y-1">
+                                  <div className="text-[#7C3AED] font-bold">
+                                    Vídeo #{item.videoIndex + 1}
+                                  </div>
+                                  <div className="text-[9px] text-slate-500 italic truncate max-w-[200px]">
+                                    IA: {formData.editorial_language === 'pt-BR' ? 'Legenda criativa variada...' : 'Creative varying caption...'}
+                                  </div>
                                 </td>
+
                               </tr>
                             ))}
                           </tbody>
