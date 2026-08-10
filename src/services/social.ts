@@ -123,8 +123,12 @@ export const socialService = {
   },
 
   async syncAccount(id: string) {
-    // Placeholder para futura Edge Function de sync
-    console.log("Syncing account:", id);
-    return { success: true };
+    const { data, error } = await supabase.functions.invoke('postpeer-sync', {
+      body: { social_account_id: id }
+    });
+    
+    if (error) throw error;
+    return data;
   }
+
 };
