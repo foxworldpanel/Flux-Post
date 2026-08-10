@@ -232,13 +232,13 @@ export default function DashboardPage() {
                   <div>
                     <h4 className="text-[#7C3AED] font-bold text-sm uppercase tracking-wider mb-1">K. Causa Identificada</h4>
                     <p className="text-slate-300 text-sm leading-relaxed">
-                      {report.error ? "A API PostPeer retornou um erro estruturado. Verifique se as credenciais de plataforma estão configuradas no dashboard da PostPeer ou se o payload JSON mudou na v1." : "Infraestrutura e comunicação com PostPeer v1 (.dev) totalmente operacionais."}
+                      {report.error ? "A API PostPeer retornou um erro estruturado. Verifique se as credenciais de plataforma estão configuradas no dashboard da PostPeer ou se o payload JSON mudou na v1." : (report.recovery?.status_atual === 'conectada' ? "Fluxo de recuperação e persistência auditados. Pronto para operação real." : "Aguardando reparo da conta TikTok Conta 02.")}
                     </p>
                   </div>
                   <div>
                     <h4 className="text-[#7C3AED] font-bold text-sm uppercase tracking-wider mb-1">L. Correção Necessária</h4>
                     <p className="text-slate-300 text-sm leading-relaxed">
-                      {report.error ? "Ajustar o mapeamento de campos (ex: .id vs .data.id) ou atualizar a secret POSTPEER_API_KEY se o status for 401/403." : "Nenhuma correção necessária. O sistema está pronto para produção."}
+                      {report.error ? "Ajustar o mapeamento de campos (ex: .id vs .data.id) ou atualizar a secret POSTPEER_API_KEY." : (report.recovery?.status_atual === 'conectada' ? "Nenhuma correção necessária. Sistema estabilizado." : "Clique em 'Iniciar Auditoria & Recuperação' para reparar a conta.")}
                     </p>
                   </div>
                 </div>
