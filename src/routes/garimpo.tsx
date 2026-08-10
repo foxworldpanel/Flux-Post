@@ -73,13 +73,37 @@ export default function GarimpoPage() {
     if (!query) return toast.error("Digite um termo");
     setLoading(true);
     try {
-      const data = await contentService.searchPexels({ query, orientation: 'portrait' });
+      const data = await contentService.searchPexels({ 
+        query, 
+        orientation: filterOrientation as any 
+      });
       setResults(data.videos || []);
+      if (data.videos?.length === 0) toast.info("Nenhum vídeo encontrado.");
     } catch (err: any) {
       toast.error("Erro: " + err.message);
     } finally {
       setLoading(false);
     }
+  };
+
+  const formatDuration = (seconds: number) => {
+    if (!seconds) return "0:00";
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    if (mins === 0) return `0:${secs.toString().padStart(2, '0')}`;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const getResolutionInfo = (video: any) => {
+    const portrait = video.video_files?.find((f: any) => f.height > f.width) || video.video_files?.[0];
+    if (portrait) {
+      return {
+        width: portrait.width,
+        height: portrait.height,
+        quality: portrait.quality // 'hd', 'sd', etc.
+      };
+    }
+    return { width: video.width, height: video.height, quality: 'hd' };
   };
 
   const handleApprove = async (item: any, candidateId?: string) => {
