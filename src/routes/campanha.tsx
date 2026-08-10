@@ -467,138 +467,233 @@ export default function CampanhaPage() {
 
                   <div className="space-y-2">
                     <Label className="text-white/80">Escolher Música</Label>
+                    <div className="flex gap-2">
+                      <Select
+                        value={formData.music_track_id}
+                        onValueChange={(v) => setFormData({ ...formData, music_track_id: v })}
+                        disabled={!formData.artist_id}
+                      >
+                        <SelectTrigger className="bg-white/5 border-white/10 text-white flex-1">
+                          <SelectValue
+                            placeholder={
+                              formData.artist_id
+                                ? "Selecione uma música"
+                                : "Selecione um artista primeiro"
+                            }
+                          />
+                        </SelectTrigger>
+                        <SelectContent className="bg-[#13131F] border-white/10 text-white">
+                          {musicas
+                            .filter((m) => m.artist_id === formData.artist_id)
+                            .map((m) => (
+                              <SelectItem key={m.id} value={m.id}>
+                                {m.nome}
+                              </SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                      <Dialog open={isMusicModalOpen} onOpenChange={setIsMusicModalOpen}>
+                        <DialogTrigger asChild>
+                          <Button 
+                            variant="outline" 
+                            size="icon" 
+                            className="shrink-0 bg-white/5 border-white/10 text-white hover:bg-white/10"
+                            disabled={!formData.artist_id}
+                          >
+                            <Plus className="h-4 w-4" />
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent className="bg-[#13131F] border-white/10 text-white sm:max-w-[425px]">
+                          <DialogHeader>
+                            <DialogTitle className="text-xl font-bold">Nova Música</DialogTitle>
+                            <DialogDescription className="text-white/60">
+                              Adicione uma nova música para o artista {artistas.find(a => a.id === formData.artist_id)?.name}.
+                            </DialogDescription>
+                          </DialogHeader>
+                          <div className="space-y-4 py-4">
+                            <div className="space-y-2">
+                              <Label htmlFor="music-name">Nome da Música</Label>
+                              <Input
+                                id="music-name"
+                                value={newMusicData.nome}
+                                onChange={(e) => setNewMusicData({ ...newMusicData, nome: e.target.value })}
+                                placeholder="Ex: Chill Vibe"
+                                className="bg-white/5 border-white/10 text-white"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="music-file">Arquivo de Áudio (MP3/WAV)</Label>
+                              <Input
+                                id="music-file"
+                                type="file"
+                                accept="audio/*"
+                                className="bg-white/5 border-white/10 text-white"
+                                onChange={(e) => {
+                                  if (e.target.files?.[0]) {
+                                    setNewMusicData({ ...newMusicData, file: e.target.files[0] });
+                                    if (!newMusicData.nome) {
+                                      setNewMusicData(prev => ({ ...prev, nome: e.target.files![0].name.split('.')[0] }));
+                                    }
+                                  }
+                                }}
+                              />
+                            </div>
+                          </div>
+                          <DialogFooter>
+                            <Button
+                              onClick={handleCreateMusic}
+                              disabled={newMusicData.uploading}
+                              className="bg-[#7C3AED] hover:bg-[#6D28D9] text-white w-full"
+                            >
+                              {newMusicData.uploading ? (
+                                <>
+                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                  Salvando...
+                                </>
+                              ) : "Salvar Música"}
+                            </Button>
+                          </DialogFooter>
+                        </DialogContent>
+                      </Dialog>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <Label className="text-white/80">Posts por dia</Label>
                     <Select
-                      value={formData.music_track_id}
-                      onValueChange={(v) => setFormData({ ...formData, music_track_id: v })}
-                      disabled={!formData.artist_id}
+                      value={formData.posts_por_dia.toString()}
+                      onValueChange={(v) => setFormData({ ...formData, posts_por_dia: parseInt(v) })}
                     >
                       <SelectTrigger className="bg-white/5 border-white/10 text-white">
-                        <SelectValue
-                          placeholder={
-                            formData.artist_id
-                              ? "Selecione uma música"
-                              : "Selecione um artista primeiro"
-                          }
-                        />
+                        <SelectValue placeholder="Selecione" />
                       </SelectTrigger>
                       <SelectContent className="bg-[#13131F] border-white/10 text-white">
-                        {musicas
-                          .filter((m) => m.artist_id === formData.artist_id)
-                          .map((m) => (
-                            <SelectItem key={m.id} value={m.id}>
-                              {m.nome}
-                            </SelectItem>
-                          ))}
+                        {[1, 2, 3, 4, 5].map((n) => (
+                          <SelectItem key={n} value={n.toString()}>{n} posts/dia</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-white/80">Timezone</Label>
+                    <Select
+                      value={formData.timezone}
+                      onValueChange={(v) => setFormData({ ...formData, timezone: v })}
+                    >
+                      <SelectTrigger className="bg-white/5 border-white/10 text-white">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-[#13131F] border-white/10 text-white">
+                        <SelectItem value="America/Sao_Paulo">America/Sao_Paulo</SelectItem>
+                        <SelectItem value="UTC">UTC</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label className="text-white/80">Posts por dia (máx 3)</Label>
-                  <Input
-                    type="number"
-                    min={1}
-                    max={3}
-                    className="bg-white/5 border-white/10 text-white"
-                    value={formData.posts_por_dia}
-                    onChange={(e) =>
-                      setFormData({ ...formData, posts_por_dia: parseInt(e.target.value) })
-                    }
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label className="text-white/80">Horário Início</Label>
-                    <Input
-                      type="time"
-                      className="bg-white/5 border-white/10 text-white"
-                      value={formData.hora_inicio}
-                      onChange={(e) => setFormData({ ...formData, hora_inicio: e.target.value })}
-                    />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label className="text-white/80">Data Início</Label>
+                      <Input
+                        type="date"
+                        className="bg-white/5 border-white/10 text-white"
+                        value={formData.data_inicio}
+                        onChange={(e) => setFormData({ ...formData, data_inicio: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-white/80">Data Fim</Label>
+                      <Input
+                        type="date"
+                        className="bg-white/5 border-white/10 text-white"
+                        value={formData.data_fim}
+                        onChange={(e) => setFormData({ ...formData, data_fim: e.target.value })}
+                      />
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label className="text-white/80">Horário Fim</Label>
-                    <Input
-                      type="time"
-                      className="bg-white/5 border-white/10 text-white"
-                      value={formData.hora_fim}
-                      onChange={(e) => setFormData({ ...formData, hora_fim: e.target.value })}
-                    />
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label className="text-white/80">Horário Início</Label>
+                      <Input
+                        type="time"
+                        className="bg-white/5 border-white/10 text-white"
+                        value={formData.hora_inicio}
+                        onChange={(e) => setFormData({ ...formData, hora_inicio: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-white/80">Horário Fim</Label>
+                      <Input
+                        type="time"
+                        className="bg-white/5 border-white/10 text-white"
+                        value={formData.hora_fim}
+                        onChange={(e) => setFormData({ ...formData, hora_fim: e.target.value })}
+                      />
+                    </div>
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label className="text-white/80">Intervalo Mínimo (minutos)</Label>
-                  <Input
-                    type="number"
-                    className="bg-white/5 border-white/10 text-white"
-                    value={formData.intervalo_min}
-                    onChange={(e) =>
-                      setFormData({ ...formData, intervalo_min: parseInt(e.target.value) })
-                    }
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label className="text-white/80">Intervalo Máximo (minutos)</Label>
-                  <Input
-                    type="number"
-                    className="bg-white/5 border-white/10 text-white"
-                    value={formData.intervalo_max}
-                    onChange={(e) =>
-                      setFormData({ ...formData, intervalo_max: parseInt(e.target.value) })
-                    }
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label className="text-white/80">Data Início</Label>
-                  <Input
-                    type="date"
-                    className="bg-white/5 border-white/10 text-white"
-                    value={formData.data_inicio}
-                    onChange={(e) => setFormData({ ...formData, data_inicio: e.target.value })}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label className="text-white/80">Data Fim</Label>
-                  <Input
-                    type="date"
-                    className="bg-white/5 border-white/10 text-white"
-                    value={formData.data_fim}
-                    onChange={(e) => setFormData({ ...formData, data_fim: e.target.value })}
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-4 pt-4 border-t border-white/5">
-                <div className="flex items-center justify-between">
+                <div className="space-y-4 pt-4 border-t border-white/5">
                   <div className="space-y-1">
-                    <Label className="text-white text-base font-semibold">
-                      CONTEÚDOS DA CAMPANHA
+                    <Label className="text-white text-base font-semibold uppercase">
+                      Contas de Publicação
                     </Label>
                     <p className="text-white/40 text-xs">
-                      {selectedContentIds.length} selecionados
+                      Selecione onde os vídeos serão postados
                     </p>
                   </div>
-                  <Select value={contentFilter} onValueChange={setContentFilter}>
-                    <SelectTrigger className="w-[150px] bg-white/5 border-white/10 text-white text-xs h-8">
-                      <div className="flex items-center gap-2">
-                        <Filter size={12} />
-                        <SelectValue placeholder="Filtrar" />
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {socialAccounts.length === 0 ? (
+                      <div className="col-span-full py-6 text-center border border-dashed border-white/10 rounded-xl">
+                        <p className="text-white/40 text-sm">Nenhuma conta conectada. Vá em Contas primeiro.</p>
                       </div>
-                    </SelectTrigger>
-                    <SelectContent className="bg-[#13131F] border-white/10 text-white">
-                      <SelectItem value="todos">Todos</SelectItem>
-                      <SelectItem value="raw">Raw</SelectItem>
-                      <SelectItem value="processed">Processados</SelectItem>
-                      <SelectItem value="artist">Do Artista</SelectItem>
-                    </SelectContent>
-                  </Select>
+                    ) : (
+                      socialAccounts.map((account) => (
+                        <div 
+                          key={account.id}
+                          onClick={() => toggleAccount(account.id)}
+                          className={`p-4 rounded-xl border cursor-pointer transition-all flex items-center justify-between ${
+                            selectedAccountIds.includes(account.id)
+                              ? "bg-[#7C3AED]/10 border-[#7C3AED]"
+                              : "bg-white/5 border-white/10 hover:border-white/20"
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-black/20 overflow-hidden flex items-center justify-center">
+                              {account.profile_image_url ? (
+                                <img src={account.profile_image_url} alt="" className="w-full h-full object-cover" />
+                              ) : (
+                                <Globe className="w-5 h-5 text-slate-500" />
+                              )}
+                            </div>
+                            <div>
+                              <p className="text-sm font-bold text-white capitalize">{account.platform}</p>
+                              <p className="text-xs text-slate-400">{account.account_name}</p>
+                              <div className="flex items-center gap-1 mt-1">
+                                <div className={`w-1.5 h-1.5 rounded-full ${account.connection_status === 'conectada' ? 'bg-emerald-500' : 'bg-red-500'}`} />
+                                <span className="text-[10px] text-slate-500 font-bold uppercase tracking-tighter">
+                                  {account.connection_status === 'conectada' ? 'Conectada' : 'Desconectada'}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                          <Checkbox 
+                            checked={selectedAccountIds.includes(account.id)} 
+                            onCheckedChange={() => toggleAccount(account.id)}
+                            className="border-white/20 data-[state=checked]:bg-[#7C3AED]"
+                          />
+                        </div>
+                      ))
+                    )}
+                  </div>
                 </div>
+
 
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
                   {biblioteca
