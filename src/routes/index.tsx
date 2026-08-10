@@ -198,9 +198,9 @@ function QuickActionCard({ title, desc, icon, link }: { title: string; desc: str
 function Button({ className, ...props }: any) {
   const base = "inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 h-10 px-4 py-2";
   const variants: any = {
-    default: "bg-primary text-primary-foreground hover:bg-primary/90",
-    outline: "border border-input bg-background hover:bg-accent hover:text-accent-foreground",
-    ghost: "hover:bg-accent hover:text-accent-foreground",
+    default: "bg-[#7C3AED] text-white hover:bg-[#6D28D9]",
+    outline: "border border-white/10 bg-white/5 text-white hover:bg-white/10",
+    ghost: "hover:bg-white/5 text-slate-400 hover:text-white",
   };
   const v = props.variant || 'default';
   const Comp = props.asChild ? 'span' : 'button';
