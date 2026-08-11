@@ -24,42 +24,143 @@ export default function Index() {
   return (
     <DashboardLayout>
       <div className="p-8 space-y-8 max-w-7xl mx-auto">
-        <div className="bg-slate-950 border border-slate-800 p-8 rounded-xl font-mono text-sm leading-relaxed">
-          <h1 className="text-xl font-bold mb-6 border-b border-slate-800 pb-4">VALIDAÇÃO FINAL DO SCHEDULER — NÃO ALTERAR NADA</h1>
-          
-          <div className="space-y-6 text-slate-300">
-            <p>A chamada direta da V5 passou.</p>
-            <p className="text-amber-500 font-bold">Agora NÃO faça deploy, migration, reset, refatoração ou alteração alguma.</p>
-            <p>Apenas aguarde 3 execuções AUTOMÁTICAS consecutivas do flux-campaign-dispatcher-v2.</p>
-            
-            <div className="space-y-4 pt-4">
-              <p>Obrigatoriamente:</p>
-              <ul className="list-disc pl-6 space-y-1 text-slate-400">
-                <li>build = <span className="text-emerald-400">health-v5-debug</span> nos 3 ciclos</li>
-                <li>HTTP = <span className="text-emerald-400">200</span> nos 3 ciclos</li>
-                <li>last_run_at avançando nos 3 ciclos</li>
-                <li>last_success_at avançando nos 3 ciclos</li>
-                <li>MANUAL TRIGGER USED = <span className="text-emerald-400">NO</span></li>
-              </ul>
-            </div>
+        <div className="bg-slate-950 border border-slate-800 p-8 rounded-xl font-mono text-sm leading-relaxed whitespace-pre-wrap">
+URGENTE — PREVIEW DO LOVABLE PAROU DE ABRIR
 
-            <div className="bg-slate-900/50 p-4 rounded border border-slate-800 mt-8">
-              <p className="text-xs text-slate-500 mb-2">DATABASE STATE:</p>
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <span>LAST_RUN_AT:</span> <span className="text-emerald-400">{auditData?.cronState?.last_run_at || '---'}</span>
-                <span>LAST_SUCCESS_AT:</span> <span className="text-emerald-400">{auditData?.cronState?.last_success_at || '---'}</span>
-                <span>PROCESSED:</span> <span>{auditData?.cronState?.processed_count ?? '---'}</span>
-                <span>EXECUTOR:</span> <span>{auditData?.cronState?.executor_type || '---'}</span>
-              </div>
-            </div>
-          </div>
-        </div>
+Após as alterações recentes da Fase 3.9/V5/V6, o Preview do projeto não está mais abrindo.
 
-        <div className="text-center py-8 text-gray-600 font-bold uppercase tracking-[0.2em] text-sm">
-          PARE.
+NÃO FAÇA REFATORAÇÃO.
+NÃO ALTERE O SCHEDULER.
+NÃO ALTERE PG_CRON.
+NÃO ALTERE RLS/GRANTS.
+NÃO ALTERE CAMPAIGN-DISPATCHER FUNCIONAL.
+NÃO ALTERE POSTPEER.
+NÃO ALTERE RENDER WORKER.
+
+O scheduler V6 já foi validado e NÃO deve ser tocado.
+
+Quero primeiro DIAGNÓSTICO da causa do Preview.
+
+ Execute o build real do frontend e informe:
+
+npm run build
+
+Resultado completo de sucesso/falha e primeiro erro relevante.
+
+ Execute a checagem TypeScript disponível no projeto.
+
+Mostrar erros reais, se houver.
+
+ Verifique os logs do Preview/runtime do Lovable.
+
+Procurar especificamente:
+
+ JavaScript exception
+
+ failed import
+
+ undefined environment variable
+
+ Supabase initialization failure
+
+ React render error
+
+ route error
+
+ module not found
+
+ syntax error
+
+ failed network request que impeça bootstrap
+
+ Auditar as últimas alterações feitas depois que o Preview funcionava.
+
+Identificar arquivos FRONTEND modificados nas fases:
+
+3.9
+3.9.1
+3.9.2
+V4
+V5
+V6
+
+Não considerar migrations/Edge Functions como causa direta sem evidência.
+
+ Verificar especialmente:
+
+src/main.*
+src/App.*
+Supabase client
+providers
+auth
+routes
+Dashboard
+componente Real-Time Monitor criado recentemente
+
+O Real-Time Monitor foi uma alteração recente de frontend e deve ser auditado como possível regressão.
+
+ Verificar se o frontend está tentando consultar diretamente:
+
+cron.job
+cron.job_run_details
+net._http_response
+
+Se estiver:
+
+identificar se isso está causando exception/permissão durante a inicialização.
+
+O Preview NÃO pode depender dessas tabelas internas para conseguir renderizar.
+
+ Verificar variáveis:
+
+VITE_SUPABASE_URL
+VITE_SUPABASE_ANON_KEY
+
+Informar apenas:
+
+EXISTS: YES/NO
+
+NÃO mostrar valores.
+
+IMPORTANTE: a anon key comprometida AINDA NÃO FOI ROTACIONADA. Portanto NÃO substituir, apagar ou modificar VITE_SUPABASE_ANON_KEY nesta tarefa.
+
+ Abrir a rota raiz e identificar o PRIMEIRO erro real que impede o Preview.
+
+Quero:
+
+BUILD: PASS/FAIL
+
+TYPESCRIPT: PASS/FAIL
+
+VITE_SUPABASE_URL EXISTS: YES/NO
+
+VITE_SUPABASE_ANON_KEY EXISTS: YES/NO
+
+PREVIEW HTTP STATUS:
+
+FIRST BROWSER/RUNTIME ERROR:
+
+FILE:
+
+LINE:
+
+LAST CHANGE THAT INTRODUCED THE REGRESSION:
+
+ROOT CAUSE:
+
+NÃO CORRIJA AINDA.
+
+Primeiro apresente o diagnóstico.
+
+Se descobrir a causa, PARE.
+
+Não fazer rollback geral.
+Não resetar banco.
+Não mexer no scheduler.
+
+PARE.
         </div>
       </div>
     </DashboardLayout>
   );
 }
-
