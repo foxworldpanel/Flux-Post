@@ -13,10 +13,22 @@ serve(async (req) => {
   }
 
   try {
+    const cronSecret = req.headers.get("x-cron-secret");
+    // Em produção, este valor estaria no Supabase Vault ou Secret da Function.
+    // Usando o valor literal definido no cron.command para esta fase de auditoria.
+    if (cronSecret !== "v4-dispatcher-secret-internal") {
+      console.error("[campaign-dispatcher] Unauthorized: Invalid X-Cron-Secret");
+      return new Response(JSON.stringify({ error: "Unauthorized" }), { 
+        status: 401, 
+        headers: { ...corsHeaders, "Content-Type": "application/json" } 
+      });
+    }
+
     const supabaseAdmin = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
     );
+
 
     console.log("[campaign-dispatcher] Iniciando ciclo de despacho...");
 
