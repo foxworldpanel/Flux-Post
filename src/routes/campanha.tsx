@@ -31,6 +31,7 @@ import {
   Calendar,
   Clock,
   RotateCcw,
+  Layers,
   Play,
   Pause,
   Square,
@@ -44,6 +45,7 @@ import {
   LayoutDashboard,
   CheckCircle2,
   AlertTriangle,
+  ShieldCheck,
 } from "lucide-react";
 import { format, addDays, differenceInDays, isBefore, isAfter, startOfDay, addMinutes, setHours, setMinutes } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -128,62 +130,95 @@ export default function CampanhaPage() {
     audio_mode: 'music_plus_original' as 'only_music' | 'music_plus_original' | 'only_original',
     music_volume: 80,
     original_audio_volume: 20,
-    music_start_ms: 0
+    music_start_ms: 0,
+    // Novos campos da Fase 3.6
+    start_mode: "period" as "period" | "now",
+    daily_start_time: "09:00",
+    daily_end_time: "21:00",
+    batch_interval_minutes: 60,
+    destination_interval_seconds: 60,
   });
 
 
   // Calculate Scheduling Preview
   const schedulingPreview = useMemo(() => {
-    if (!formData.data_inicio || !formData.data_fim || !selectedAccountIds.length || !selectedContentIds.length) {
+    if (!selectedAccountIds.length || !selectedContentIds.length) {
       return [];
     }
 
     const preview: any[] = [];
-    const startDate = new Date(formData.data_inicio + "T00:00:00");
-
-    const endDate = new Date(formData.data_fim + "T23:59:59");
-    const [startH, startM] = formData.hora_inicio.split(":").map(Number);
-    const [endH, endM] = formData.hora_fim.split(":").map(Number);
-    const postsPerDay = formData.posts_por_dia;
+    const isNow = formData.start_mode === "now";
     
-    let currentDay = startOfDay(startDate);
-    let videoIndex = 0;
+    // Timezone handling - for preview we use local browser time for simplicity but should ideally use tz
+    const now = new Date();
+    const startDate = isNow ? now : new Date(formData.data_inicio + "T" + formData.daily_start_time);
+    const endDate = new Date(formData.data_fim + "T" + formData.daily_end_time);
 
-    while (isBefore(currentDay, endDate) || currentDay.getTime() === startOfDay(endDate).getTime()) {
-      for (let p = 0; p < postsPerDay; p++) {
-        const totalMinutes = (endH * 60 + endM) - (startH * 60 + startM);
-        const interval = totalMinutes > 0 ? totalMinutes / Math.max(1, postsPerDay) : 0;
-        const postTime = addMinutes(setMinutes(setHours(currentDay, startH), startM), interval * p);
+    if (isNow) {
+      // MODO: COMEÇAR AGORA
+      // 1 lote = 1 conteúdo distribuído entre todas as contas
+      // Vamos simular os lotes baseados no intervalo entre conteúdos
+      for (let batchIdx = 0; batchIdx < selectedContentIds.length; batchIdx++) {
+        const batchStartTime = addMinutes(now, batchIdx * formData.batch_interval_minutes);
         
-        if (isBefore(postTime, startDate) || isAfter(postTime, endDate)) continue;
-
         selectedAccountIds.forEach((accountId, accIdx) => {
           const account = socialAccounts.find(a => a.id === accountId);
+          // O tempo de cada destino dentro do lote
+          const scheduledTime = addMinutes(batchStartTime, (accIdx * formData.destination_interval_seconds) / 60);
           
-          let effectiveVideoIdx;
-          if (formData.distribution_mode === 'all') {
-            // MODO A: Todos recebem o mesmo conteúdo
-            effectiveVideoIdx = videoIndex % selectedContentIds.length;
-          } else {
-            // MODO B: Distribuição Inteligente (Randomizada com variação)
-            // Usamos uma lógica determinística baseada na data e índice da conta para simular pool
-            const seed = postTime.getTime() + accIdx;
-            effectiveVideoIdx = Math.floor(Math.abs(Math.sin(seed) * selectedContentIds.length));
-          }
-
           preview.push({
-            date: postTime,
+            date: scheduledTime,
             accountId,
             accountName: account?.account_name || "Conta",
-            videoIndex: effectiveVideoIdx,
-            platform: account?.platform || "tiktok"
+            videoIndex: batchIdx % selectedContentIds.length,
+            platform: account?.platform || "tiktok",
+            isNow: batchIdx === 0 && accIdx === 0
           });
         });
-        videoIndex++;
       }
-      currentDay = addDays(currentDay, 1);
-    }
+    } else {
+      // MODO: PROGRAMAR PERÍODO
+      const [startH, startM] = formData.daily_start_time.split(":").map(Number);
+      const [endH, endM] = formData.daily_end_time.split(":").map(Number);
+      const postsPerDay = formData.posts_por_dia;
+      
+      let currentDay = startOfDay(startDate);
+      let videoIndex = 0;
 
+      while (isBefore(currentDay, endDate) || currentDay.getTime() === startOfDay(endDate).getTime()) {
+        const totalMinutes = (endH * 60 + endM) - (startH * 60 + startM);
+        const interval = totalMinutes > 0 ? totalMinutes / Math.max(1, postsPerDay) : 0;
+
+        for (let p = 0; p < postsPerDay; p++) {
+          const batchTime = addMinutes(setMinutes(setHours(currentDay, startH), startM), interval * p);
+          
+          if (isBefore(batchTime, startDate) || isAfter(batchTime, endDate)) continue;
+
+          selectedAccountIds.forEach((accountId, accIdx) => {
+            const account = socialAccounts.find(a => a.id === accountId);
+            const scheduledTime = addMinutes(batchTime, (accIdx * formData.destination_interval_seconds) / 60);
+
+            let effectiveVideoIdx;
+            if (formData.distribution_mode === 'all') {
+              effectiveVideoIdx = videoIndex % selectedContentIds.length;
+            } else {
+              const seed = batchTime.getTime() + accIdx;
+              effectiveVideoIdx = Math.floor(Math.abs(Math.sin(seed) * selectedContentIds.length));
+            }
+
+            preview.push({
+              date: scheduledTime,
+              accountId,
+              accountName: account?.account_name || "Conta",
+              videoIndex: effectiveVideoIdx,
+              platform: account?.platform || "tiktok"
+            });
+          });
+          videoIndex++;
+        }
+        currentDay = addDays(currentDay, 1);
+      }
+    }
 
     return preview.sort((a, b) => a.date.getTime() - b.date.getTime());
   }, [formData, selectedAccountIds, selectedContentIds, socialAccounts]);
@@ -380,9 +415,6 @@ export default function CampanhaPage() {
       if (!user) throw new Error("Usuário não autenticado");
 
       // 1. Create campaign
-      const startHour = parseInt(formData.hora_inicio.split(":")[0]);
-      const endHour = parseInt(formData.hora_fim.split(":")[0]);
-
       const { data: newCamp, error: campError } = await supabase
         .from("campanhas")
         .insert({
@@ -390,11 +422,11 @@ export default function CampanhaPage() {
           artist_id: formData.artist_id,
           music_track_id: formData.music_track_id,
           posts_por_dia: formData.posts_por_dia,
-          hora_inicio: startHour,
-          hora_fim: endHour,
+          hora_inicio: parseInt(formData.daily_start_time.split(":")[0]), // Reutilizando para legado
+          hora_fim: parseInt(formData.daily_end_time.split(":")[0]), // Reutilizando para legado
           intervalo_min: formData.intervalo_min,
           intervalo_max: formData.intervalo_max,
-          data_inicio: formData.data_inicio,
+          data_inicio: formData.start_mode === 'now' ? format(new Date(), "yyyy-MM-dd") : formData.data_inicio,
           data_fim: formData.data_fim,
           status: "ativo",
           user_id: user.id,
@@ -405,7 +437,14 @@ export default function CampanhaPage() {
           audio_mode: formData.audio_mode,
           music_volume: formData.music_volume,
           original_audio_volume: formData.original_audio_volume,
-          music_start_ms: formData.music_start_ms
+          music_start_ms: formData.music_start_ms,
+          // Novos campos
+          start_mode: formData.start_mode,
+          daily_start_time: formData.daily_start_time,
+          daily_end_time: formData.daily_end_time,
+          batch_interval_minutes: formData.batch_interval_minutes,
+          destination_interval_seconds: formData.destination_interval_seconds,
+          timezone: formData.timezone
         })
         .select()
         .single();
@@ -438,7 +477,24 @@ export default function CampanhaPage() {
       
       if (accountRelError) throw accountRelError;
 
-      // 4. Update music track
+      // 4. Generate Publications based on Preview
+      const publicationInserts = schedulingPreview.map(p => ({
+        campaign_id: newCamp.id,
+        social_account_id: p.accountId,
+        content_id: selectedContentIds[p.videoIndex],
+        scheduled_for: p.date.toISOString(),
+        status: 'agendado',
+        timezone: formData.timezone,
+        user_id: user.id
+      }));
+
+      const { error: pubError } = await supabase
+        .from("publications")
+        .insert(publicationInserts);
+
+      if (pubError) throw pubError;
+
+      // 5. Update music track
       await supabase
         .from("music_tracks")
         .update({ campanha_ativa: true })
@@ -833,47 +889,153 @@ export default function CampanhaPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label className="text-white/80">Data Início</Label>
-                      <Input
-                        type="date"
-                        className="bg-white/5 border-white/10 text-white"
-                        value={formData.data_inicio}
-                        onChange={(e) => setFormData({ ...formData, data_inicio: e.target.value })}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-white/80">Data Fim</Label>
-                      <Input
-                        type="date"
-                        className="bg-white/5 border-white/10 text-white"
-                        value={formData.data_fim}
-                        onChange={(e) => setFormData({ ...formData, data_fim: e.target.value })}
-                      />
+                <div className="space-y-6 pt-4 border-t border-white/5">
+                  <Label className="text-white text-base font-semibold uppercase">Programação</Label>
+                  
+                  <div className="space-y-4">
+                    <Label className="text-white/80">Quando a campanha deve começar?</Label>
+                    <div className="grid grid-cols-2 gap-4">
+                      <button
+                        onClick={() => setFormData({ ...formData, start_mode: 'period' })}
+                        className={`p-4 rounded-xl border flex flex-col items-center gap-2 transition-all ${
+                          formData.start_mode === 'period' 
+                            ? "bg-[#7C3AED]/10 border-[#7C3AED] text-white" 
+                            : "bg-white/5 border-white/10 text-white/40 hover:border-white/20"
+                        }`}
+                      >
+                        <Calendar size={20} />
+                        <span className="text-sm font-bold">Programar Período</span>
+                      </button>
+                      <button
+                        onClick={() => setFormData({ ...formData, start_mode: 'now' })}
+                        className={`p-4 rounded-xl border flex flex-col items-center gap-2 transition-all ${
+                          formData.start_mode === 'now' 
+                            ? "bg-[#7C3AED]/10 border-[#7C3AED] text-white" 
+                            : "bg-white/5 border-white/10 text-white/40 hover:border-white/20"
+                        }`}
+                      >
+                        <Play size={20} />
+                        <span className="text-sm font-bold">Começar Agora</span>
+                      </button>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label className="text-white/80">Horário Início</Label>
-                      <Input
-                        type="time"
-                        className="bg-white/5 border-white/10 text-white"
-                        value={formData.hora_inicio}
-                        onChange={(e) => setFormData({ ...formData, hora_inicio: e.target.value })}
-                      />
+                  {formData.start_mode === 'period' ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label className="text-white/80">Data Início</Label>
+                          <Input
+                            type="date"
+                            className="bg-white/5 border-white/10 text-white"
+                            value={formData.data_inicio}
+                            onChange={(e) => setFormData({ ...formData, data_inicio: e.target.value })}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-white/80">Data Fim</Label>
+                          <Input
+                            type="date"
+                            className="bg-white/5 border-white/10 text-white"
+                            value={formData.data_fim}
+                            onChange={(e) => setFormData({ ...formData, data_fim: e.target.value })}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label className="text-white/80">Janela: De</Label>
+                          <Input
+                            type="time"
+                            className="bg-white/5 border-white/10 text-white"
+                            value={formData.daily_start_time}
+                            onChange={(e) => setFormData({ ...formData, daily_start_time: e.target.value })}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-white/80">Até</Label>
+                          <Input
+                            type="time"
+                            className="bg-white/5 border-white/10 text-white"
+                            value={formData.daily_end_time}
+                            onChange={(e) => setFormData({ ...formData, daily_end_time: e.target.value })}
+                          />
+                        </div>
+                      </div>
                     </div>
-                    <div className="space-y-2">
-                      <Label className="text-white/80">Horário Fim</Label>
-                      <Input
-                        type="time"
-                        className="bg-white/5 border-white/10 text-white"
-                        value={formData.hora_fim}
-                        onChange={(e) => setFormData({ ...formData, hora_fim: e.target.value })}
-                      />
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-2">
+                        <Label className="text-white/80">Primeiro Conteúdo</Label>
+                        <div className="h-10 px-3 bg-white/5 border border-white/10 rounded-md flex items-center text-emerald-500 font-bold text-sm">
+                          AGORA (Na confirmação)
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-white/80">Intervalo entre Conteúdos</Label>
+                        <Select
+                          value={formData.batch_interval_minutes.toString()}
+                          onValueChange={(v) => setFormData({ ...formData, batch_interval_minutes: parseInt(v) })}
+                        >
+                          <SelectTrigger className="bg-white/5 border-white/10 text-white">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="bg-[#13131F] border-white/10 text-white">
+                            <SelectItem value="5">5 minutos</SelectItem>
+                            <SelectItem value="15">15 minutos</SelectItem>
+                            <SelectItem value="30">30 minutos</SelectItem>
+                            <SelectItem value="60">1 hora</SelectItem>
+                            <SelectItem value="120">2 horas</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="p-4 bg-primary/5 border border-primary/10 rounded-xl space-y-4">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-primary text-xs font-bold uppercase tracking-widest flex items-center gap-2">
+                        <ShieldCheck size={14} /> Configurações de Distribuição (Avançado)
+                      </Label>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-2">
+                        <Label className="text-white/60 text-[10px] uppercase font-bold">Intervalo entre Destinos (Contas)</Label>
+                        <Select
+                          value={formData.destination_interval_seconds.toString()}
+                          onValueChange={(v) => setFormData({ ...formData, destination_interval_seconds: parseInt(v) })}
+                        >
+                          <SelectTrigger className="bg-white/5 border-white/10 text-white h-8 text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="bg-[#13131F] border-white/10 text-white">
+                            <SelectItem value="30">30 segundos</SelectItem>
+                            <SelectItem value="60">1 minuto</SelectItem>
+                            <SelectItem value="120">2 minutos</SelectItem>
+                            <SelectItem value="300">5 minutos</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      
+                      {/* Mostrar aviso de sobreposição se necessário */}
+                      {(() => {
+                        const totalDestinations = selectedAccountIds.length;
+                        const timeNeededForBatch = (totalDestinations * formData.destination_interval_seconds) / 60;
+                        const isOverlapping = formData.start_mode === 'now' && timeNeededForBatch > formData.batch_interval_minutes;
+                        
+                        if (isOverlapping) {
+                          return (
+                            <div className="flex items-center gap-2 text-yellow-500 bg-yellow-500/10 p-2 rounded border border-yellow-500/20">
+                              <AlertTriangle size={14} />
+                              <span className="text-[10px] font-medium leading-tight">
+                                Este lote ainda estará sendo distribuído quando o próximo começar.
+                              </span>
+                            </div>
+                          );
+                        }
+                        return null;
+                      })()}
                     </div>
                   </div>
                 </div>
@@ -981,40 +1143,51 @@ export default function CampanhaPage() {
                         </p>
                       </div>
                     ) : (
-                      <div className="max-h-[300px] overflow-y-auto custom-scrollbar">
-                        <table className="w-full text-left text-xs">
-                          <thead className="sticky top-0 bg-[#1A1A2E] text-white/60 uppercase tracking-tighter font-bold border-b border-white/5">
-                            <tr>
-                              <th className="px-4 py-3">Data/Hora</th>
-                              <th className="px-4 py-3">Conta</th>
-                              <th className="px-4 py-3">Conteúdo</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-white/5">
-                            {schedulingPreview.map((item, idx) => (
-                              <tr key={idx} className="hover:bg-white/5 transition-colors">
-                                <td className="px-4 py-3 text-white font-medium flex items-center gap-2">
-                                  {format(item.date, "dd/MM HH:mm", { locale: ptBR })}
-                                  <Badge variant="outline" className="text-[8px] h-3 px-1 border-white/5 text-slate-500 uppercase">
-                                    {item.platform}
-                                  </Badge>
-                                </td>
-                                <td className="px-4 py-3 text-white/70">
-                                  {item.accountName}
-                                </td>
-                                <td className="px-4 py-3 space-y-1">
-                                  <div className="text-[#7C3AED] font-bold">
-                                    Vídeo #{item.videoIndex + 1}
+                      <div className="p-4 space-y-6">
+                        <div className="relative pl-8 space-y-6 before:absolute before:left-3 before:top-2 before:bottom-2 before:w-px before:bg-white/10">
+                          {schedulingPreview.filter((_, i) => i === 0 || schedulingPreview[i-1].videoIndex !== _.videoIndex).slice(0, 10).map((batch, bIdx) => {
+                            const batchPosts = schedulingPreview.filter(p => p.videoIndex === batch.videoIndex && Math.abs(p.date.getTime() - batch.date.getTime()) < 60000 * (selectedAccountIds.length + 1));
+                            
+                            return (
+                              <div key={bIdx} className="relative">
+                                <div className="absolute -left-[25px] top-1.5 w-2 h-2 rounded-full bg-primary shadow-[0_0_8px_rgba(124,58,237,0.5)]" />
+                                <div className="space-y-2">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-xs font-bold text-white uppercase tracking-widest flex items-center gap-2">
+                                      Lote {bIdx + 1} — {batch.isNow ? 'AGORA' : format(batch.date, "HH:mm")}
+                                      {batch.isNow && <Badge className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 text-[8px] h-4">Início Imediato</Badge>}
+                                    </span>
+                                    <span className="text-[10px] text-white/40">{format(batch.date, "dd/MM/yyyy")}</span>
                                   </div>
-                                  <div className="text-[9px] text-slate-500 italic truncate max-w-[200px]">
-                                    IA: {formData.editorial_language === 'pt-BR' ? 'Legenda criativa variada...' : 'Creative varying caption...'}
+                                  <div className="bg-white/5 rounded-lg p-3 border border-white/5">
+                                    <div className="flex items-center gap-3 mb-2">
+                                      <div className="w-8 h-8 rounded bg-primary/10 flex items-center justify-center text-primary">
+                                        <Layers size={14} />
+                                      </div>
+                                      <div>
+                                        <p className="text-[10px] text-white/60 font-medium">Conteúdo #{batch.videoIndex + 1}</p>
+                                        <p className="text-[9px] text-white/40">{selectedAccountIds.length} destinos programados</p>
+                                      </div>
+                                    </div>
+                                    <div className="flex flex-wrap gap-1">
+                                      {batchPosts.slice(0, 5).map((p, pIdx) => (
+                                        <Badge key={pIdx} variant="outline" className="text-[8px] h-4 border-white/5 text-white/40">
+                                          {p.accountName}
+                                        </Badge>
+                                      ))}
+                                      {batchPosts.length > 5 && <span className="text-[8px] text-white/20">+{batchPosts.length - 5}</span>}
+                                    </div>
                                   </div>
-                                </td>
-
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                                </div>
+                              </div>
+                            );
+                          })}
+                          {schedulingPreview.length > 10 && (
+                            <div className="text-center py-2">
+                              <p className="text-[10px] text-white/20 italic">...e mais {Math.floor(schedulingPreview.length / selectedAccountIds.length) - 10} lotes</p>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     )}
                   </div>
@@ -1177,28 +1350,32 @@ export default function CampanhaPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                   <div className="bg-white/5 p-4 rounded-xl space-y-1">
-                    <div className="text-white/40 text-xs flex items-center gap-1">
-                      <Calendar size={12} /> Dias Restantes
+                    <div className="text-white/40 text-[10px] uppercase font-bold tracking-widest flex items-center gap-1">
+                      <Calendar size={12} className="text-primary" /> Dias Restantes
                     </div>
                     <div className="text-xl font-bold text-white">
                       {Math.max(0, differenceInDays(new Date(campanhaAtiva.data_fim), new Date()))}
                     </div>
                   </div>
                   <div className="bg-white/5 p-4 rounded-xl space-y-1">
-                    <div className="text-white/40 text-xs flex items-center gap-1">
-                      <Megaphone size={12} /> Total de Posts
+                    <div className="text-white/40 text-[10px] uppercase font-bold tracking-widest flex items-center gap-1">
+                      <ShieldCheck size={12} className="text-emerald-500" /> Contas
                     </div>
-                    <div className="text-xl font-bold text-white">{totalPosts}</div>
+                    <div className="text-xl font-bold text-white">{selectedAccountIds.length}</div>
                   </div>
                   <div className="bg-white/5 p-4 rounded-xl space-y-1">
-                    <div className="text-white/40 text-xs flex items-center gap-1">
-                      <Clock size={12} /> Posts p/ Dia
+                    <div className="text-white/40 text-[10px] uppercase font-bold tracking-widest flex items-center gap-1">
+                      <Layers size={12} className="text-[#7C3AED]" /> Conteúdos
                     </div>
-                    <div className="text-xl font-bold text-white">
-                      {campanhaAtiva.posts_por_dia}
+                    <div className="text-xl font-bold text-white">{selectedContentIds.length}</div>
+                  </div>
+                  <div className="bg-white/5 p-4 rounded-xl space-y-1">
+                    <div className="text-white/40 text-[10px] uppercase font-bold tracking-widest flex items-center gap-1">
+                      <Megaphone size={12} className="text-blue-500" /> Total Posts
                     </div>
+                    <div className="text-xl font-bold text-white">{totalPosts}</div>
                   </div>
                 </div>
 
