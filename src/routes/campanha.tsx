@@ -44,6 +44,7 @@ import {
   LayoutDashboard,
   CheckCircle2,
   AlertTriangle,
+  ShieldCheck,
 } from "lucide-react";
 import { format, addDays, differenceInDays, isBefore, isAfter, startOfDay, addMinutes, setHours, setMinutes } from "date-fns";
 import { ptBR } from "date-fns/locale";
