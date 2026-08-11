@@ -868,7 +868,7 @@ export type Database = {
           media_render_id: string | null
           metadata: Json | null
           music_id: string | null
-          platform: string
+          platform: string | null
           post_url: string | null
           provider_connection_id: string | null
           provider_post_id: string | null
@@ -892,7 +892,7 @@ export type Database = {
           media_render_id?: string | null
           metadata?: Json | null
           music_id?: string | null
-          platform: string
+          platform?: string | null
           post_url?: string | null
           provider_connection_id?: string | null
           provider_post_id?: string | null
@@ -916,7 +916,7 @@ export type Database = {
           media_render_id?: string | null
           metadata?: Json | null
           music_id?: string | null
-          platform?: string
+          platform?: string | null
           post_url?: string | null
           provider_connection_id?: string | null
           provider_post_id?: string | null
@@ -969,6 +969,13 @@ export type Database = {
             columns: ["music_id"]
             isOneToOne: false
             referencedRelation: "music_tracks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "publications_social_account_id_fkey"
+            columns: ["social_account_id"]
+            isOneToOne: false
+            referencedRelation: "social_accounts"
             referencedColumns: ["id"]
           },
         ]
