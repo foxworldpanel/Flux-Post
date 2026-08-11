@@ -25,6 +25,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { artistService } from "@/services/artists";
+import { storageService } from "@/services/storage";
 
 interface MusicTrack {
   id: string;
@@ -79,10 +80,13 @@ export default function MusicsPage() {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const selectedFile = e.target.files[0];
-      if (selectedFile.type !== "audio/mpeg" && selectedFile.type !== "audio/mp3") {
-        toast.error("Por favor, selecione um arquivo MP3.");
+      const extension = storageService.getFileExtension(selectedFile.name);
+      
+      if (!storageService.isSupportedExtension(extension, ['mp3', 'wav', 'm4a'])) {
+        toast.error("Formato de áudio não suportado (apenas MP3, WAV, M4A).");
         return;
       }
+      
       setFile(selectedFile);
       if (!nome) setNome(selectedFile.name.replace(/\.[^/.]+$/, ""));
     }
@@ -96,8 +100,9 @@ export default function MusicsPage() {
 
     try {
       setUploading(true);
-      
-      // 1. Get audio duration (optional but good)
+      if (!user) throw new Error("Usuário não autenticado");
+
+      // 1. Get audio duration
       let duration = 0;
       try {
         const audio = new Audio();
@@ -107,19 +112,26 @@ export default function MusicsPage() {
             duration = Math.round(audio.duration);
             resolve(null);
           };
+          audio.onerror = () => resolve(null);
         });
       } catch (e) {
         console.warn("Could not get duration", e);
       }
 
-      // 2. Upload to Supabase Storage
-      const fileName = `${Date.now()}-${file.name}`;
+      // 2. Generate safe storage path
+      const extension = storageService.getFileExtension(file.name);
+      const filePath = storageService.generateSafePath({
+        userId: user.id,
+        assetType: 'music',
+        extension,
+        artistId: artistId || undefined
+      });
       
-      console.log('Iniciando upload para o bucket musicas:', fileName);
+      console.log('Iniciando upload seguro para o bucket musicas:', filePath);
 
-      const { data: uploadData, error: uploadError } = await supabase.storage
+      const { error: uploadError } = await supabase.storage
         .from('musicas')
-        .upload(fileName, file, {
+        .upload(filePath, file, {
           cacheControl: '3600',
           upsert: true,
           contentType: file.type
@@ -127,15 +139,8 @@ export default function MusicsPage() {
 
       if (uploadError) {
         console.error('Erro upload storage:', uploadError);
-        throw uploadError;
+        throw new Error("Não foi possível enviar o arquivo de áudio.");
       }
-
-      const { data: publicUrlData } = supabase.storage
-        .from('musicas')
-        .getPublicUrl(fileName);
-      
-      const publicUrl = publicUrlData.publicUrl;
-      console.log('URL pública gerada:', publicUrl);
 
       // 3. Save metadata
       const { error: dbError } = await supabase.from("music_tracks").insert({
@@ -143,18 +148,23 @@ export default function MusicsPage() {
         artist_id: artistId || null,
         estilo,
         duracao_segundos: duration,
-        storage_path: publicUrl,
-        user_id: user?.id
+        storage_path: filePath, // Agora salvamos o path relativo, não a URL pública
+        user_id: user.id
       });
 
-      if (dbError) throw dbError;
+      if (dbError) {
+        // Rollback Storage
+        await storageService.cleanup('musicas', filePath);
+        throw dbError;
+      }
 
       toast.success("Música adicionada com sucesso!");
       setIsSidebarOpen(false);
       resetForm();
       fetchData();
     } catch (error: any) {
-      toast.error("Erro ao salvar: " + error.message);
+      console.error("[UPLOAD ERROR]", error);
+      toast.error(error.message || "Erro ao salvar música.");
     } finally {
       setUploading(false);
     }
@@ -174,12 +184,11 @@ export default function MusicsPage() {
       console.log('Iniciando deleção da música:', id, storagePath);
       
       if (storagePath) {
-        // Extract relative path from URL or use storagePath if it's already relative
+        // Se for uma URL legada, tenta limpar. Se for o novo path relativo, usa direto.
         let cleanPath = storagePath;
         if (storagePath.includes('/storage/v1/object/public/musicas/')) {
           cleanPath = storagePath.split('/storage/v1/object/public/musicas/')[1];
         } else if (storagePath.startsWith('http')) {
-          // Fallback: take the last part of the URL
           cleanPath = storagePath.split('/').pop() || storagePath;
         }
         
