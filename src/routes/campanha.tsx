@@ -1633,8 +1633,6 @@ export default function CampanhaPage() {
                   </div>
                 </CardContent>
               </Card>
-                </CardContent>
-              </Card>
             </div>
           </div>
         )}
