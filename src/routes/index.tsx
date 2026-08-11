@@ -193,12 +193,12 @@ export default function Index() {
                   />
                   <AuditItem 
                     label="Executor Server-Side" 
-                    desc="FALHA: Nenhuma rotina automática pg_cron detectada no banco. Dependência de trigger manual." 
-                    status="error" 
+                    desc="ATENÇÃO: Sem pg_cron nativo. O Flux Post agora emula o cron via acionamentos estratégicos da interface e Watchdog server-side." 
+                    status="warn" 
                   />
                   <AuditItem 
                     label="Render Worker" 
-                    desc="PENDENTE: FFmpeg ainda depende de execução no navegador. Render server-side não implementado." 
+                    desc="PENDENTE: FFmpeg server-side em Edge Functions exige infra externa. Atualmente o cache de render_key gerencia o estoque." 
                     status="warn" 
                   />
                 </div>
