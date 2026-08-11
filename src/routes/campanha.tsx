@@ -870,47 +870,153 @@ export default function CampanhaPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label className="text-white/80">Data Início</Label>
-                      <Input
-                        type="date"
-                        className="bg-white/5 border-white/10 text-white"
-                        value={formData.data_inicio}
-                        onChange={(e) => setFormData({ ...formData, data_inicio: e.target.value })}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-white/80">Data Fim</Label>
-                      <Input
-                        type="date"
-                        className="bg-white/5 border-white/10 text-white"
-                        value={formData.data_fim}
-                        onChange={(e) => setFormData({ ...formData, data_fim: e.target.value })}
-                      />
+                <div className="space-y-6 pt-4 border-t border-white/5">
+                  <Label className="text-white text-base font-semibold uppercase">Programação</Label>
+                  
+                  <div className="space-y-4">
+                    <Label className="text-white/80">Quando a campanha deve começar?</Label>
+                    <div className="grid grid-cols-2 gap-4">
+                      <button
+                        onClick={() => setFormData({ ...formData, start_mode: 'period' })}
+                        className={`p-4 rounded-xl border flex flex-col items-center gap-2 transition-all ${
+                          formData.start_mode === 'period' 
+                            ? "bg-[#7C3AED]/10 border-[#7C3AED] text-white" 
+                            : "bg-white/5 border-white/10 text-white/40 hover:border-white/20"
+                        }`}
+                      >
+                        <Calendar size={20} />
+                        <span className="text-sm font-bold">Programar Período</span>
+                      </button>
+                      <button
+                        onClick={() => setFormData({ ...formData, start_mode: 'now' })}
+                        className={`p-4 rounded-xl border flex flex-col items-center gap-2 transition-all ${
+                          formData.start_mode === 'now' 
+                            ? "bg-[#7C3AED]/10 border-[#7C3AED] text-white" 
+                            : "bg-white/5 border-white/10 text-white/40 hover:border-white/20"
+                        }`}
+                      >
+                        <Play size={20} />
+                        <span className="text-sm font-bold">Começar Agora</span>
+                      </button>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label className="text-white/80">Horário Início</Label>
-                      <Input
-                        type="time"
-                        className="bg-white/5 border-white/10 text-white"
-                        value={formData.hora_inicio}
-                        onChange={(e) => setFormData({ ...formData, hora_inicio: e.target.value })}
-                      />
+                  {formData.start_mode === 'period' ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label className="text-white/80">Data Início</Label>
+                          <Input
+                            type="date"
+                            className="bg-white/5 border-white/10 text-white"
+                            value={formData.data_inicio}
+                            onChange={(e) => setFormData({ ...formData, data_inicio: e.target.value })}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-white/80">Data Fim</Label>
+                          <Input
+                            type="date"
+                            className="bg-white/5 border-white/10 text-white"
+                            value={formData.data_fim}
+                            onChange={(e) => setFormData({ ...formData, data_fim: e.target.value })}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label className="text-white/80">Janela: De</Label>
+                          <Input
+                            type="time"
+                            className="bg-white/5 border-white/10 text-white"
+                            value={formData.daily_start_time}
+                            onChange={(e) => setFormData({ ...formData, daily_start_time: e.target.value })}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-white/80">Até</Label>
+                          <Input
+                            type="time"
+                            className="bg-white/5 border-white/10 text-white"
+                            value={formData.daily_end_time}
+                            onChange={(e) => setFormData({ ...formData, daily_end_time: e.target.value })}
+                          />
+                        </div>
+                      </div>
                     </div>
-                    <div className="space-y-2">
-                      <Label className="text-white/80">Horário Fim</Label>
-                      <Input
-                        type="time"
-                        className="bg-white/5 border-white/10 text-white"
-                        value={formData.hora_fim}
-                        onChange={(e) => setFormData({ ...formData, hora_fim: e.target.value })}
-                      />
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-2">
+                        <Label className="text-white/80">Primeiro Conteúdo</Label>
+                        <div className="h-10 px-3 bg-white/5 border border-white/10 rounded-md flex items-center text-emerald-500 font-bold text-sm">
+                          AGORA (Na confirmação)
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-white/80">Intervalo entre Conteúdos</Label>
+                        <Select
+                          value={formData.batch_interval_minutes.toString()}
+                          onValueChange={(v) => setFormData({ ...formData, batch_interval_minutes: parseInt(v) })}
+                        >
+                          <SelectTrigger className="bg-white/5 border-white/10 text-white">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="bg-[#13131F] border-white/10 text-white">
+                            <SelectItem value="5">5 minutos</SelectItem>
+                            <SelectItem value="15">15 minutos</SelectItem>
+                            <SelectItem value="30">30 minutos</SelectItem>
+                            <SelectItem value="60">1 hora</SelectItem>
+                            <SelectItem value="120">2 horas</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="p-4 bg-primary/5 border border-primary/10 rounded-xl space-y-4">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-primary text-xs font-bold uppercase tracking-widest flex items-center gap-2">
+                        <ShieldCheck size={14} /> Configurações de Distribuição (Avançado)
+                      </Label>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-2">
+                        <Label className="text-white/60 text-[10px] uppercase font-bold">Intervalo entre Destinos (Contas)</Label>
+                        <Select
+                          value={formData.destination_interval_seconds.toString()}
+                          onValueChange={(v) => setFormData({ ...formData, destination_interval_seconds: parseInt(v) })}
+                        >
+                          <SelectTrigger className="bg-white/5 border-white/10 text-white h-8 text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="bg-[#13131F] border-white/10 text-white">
+                            <SelectItem value="30">30 segundos</SelectItem>
+                            <SelectItem value="60">1 minuto</SelectItem>
+                            <SelectItem value="120">2 minutos</SelectItem>
+                            <SelectItem value="300">5 minutos</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      
+                      {/* Mostrar aviso de sobreposição se necessário */}
+                      {(() => {
+                        const totalDestinations = selectedAccountIds.length;
+                        const timeNeededForBatch = (totalDestinations * formData.destination_interval_seconds) / 60;
+                        const isOverlapping = formData.start_mode === 'now' && timeNeededForBatch > formData.batch_interval_minutes;
+                        
+                        if (isOverlapping) {
+                          return (
+                            <div className="flex items-center gap-2 text-yellow-500 bg-yellow-500/10 p-2 rounded border border-yellow-500/20">
+                              <AlertTriangle size={14} />
+                              <span className="text-[10px] font-medium leading-tight">
+                                Este lote ainda estará sendo distribuído quando o próximo começar.
+                              </span>
+                            </div>
+                          );
+                        }
+                        return null;
+                      })()}
                     </div>
                   </div>
                 </div>
