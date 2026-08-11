@@ -29,8 +29,35 @@
 }
 
 :root {
-  --background: #FFFFFF;
+  --background: #F8FAFC;
   --foreground: #0A0A0F;
+  --card: #FFFFFF;
+  --card-foreground: #0A0A0F;
+  --popover: #FFFFFF;
+  --popover-foreground: #0A0A0F;
+  --primary: #7C3AED;
+  --primary-foreground: #FFFFFF;
+  --secondary: #F1F5F9;
+  --secondary-foreground: #0A0A0F;
+  --muted: #F8FAFC;
+  --muted-foreground: #64748B;
+  --accent: #F1F5F9;
+  --accent-foreground: #0A0A0F;
+  --destructive: #EF4444;
+  --destructive-foreground: #FFFFFF;
+  --border: #E2E8F0;
+  --input: #E2E8F0;
+  --ring: #7C3AED;
+  --radius: 0.5rem;
+  
+  --sidebar-bg: #0A0A0F;
+  --sidebar-foreground: #F8FAFC;
+  --sidebar-border: rgba(255, 255, 255, 0.05);
+}
+
+.dark {
+  --background: #0A0A0F;
+  --foreground: #F8FAFC;
   --card: #13131F;
   --card-foreground: #F8FAFC;
   --popover: #13131F;
@@ -48,7 +75,10 @@
   --border: #2A2A3C;
   --input: #2A2A3C;
   --ring: #7C3AED;
-  --radius: 0.5rem;
+  
+  --sidebar-bg: #0A0A0F;
+  --sidebar-foreground: #F8FAFC;
+  --sidebar-border: rgba(255, 255, 255, 0.05);
 }
 
 @layer base {
@@ -62,6 +92,13 @@
     @apply bg-background text-foreground font-sans antialiased;
     background: radial-gradient(circle at top right, #F8FAFC, #FFFFFF) !important;
   }
+  
+  .dark body {
+    background: #0A0A0F !important;
+    background-image: radial-gradient(circle at top right, rgba(124, 58, 237, 0.05), transparent 400px), 
+                      radial-gradient(circle at bottom left, rgba(124, 58, 237, 0.05), transparent 400px) !important;
+  }
+
   h1, h2, h3, h4, h5, h6 {
     @apply font-display;
   }

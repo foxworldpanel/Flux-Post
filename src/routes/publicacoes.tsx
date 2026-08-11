@@ -74,7 +74,7 @@ export default function PublicacoesPage() {
       case 'failed':
         return <Badge className="bg-red-500/10 text-red-500 border-red-500/20"><AlertCircle size={12} className="mr-1" /> FALHOU</Badge>;
       default:
-        return <Badge variant="outline" className="text-white/40 border-white/10 uppercase">{status}</Badge>;
+        return <Badge variant="outline" className="text-foreground/40 border-border uppercase">{status}</Badge>;
     }
   };
 
@@ -83,14 +83,14 @@ export default function PublicacoesPage() {
       <div className="p-8 space-y-8 animate-in fade-in duration-500">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
           <div>
-            <h1 className="text-4xl font-bold text-white font-space mb-2">Publicações</h1>
-            <p className="text-slate-400">Histórico e status de todos os posts distribuídos.</p>
+            <h1 className="text-4xl font-bold text-foreground font-space mb-2">Publicações</h1>
+            <p className="text-muted-foreground">Histórico e status de todos os posts distribuídos.</p>
           </div>
           <Button 
             onClick={handleSync} 
             disabled={syncing || loading}
             variant="outline" 
-            className="border-white/10 text-white bg-white/5 hover:bg-white/10"
+            className="border-border text-foreground bg-muted/50 hover:bg-white/10"
           >
             <RefreshCw className={`w-4 h-4 mr-2 ${syncing ? 'animate-spin' : ''}`} />
             Sincronizar Status
@@ -99,17 +99,17 @@ export default function PublicacoesPage() {
 
         <div className="grid grid-cols-1 gap-4">
           {loading ? (
-            <div className="py-20 flex flex-col items-center justify-center border border-dashed border-white/10 rounded-2xl bg-white/5">
+            <div className="py-20 flex flex-col items-center justify-center border border-dashed border-border rounded-2xl bg-muted/50">
               <RefreshCw className="w-8 h-8 text-primary animate-spin mb-4" />
-              <p className="text-slate-400">Carregando publicações...</p>
+              <p className="text-muted-foreground">Carregando publicações...</p>
             </div>
           ) : publications.length === 0 ? (
-            <div className="py-20 flex flex-col items-center justify-center border border-dashed border-white/10 rounded-2xl bg-white/5 text-center">
-              <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mb-6">
+            <div className="py-20 flex flex-col items-center justify-center border border-dashed border-border rounded-2xl bg-muted/50 text-center">
+              <div className="w-16 h-16 bg-muted/50 rounded-full flex items-center justify-center mb-6">
                 <Send className="w-8 h-8 text-slate-700" />
               </div>
-              <h3 className="text-xl font-bold text-white mb-2">Nenhuma publicação encontrada</h3>
-              <p className="text-slate-400 max-w-sm">Comece criando uma campanha ou agendando posts diretamente da biblioteca.</p>
+              <h3 className="text-xl font-bold text-foreground mb-2">Nenhuma publicação encontrada</h3>
+              <p className="text-muted-foreground max-w-sm">Comece criando uma campanha ou agendando posts diretamente da biblioteca.</p>
               <Button className="mt-6 bg-[#7C3AED]" onClick={() => window.location.href = '/campanha'}>
                 Criar Primeira Campanha
               </Button>
@@ -117,7 +117,7 @@ export default function PublicacoesPage() {
           ) : (
             <div className="space-y-4">
               {publications.map((pub) => (
-                <Card key={pub.id} className="bg-[#13131F] border-white/5 hover:border-white/10 transition-colors overflow-hidden">
+                <Card key={pub.id} className="bg-card border-border hover:border-border transition-colors overflow-hidden">
                   <div className="flex flex-col md:flex-row">
                     <div className="w-full md:w-48 aspect-video bg-black/40 relative">
                        {/* Aqui usaremos a thumbnail se disponível */}
@@ -130,10 +130,10 @@ export default function PublicacoesPage() {
                       <div className="space-y-2 flex-1">
                         <div className="flex items-center gap-2">
                            {getStatusBadge(pub.status)}
-                           <Badge variant="outline" className="border-white/5 text-[10px] text-slate-500 uppercase font-bold tracking-widest">{pub.platform}</Badge>
+                           <Badge variant="outline" className="border-border text-[10px] text-muted-foreground uppercase font-bold tracking-widest">{pub.platform}</Badge>
                         </div>
-                        <h4 className="text-white font-medium line-clamp-1">{pub.caption || "Sem legenda"}</h4>
-                        <div className="flex items-center gap-4 text-xs text-slate-500">
+                        <h4 className="text-foreground font-medium line-clamp-1">{pub.caption || "Sem legenda"}</h4>
+                        <div className="flex items-center gap-4 text-xs text-muted-foreground">
                           <span className="flex items-center gap-1">
                             <Clock size={12} /> {format(new Date(pub.created_at), "dd 'de' MMM, HH:mm", { locale: ptBR })}
                           </span>
@@ -148,13 +148,13 @@ export default function PublicacoesPage() {
                           <Button 
                             variant="outline" 
                             size="sm" 
-                            className="flex-1 md:flex-none border-white/10 text-white text-xs h-8"
+                            className="flex-1 md:flex-none border-border text-foreground text-xs h-8"
                             onClick={() => window.open(pub.post_url, '_blank')}
                           >
                             <ExternalLink size={14} className="mr-1" /> Ver Post
                           </Button>
                         )}
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-500">
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground">
                            <MoreVertical size={16} />
                         </Button>
                       </div>

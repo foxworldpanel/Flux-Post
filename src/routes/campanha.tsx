@@ -589,7 +589,7 @@ export default function CampanhaPage() {
     return (
       <DashboardLayout>
         <div className="flex h-[60vh] items-center justify-center">
-          <div className="text-xl font-medium text-white/50">
+          <div className="text-xl font-medium text-foreground/50">
             Carregando informações da campanha...
           </div>
         </div>
@@ -601,7 +601,7 @@ export default function CampanhaPage() {
     <DashboardLayout>
       <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in duration-500">
         <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold text-white">Campanha Ativa</h1>
+          <h1 className="text-3xl font-bold text-foreground">Campanha Ativa</h1>
           {campanhaAtiva && (
             <Badge className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 px-3 py-1">
               Campanha em andamento
@@ -610,23 +610,23 @@ export default function CampanhaPage() {
         </div>
 
         {!campanhaAtiva ? (
-          <Card className="bg-[#13131F] border-white/10">
+          <Card className="bg-card border-border">
             <CardHeader>
-              <CardTitle className="text-white flex items-center gap-2">
+              <CardTitle className="text-foreground flex items-center gap-2">
                 <Megaphone className="text-primary" />
                 Criar Nova Campanha
               </CardTitle>
-              <CardDescription className="text-white/60">
+              <CardDescription className="text-muted-foreground">
                 Configure os parâmetros para sua automação de postagens.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <Label className="text-white/80">Nome da Campanha</Label>
+                  <Label className="text-muted-foreground">Nome da Campanha</Label>
                   <Input
                     placeholder="Ex: Lançamento Verão"
-                    className="bg-white/5 border-white/10 text-white"
+                    className="bg-muted/50 border-border text-foreground"
                     value={formData.nome}
                     onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
                   />
@@ -634,17 +634,17 @@ export default function CampanhaPage() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label className="text-white/80">Escolher Artista</Label>
+                    <Label className="text-muted-foreground">Escolher Artista</Label>
                     <Select
                       value={formData.artist_id}
                       onValueChange={(v) => {
                         setFormData({ ...formData, artist_id: v, music_track_id: "" });
                       }}
                     >
-                      <SelectTrigger className="bg-white/5 border-white/10 text-white">
+                      <SelectTrigger className="bg-muted/50 border-border text-foreground">
                         <SelectValue placeholder="Selecione um artista" />
                       </SelectTrigger>
-                      <SelectContent className="bg-[#13131F] border-white/10 text-white">
+                      <SelectContent className="bg-card border-border text-foreground">
                         {artistas.map((a) => (
                           <SelectItem key={a.id} value={a.id}>
                             {a.name}
@@ -655,14 +655,14 @@ export default function CampanhaPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label className="text-white/80">Escolher Música</Label>
+                    <Label className="text-muted-foreground">Escolher Música</Label>
                     <div className="flex gap-2">
                       <Select
                         value={formData.music_track_id}
                         onValueChange={(v) => setFormData({ ...formData, music_track_id: v })}
                         disabled={!formData.artist_id}
                       >
-                        <SelectTrigger className="bg-white/5 border-white/10 text-white flex-1">
+                        <SelectTrigger className="bg-muted/50 border-border text-foreground flex-1">
                           <SelectValue
                             placeholder={
                               formData.artist_id
@@ -671,7 +671,7 @@ export default function CampanhaPage() {
                             }
                           />
                         </SelectTrigger>
-                        <SelectContent className="bg-[#13131F] border-white/10 text-white">
+                        <SelectContent className="bg-card border-border text-foreground">
                           {musicas
                             .filter((m) => m.artist_id === formData.artist_id)
                             .map((m) => (
@@ -686,16 +686,16 @@ export default function CampanhaPage() {
                           <Button 
                             variant="outline" 
                             size="icon" 
-                            className="shrink-0 bg-white/5 border-white/10 text-white hover:bg-white/10"
+                            className="shrink-0 bg-muted/50 border-border text-foreground hover:bg-white/10"
                             disabled={!formData.artist_id}
                           >
                             <Plus className="h-4 w-4" />
                           </Button>
                         </DialogTrigger>
-                        <DialogContent className="bg-[#13131F] border-white/10 text-white sm:max-w-[425px]">
+                        <DialogContent className="bg-card border-border text-foreground sm:max-w-[425px]">
                           <DialogHeader>
                             <DialogTitle className="text-xl font-bold">Nova Música</DialogTitle>
-                            <DialogDescription className="text-white/60">
+                            <DialogDescription className="text-muted-foreground">
                               Adicione uma nova música para o artista {artistas.find(a => a.id === formData.artist_id)?.name}.
                             </DialogDescription>
                           </DialogHeader>
@@ -707,7 +707,7 @@ export default function CampanhaPage() {
                                 value={newMusicData.nome}
                                 onChange={(e) => setNewMusicData({ ...newMusicData, nome: e.target.value })}
                                 placeholder="Ex: Chill Vibe"
-                                className="bg-white/5 border-white/10 text-white"
+                                className="bg-muted/50 border-border text-foreground"
                               />
                             </div>
                             <div className="space-y-2">
@@ -716,7 +716,7 @@ export default function CampanhaPage() {
                                 id="music-file"
                                 type="file"
                                 accept="audio/*"
-                                className="bg-white/5 border-white/10 text-white"
+                                className="bg-muted/50 border-border text-foreground"
                                 onChange={(e) => {
                                   if (e.target.files?.[0]) {
                                     setNewMusicData({ ...newMusicData, file: e.target.files[0] });
@@ -732,7 +732,7 @@ export default function CampanhaPage() {
                             <Button
                               onClick={handleCreateMusic}
                               disabled={newMusicData.uploading}
-                              className="bg-[#7C3AED] hover:bg-[#6D28D9] text-white w-full"
+                              className="bg-[#7C3AED] hover:bg-[#6D28D9] text-foreground w-full"
                             >
                               {newMusicData.uploading ? (
                                 <>
@@ -750,15 +750,15 @@ export default function CampanhaPage() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <Label className="text-white/80">Posts por dia</Label>
+                    <Label className="text-muted-foreground">Posts por dia</Label>
                     <Select
                       value={formData.posts_por_dia.toString()}
                       onValueChange={(v) => setFormData({ ...formData, posts_por_dia: parseInt(v) })}
                     >
-                      <SelectTrigger className="bg-white/5 border-white/10 text-white">
+                      <SelectTrigger className="bg-muted/50 border-border text-foreground">
                         <SelectValue placeholder="Selecione" />
                       </SelectTrigger>
-                      <SelectContent className="bg-[#13131F] border-white/10 text-white">
+                      <SelectContent className="bg-card border-border text-foreground">
                         {[1, 2, 3, 4, 5].map((n) => (
                           <SelectItem key={n} value={n.toString()}>{n} posts/dia</SelectItem>
                         ))}
@@ -767,15 +767,15 @@ export default function CampanhaPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label className="text-white/80">Timezone</Label>
+                    <Label className="text-muted-foreground">Timezone</Label>
                     <Select
                       value={formData.timezone}
                       onValueChange={(v) => setFormData({ ...formData, timezone: v })}
                     >
-                      <SelectTrigger className="bg-white/5 border-white/10 text-white">
+                      <SelectTrigger className="bg-muted/50 border-border text-foreground">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent className="bg-[#13131F] border-white/10 text-white">
+                      <SelectContent className="bg-card border-border text-foreground">
                         <SelectItem value="America/Sao_Paulo">America/Sao_Paulo</SelectItem>
                         <SelectItem value="UTC">UTC</SelectItem>
                       </SelectContent>
@@ -783,19 +783,19 @@ export default function CampanhaPage() {
                   </div>
                 </div>
 
-                <div className="space-y-4 pt-4 border-t border-white/5">
-                  <Label className="text-white text-base font-semibold uppercase">Distribuição e IA</Label>
+                <div className="space-y-4 pt-4 border-t border-border">
+                  <Label className="text-foreground text-base font-semibold uppercase">Distribuição e IA</Label>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-2">
-                      <Label className="text-white/80">Modo de Distribuição</Label>
+                      <Label className="text-muted-foreground">Modo de Distribuição</Label>
                       <Select
                         value={formData.distribution_mode}
                         onValueChange={(v: any) => setFormData({ ...formData, distribution_mode: v })}
                       >
-                        <SelectTrigger className="bg-white/5 border-white/10 text-white">
+                        <SelectTrigger className="bg-muted/50 border-border text-foreground">
                           <SelectValue />
                         </SelectTrigger>
-                        <SelectContent className="bg-[#13131F] border-white/10 text-white">
+                        <SelectContent className="bg-card border-border text-foreground">
                           <SelectItem value="all">Todos recebem o mesmo conteúdo</SelectItem>
                           <SelectItem value="intelligent">Distribuição Inteligente (Recomendado)</SelectItem>
                         </SelectContent>
@@ -803,15 +803,15 @@ export default function CampanhaPage() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label className="text-white/80">Variação Editorial</Label>
+                      <Label className="text-muted-foreground">Variação Editorial</Label>
                       <Select
                         value={formData.distribution_variation}
                         onValueChange={(v: any) => setFormData({ ...formData, distribution_variation: v })}
                       >
-                        <SelectTrigger className="bg-white/5 border-white/10 text-white">
+                        <SelectTrigger className="bg-muted/50 border-border text-foreground">
                           <SelectValue />
                         </SelectTrigger>
-                        <SelectContent className="bg-[#13131F] border-white/10 text-white">
+                        <SelectContent className="bg-card border-border text-foreground">
                           <SelectItem value="low">Baixa (Mais repetições)</SelectItem>
                           <SelectItem value="medium">Média (Equilibrado)</SelectItem>
                           <SelectItem value="high">Alta (Máxima diversidade)</SelectItem>
@@ -822,15 +822,15 @@ export default function CampanhaPage() {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-2">
-                      <Label className="text-white/80">Cooldown de Conteúdo</Label>
+                      <Label className="text-muted-foreground">Cooldown de Conteúdo</Label>
                       <Select
                         value={formData.cooldown_days.toString()}
                         onValueChange={(v) => setFormData({ ...formData, cooldown_days: parseInt(v) })}
                       >
-                        <SelectTrigger className="bg-white/5 border-white/10 text-white">
+                        <SelectTrigger className="bg-muted/50 border-border text-foreground">
                           <SelectValue />
                         </SelectTrigger>
-                        <SelectContent className="bg-[#13131F] border-white/10 text-white">
+                        <SelectContent className="bg-card border-border text-foreground">
                           <SelectItem value="7">7 dias</SelectItem>
                           <SelectItem value="15">15 dias</SelectItem>
                           <SelectItem value="30">30 dias</SelectItem>
@@ -840,15 +840,15 @@ export default function CampanhaPage() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label className="text-white/80">Idioma da IA</Label>
+                      <Label className="text-muted-foreground">Idioma da IA</Label>
                       <Select
                         value={formData.editorial_language}
                         onValueChange={(v) => setFormData({ ...formData, editorial_language: v })}
                       >
-                        <SelectTrigger className="bg-white/5 border-white/10 text-white">
+                        <SelectTrigger className="bg-muted/50 border-border text-foreground">
                           <SelectValue />
                         </SelectTrigger>
-                        <SelectContent className="bg-[#13131F] border-white/10 text-white">
+                        <SelectContent className="bg-card border-border text-foreground">
                           <SelectItem value="pt-BR">Português (Brasil)</SelectItem>
                           <SelectItem value="en-US">English (US)</SelectItem>
                           <SelectItem value="es-ES">Español</SelectItem>
@@ -856,19 +856,19 @@ export default function CampanhaPage() {
                       </Select>
                 </div>
                 
-                <div className="space-y-4 pt-4 border-t border-white/5">
-                  <Label className="text-white text-base font-semibold uppercase">Processamento de Mídia</Label>
+                <div className="space-y-4 pt-4 border-t border-border">
+                  <Label className="text-foreground text-base font-semibold uppercase">Processamento de Mídia</Label>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-2">
-                      <Label className="text-white/80">Modo de Áudio</Label>
+                      <Label className="text-muted-foreground">Modo de Áudio</Label>
                       <Select
                         value={formData.audio_mode}
                         onValueChange={(v: any) => setFormData({ ...formData, audio_mode: v })}
                       >
-                        <SelectTrigger className="bg-white/5 border-white/10 text-white">
+                        <SelectTrigger className="bg-muted/50 border-border text-foreground">
                           <SelectValue />
                         </SelectTrigger>
-                        <SelectContent className="bg-[#13131F] border-white/10 text-white">
+                        <SelectContent className="bg-card border-border text-foreground">
                           <SelectItem value="music_plus_original">Música + Áudio Original (Mix)</SelectItem>
                           <SelectItem value="only_music">Somente Música</SelectItem>
                           <SelectItem value="only_original">Somente Áudio Original (Sem Processar)</SelectItem>
@@ -877,11 +877,11 @@ export default function CampanhaPage() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label className="text-white/80">Início da Música (Segundos)</Label>
+                      <Label className="text-muted-foreground">Início da Música (Segundos)</Label>
                       <Input
                         type="number"
                         min="0"
-                        className="bg-white/5 border-white/10 text-white"
+                        className="bg-muted/50 border-border text-foreground"
                         value={formData.music_start_ms / 1000}
                         onChange={(e) => setFormData({ ...formData, music_start_ms: Math.max(0, parseInt(e.target.value) || 0) * 1000 })}
                       />
@@ -891,7 +891,7 @@ export default function CampanhaPage() {
                   {formData.audio_mode !== 'only_original' && (
                     <div className="grid grid-cols-2 gap-6">
                       <div className="space-y-2">
-                        <Label className="text-white/80">Volume Música ({formData.music_volume}%)</Label>
+                        <Label className="text-muted-foreground">Volume Música ({formData.music_volume}%)</Label>
                         <input
                           type="range"
                           min="0"
@@ -903,7 +903,7 @@ export default function CampanhaPage() {
                       </div>
                       {formData.audio_mode === 'music_plus_original' && (
                         <div className="space-y-2">
-                          <Label className="text-white/80">Volume Original ({formData.original_audio_volume}%)</Label>
+                          <Label className="text-muted-foreground">Volume Original ({formData.original_audio_volume}%)</Label>
                           <input
                             type="range"
                             min="0"
@@ -921,18 +921,18 @@ export default function CampanhaPage() {
                   </div>
                 </div>
 
-                <div className="space-y-6 pt-4 border-t border-white/5">
-                  <Label className="text-white text-base font-semibold uppercase">Programação</Label>
+                <div className="space-y-6 pt-4 border-t border-border">
+                  <Label className="text-foreground text-base font-semibold uppercase">Programação</Label>
                   
                   <div className="space-y-4">
-                    <Label className="text-white/80">Quando a campanha deve começar?</Label>
+                    <Label className="text-muted-foreground">Quando a campanha deve começar?</Label>
                     <div className="grid grid-cols-2 gap-4">
                       <button
                         onClick={() => setFormData({ ...formData, start_mode: 'period' })}
                         className={`p-4 rounded-xl border flex flex-col items-center gap-2 transition-all ${
                           formData.start_mode === 'period' 
-                            ? "bg-[#7C3AED]/10 border-[#7C3AED] text-white" 
-                            : "bg-white/5 border-white/10 text-white/40 hover:border-white/20"
+                            ? "bg-[#7C3AED]/10 border-[#7C3AED] text-foreground" 
+                            : "bg-muted/50 border-border text-muted-foreground hover:border-border"
                         }`}
                       >
                         <Calendar size={20} />
@@ -942,8 +942,8 @@ export default function CampanhaPage() {
                         onClick={() => setFormData({ ...formData, start_mode: 'now' })}
                         className={`p-4 rounded-xl border flex flex-col items-center gap-2 transition-all ${
                           formData.start_mode === 'now' 
-                            ? "bg-[#7C3AED]/10 border-[#7C3AED] text-white" 
-                            : "bg-white/5 border-white/10 text-white/40 hover:border-white/20"
+                            ? "bg-[#7C3AED]/10 border-[#7C3AED] text-foreground" 
+                            : "bg-muted/50 border-border text-muted-foreground hover:border-border"
                         }`}
                       >
                         <Play size={20} />
@@ -956,19 +956,19 @@ export default function CampanhaPage() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
-                          <Label className="text-white/80">Data Início</Label>
+                          <Label className="text-muted-foreground">Data Início</Label>
                           <Input
                             type="date"
-                            className="bg-white/5 border-white/10 text-white"
+                            className="bg-muted/50 border-border text-foreground"
                             value={formData.data_inicio}
                             onChange={(e) => setFormData({ ...formData, data_inicio: e.target.value })}
                           />
                         </div>
                         <div className="space-y-2">
-                          <Label className="text-white/80">Data Fim</Label>
+                          <Label className="text-muted-foreground">Data Fim</Label>
                           <Input
                             type="date"
-                            className="bg-white/5 border-white/10 text-white"
+                            className="bg-muted/50 border-border text-foreground"
                             value={formData.data_fim}
                             onChange={(e) => setFormData({ ...formData, data_fim: e.target.value })}
                           />
@@ -977,19 +977,19 @@ export default function CampanhaPage() {
 
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
-                          <Label className="text-white/80">Janela: De</Label>
+                          <Label className="text-muted-foreground">Janela: De</Label>
                           <Input
                             type="time"
-                            className="bg-white/5 border-white/10 text-white"
+                            className="bg-muted/50 border-border text-foreground"
                             value={formData.daily_start_time}
                             onChange={(e) => setFormData({ ...formData, daily_start_time: e.target.value })}
                           />
                         </div>
                         <div className="space-y-2">
-                          <Label className="text-white/80">Até</Label>
+                          <Label className="text-muted-foreground">Até</Label>
                           <Input
                             type="time"
-                            className="bg-white/5 border-white/10 text-white"
+                            className="bg-muted/50 border-border text-foreground"
                             value={formData.daily_end_time}
                             onChange={(e) => setFormData({ ...formData, daily_end_time: e.target.value })}
                           />
@@ -999,21 +999,21 @@ export default function CampanhaPage() {
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div className="space-y-2">
-                        <Label className="text-white/80">Primeiro Conteúdo</Label>
-                        <div className="h-10 px-3 bg-white/5 border border-white/10 rounded-md flex items-center text-emerald-500 font-bold text-sm">
+                        <Label className="text-muted-foreground">Primeiro Conteúdo</Label>
+                        <div className="h-10 px-3 bg-muted/50 border border-border rounded-md flex items-center text-emerald-500 font-bold text-sm">
                           AGORA (Na confirmação)
                         </div>
                       </div>
                       <div className="space-y-2">
-                        <Label className="text-white/80">Intervalo entre Conteúdos</Label>
+                        <Label className="text-muted-foreground">Intervalo entre Conteúdos</Label>
                         <Select
                           value={formData.batch_interval_minutes.toString()}
                           onValueChange={(v) => setFormData({ ...formData, batch_interval_minutes: parseInt(v) })}
                         >
-                          <SelectTrigger className="bg-white/5 border-white/10 text-white">
+                          <SelectTrigger className="bg-muted/50 border-border text-foreground">
                             <SelectValue />
                           </SelectTrigger>
-                          <SelectContent className="bg-[#13131F] border-white/10 text-white">
+                          <SelectContent className="bg-card border-border text-foreground">
                             <SelectItem value="5">5 minutos</SelectItem>
                             <SelectItem value="15">15 minutos</SelectItem>
                             <SelectItem value="30">30 minutos</SelectItem>
@@ -1033,15 +1033,15 @@ export default function CampanhaPage() {
                     </div>
                     <div className="space-y-4">
                       <div className="space-y-2">
-                        <Label className="text-white/60 text-[10px] uppercase font-bold">Repetição de Conteúdo</Label>
+                        <Label className="text-muted-foreground text-[10px] uppercase font-bold">Repetição de Conteúdo</Label>
                         <div className="grid grid-cols-2 gap-3">
                           <button
                             type="button"
                             onClick={() => setFormData({ ...formData, repeat_policy: 'never' })}
                             className={`flex items-center justify-between p-3 rounded-lg border text-[10px] font-bold transition-all ${
                               formData.repeat_policy === 'never'
-                                ? "bg-primary/20 border-primary text-white"
-                                : "bg-white/5 border-white/10 text-white/40 hover:border-white/20"
+                                ? "bg-primary/20 border-primary text-foreground"
+                                : "bg-muted/50 border-border text-muted-foreground hover:border-border"
                             }`}
                           >
                             <span>NUNCA REPETIR NA CONTA</span>
@@ -1052,8 +1052,8 @@ export default function CampanhaPage() {
                             onClick={() => setFormData({ ...formData, repeat_policy: 'cooldown' })}
                             className={`flex items-center justify-between p-3 rounded-lg border text-[10px] font-bold transition-all ${
                               formData.repeat_policy === 'cooldown'
-                                ? "bg-primary/20 border-primary text-white"
-                                : "bg-white/5 border-white/10 text-white/40 hover:border-white/20"
+                                ? "bg-primary/20 border-primary text-foreground"
+                                : "bg-muted/50 border-border text-muted-foreground hover:border-border"
                             }`}
                           >
                             <span>PERMITIR APÓS COOLDOWN</span>
@@ -1064,15 +1064,15 @@ export default function CampanhaPage() {
 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div className="space-y-2">
-                          <Label className="text-white/60 text-[10px] uppercase font-bold">Intervalo entre Destinos (Contas)</Label>
+                          <Label className="text-muted-foreground text-[10px] uppercase font-bold">Intervalo entre Destinos (Contas)</Label>
                           <Select
                             value={formData.destination_interval_seconds.toString()}
                             onValueChange={(v) => setFormData({ ...formData, destination_interval_seconds: parseInt(v) })}
                           >
-                            <SelectTrigger className="bg-white/5 border-white/10 text-white h-8 text-xs">
+                            <SelectTrigger className="bg-muted/50 border-border text-foreground h-8 text-xs">
                               <SelectValue />
                             </SelectTrigger>
-                            <SelectContent className="bg-[#13131F] border-white/10 text-white">
+                            <SelectContent className="bg-card border-border text-foreground">
                               <SelectItem value="30">30 segundos</SelectItem>
                               <SelectItem value="60">1 minuto</SelectItem>
                               <SelectItem value="120">2 minutos</SelectItem>
@@ -1104,13 +1104,13 @@ export default function CampanhaPage() {
                   </div>
                 </div>
 
-                <div className="space-y-4 pt-4 border-t border-white/5">
+                <div className="space-y-4 pt-4 border-t border-border">
                   <div className="flex items-center justify-between">
                     <div className="space-y-1">
-                      <Label className="text-white text-base font-semibold uppercase">
+                      <Label className="text-foreground text-base font-semibold uppercase">
                         Contas de Publicação
                       </Label>
-                      <p className="text-white/40 text-xs">
+                      <p className="text-muted-foreground text-xs">
                         Selecione onde os vídeos serão postados
                       </p>
                     </div>
@@ -1118,7 +1118,7 @@ export default function CampanhaPage() {
                       <Button 
                         variant="outline" 
                         size="sm" 
-                        className="text-[10px] h-7 px-2 border-white/10 text-slate-400 hover:text-white"
+                        className="text-[10px] h-7 px-2 border-border text-muted-foreground hover:text-foreground"
                         onClick={() => setSelectedAccountIds(socialAccounts.map(a => a.id))}
                       >
                         Selecionar Todas
@@ -1126,7 +1126,7 @@ export default function CampanhaPage() {
                       <Button 
                         variant="outline" 
                         size="sm" 
-                        className="text-[10px] h-7 px-2 border-white/10 text-slate-400 hover:text-white"
+                        className="text-[10px] h-7 px-2 border-border text-muted-foreground hover:text-foreground"
                         onClick={() => setSelectedAccountIds([])}
                       >
                         Limpar
@@ -1137,8 +1137,8 @@ export default function CampanhaPage() {
                   
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     {socialAccounts.length === 0 ? (
-                      <div className="col-span-full py-6 text-center border border-dashed border-white/10 rounded-xl">
-                        <p className="text-white/40 text-sm">Nenhuma conta conectada. Vá em Contas primeiro.</p>
+                      <div className="col-span-full py-6 text-center border border-dashed border-border rounded-xl">
+                        <p className="text-muted-foreground text-sm">Nenhuma conta conectada. Vá em Contas primeiro.</p>
                       </div>
                     ) : (
                       socialAccounts.map((account) => (
@@ -1148,23 +1148,23 @@ export default function CampanhaPage() {
                           className={`p-4 rounded-xl border cursor-pointer transition-all flex items-center justify-between ${
                             selectedAccountIds.includes(account.id)
                               ? "bg-[#7C3AED]/10 border-[#7C3AED]"
-                              : "bg-white/5 border-white/10 hover:border-white/20"
+                              : "bg-muted/50 border-border hover:border-border"
                           }`}
                         >
                           <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-black/20 overflow-hidden flex items-center justify-center">
+                            <div className="w-10 h-10 rounded-full bg-muted/30 overflow-hidden flex items-center justify-center">
                               {account.profile_image_url ? (
                                 <img src={account.profile_image_url} alt="" className="w-full h-full object-cover" />
                               ) : (
-                                <Globe className="w-5 h-5 text-slate-500" />
+                                <Globe className="w-5 h-5 text-muted-foreground" />
                               )}
                             </div>
                             <div>
-                              <p className="text-sm font-bold text-white capitalize">{account.platform}</p>
-                              <p className="text-xs text-slate-400">{account.account_name}</p>
+                              <p className="text-sm font-bold text-foreground capitalize">{account.platform}</p>
+                              <p className="text-xs text-muted-foreground">{account.account_name}</p>
                               <div className="flex items-center gap-1 mt-1">
                                 <div className={`w-1.5 h-1.5 rounded-full ${account.connection_status === 'conectada' ? 'bg-emerald-500' : 'bg-red-500'}`} />
-                                <span className="text-[10px] text-slate-500 font-bold uppercase tracking-tighter">
+                                <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-tighter">
                                   {account.connection_status === 'conectada' ? 'Conectada' : 'Desconectada'}
                                 </span>
                               </div>
@@ -1173,7 +1173,7 @@ export default function CampanhaPage() {
                           <Checkbox 
                             checked={selectedAccountIds.includes(account.id)} 
                             onCheckedChange={() => toggleAccount(account.id)}
-                            className="border-white/20 data-[state=checked]:bg-[#7C3AED]"
+                            className="border-border data-[state=checked]:bg-[#7C3AED]"
                           />
                         </div>
                       ))
@@ -1182,13 +1182,13 @@ export default function CampanhaPage() {
                 </div>
 
 
-                <div className="space-y-4 pt-4 border-t border-white/5">
+                <div className="space-y-4 pt-4 border-t border-border">
                   <div className="flex items-center justify-between">
                     <div className="space-y-1">
-                      <Label className="text-white text-base font-semibold uppercase">
+                      <Label className="text-foreground text-base font-semibold uppercase">
                         Programação Sugerida
                       </Label>
-                      <p className="text-white/40 text-xs">
+                      <p className="text-muted-foreground text-xs">
                         Cronograma de postagens baseado nas configurações
                       </p>
                     </div>
@@ -1199,10 +1199,10 @@ export default function CampanhaPage() {
                     )}
                   </div>
 
-                  <div className="bg-black/20 rounded-xl border border-white/5 overflow-hidden">
+                  <div className="bg-muted/30 rounded-xl border border-border overflow-hidden">
                     {schedulingPreview.length === 0 ? (
                       <div className="p-8 text-center">
-                        <p className="text-white/40 text-sm italic">
+                        <p className="text-muted-foreground text-sm italic">
                           Selecione as datas, horários e contas para ver a prévia da programação.
                         </p>
                       </div>
@@ -1217,29 +1217,29 @@ export default function CampanhaPage() {
                                 <div className="absolute -left-[25px] top-1.5 w-2 h-2 rounded-full bg-primary shadow-[0_0_8px_rgba(124,58,237,0.5)]" />
                                 <div className="space-y-2">
                                   <div className="flex items-center justify-between">
-                                    <span className="text-xs font-bold text-white uppercase tracking-widest flex items-center gap-2">
+                                    <span className="text-xs font-bold text-foreground uppercase tracking-widest flex items-center gap-2">
                                       Lote {bIdx + 1} — {batch.isNow ? 'AGORA' : format(batch.date, "HH:mm")}
                                       {batch.isNow && <Badge className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 text-[8px] h-4">Início Imediato</Badge>}
                                     </span>
-                                    <span className="text-[10px] text-white/40">{format(batch.date, "dd/MM/yyyy")}</span>
+                                    <span className="text-[10px] text-muted-foreground">{format(batch.date, "dd/MM/yyyy")}</span>
                                   </div>
-                                  <div className="bg-white/5 rounded-lg p-3 border border-white/5">
+                                  <div className="bg-muted/50 rounded-lg p-3 border border-border">
                                     <div className="flex items-center gap-3 mb-2">
                                       <div className="w-8 h-8 rounded bg-primary/10 flex items-center justify-center text-primary">
                                         <Layers size={14} />
                                       </div>
                                       <div>
-                                        <p className="text-[10px] text-white/60 font-medium">Conteúdo #{batch.videoIndex + 1}</p>
-                                        <p className="text-[9px] text-white/40">{selectedAccountIds.length} destinos programados</p>
+                                        <p className="text-[10px] text-muted-foreground font-medium">Conteúdo #{batch.videoIndex + 1}</p>
+                                        <p className="text-[9px] text-muted-foreground">{selectedAccountIds.length} destinos programados</p>
                                       </div>
                                     </div>
                                     <div className="flex flex-wrap gap-1">
                                       {batchPosts.slice(0, 5).map((p, pIdx) => (
-                                        <Badge key={pIdx} variant="outline" className="text-[8px] h-4 border-white/5 text-white/40">
+                                        <Badge key={pIdx} variant="outline" className="text-[8px] h-4 border-border text-muted-foreground">
                                           {p.accountName}
                                         </Badge>
                                       ))}
-                                      {batchPosts.length > 5 && <span className="text-[8px] text-white/20">+{batchPosts.length - 5}</span>}
+                                      {batchPosts.length > 5 && <span className="text-[8px] text-foreground/20">+{batchPosts.length - 5}</span>}
                                     </div>
                                   </div>
                                 </div>
@@ -1248,7 +1248,7 @@ export default function CampanhaPage() {
                           })}
                           {schedulingPreview.length > 10 && (
                             <div className="text-center py-2">
-                              <p className="text-[10px] text-white/20 italic">...e mais {Math.floor(schedulingPreview.length / selectedAccountIds.length) - 10} lotes</p>
+                              <p className="text-[10px] text-foreground/20 italic">...e mais {Math.floor(schedulingPreview.length / selectedAccountIds.length) - 10} lotes</p>
                             </div>
                           )}
                         </div>
@@ -1257,24 +1257,24 @@ export default function CampanhaPage() {
                   </div>
                 </div>
 
-                <div className="space-y-4 pt-4 border-t border-white/5">
+                <div className="space-y-4 pt-4 border-t border-border">
                   <div className="flex items-center justify-between">
                     <div className="space-y-1">
-                      <Label className="text-white text-base font-semibold uppercase">
+                      <Label className="text-foreground text-base font-semibold uppercase">
                         Biblioteca de Conteúdos
                       </Label>
-                      <p className="text-white/40 text-xs">
+                      <p className="text-muted-foreground text-xs">
                         {selectedContentIds.length} selecionados para rodízio
                       </p>
                     </div>
                     <Select value={contentFilter} onValueChange={setContentFilter}>
-                      <SelectTrigger className="w-[150px] bg-white/5 border-white/10 text-white text-xs h-8">
+                      <SelectTrigger className="w-[150px] bg-muted/50 border-border text-foreground text-xs h-8">
                         <div className="flex items-center gap-2">
                           <Filter size={12} />
                           <SelectValue placeholder="Filtrar" />
                         </div>
                       </SelectTrigger>
-                      <SelectContent className="bg-[#13131F] border-white/10 text-white">
+                      <SelectContent className="bg-card border-border text-foreground">
                         <SelectItem value="todos">Todos</SelectItem>
                         <SelectItem value="raw">Raw</SelectItem>
                         <SelectItem value="processed">Processados</SelectItem>
@@ -1306,11 +1306,11 @@ export default function CampanhaPage() {
                             className={`relative aspect-[9/16] rounded-lg overflow-hidden border-2 cursor-pointer transition-all ${
                               isSelected
                                 ? "border-[#7C3AED]"
-                                : "border-transparent hover:border-white/20"
+                                : "border-transparent hover:border-border"
                             }`}
                           >
                             {loadingUrls[item.id] ? (
-                              <div className="w-full h-full flex items-center justify-center bg-white/5">
+                              <div className="w-full h-full flex items-center justify-center bg-muted/50">
                                 <Loader2 className="w-4 h-4 text-[#7C3AED] animate-spin" />
                               </div>
                             ) : signedUrls[item.id] ? (
@@ -1319,26 +1319,26 @@ export default function CampanhaPage() {
                                 className="w-full h-full object-cover"
                               />
                             ) : (
-                              <div className="w-full h-full flex items-center justify-center bg-white/5">
+                              <div className="w-full h-full flex items-center justify-center bg-muted/50">
                                 <X className="w-4 h-4 text-red-500/50" />
                               </div>
                             )}
                             <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-2">
-                              <p className="text-[10px] text-white font-medium truncate">
+                              <p className="text-[10px] text-foreground font-medium truncate">
                                 {item.title}
                               </p>
                             </div>
                             {isSelected && (
                               <div className="absolute top-2 right-2 bg-[#7C3AED] rounded-full p-1 shadow-lg">
-                                <Check size={12} className="text-white" />
+                                <Check size={12} className="text-foreground" />
                               </div>
                             )}
                           </div>
                         );
                       })}
                     {biblioteca.length === 0 && (
-                      <div className="col-span-full py-8 text-center border border-dashed border-white/10 rounded-xl">
-                        <p className="text-white/40 text-sm">
+                      <div className="col-span-full py-8 text-center border border-dashed border-border rounded-xl">
+                        <p className="text-muted-foreground text-sm">
                           Biblioteca vazia. Faça upload em Biblioteca primeiro.
                         </p>
                       </div>
@@ -1351,7 +1351,7 @@ export default function CampanhaPage() {
 
                 onClick={handleIniciar}
                 disabled={saving}
-                className="w-full bg-[#7C3AED] hover:bg-[#6D28D9] text-white py-6 text-lg font-semibold"
+                className="w-full bg-[#7C3AED] hover:bg-[#6D28D9] text-foreground py-6 text-lg font-semibold"
               >
                 {saving ? "Iniciando..." : "Iniciar Campanha"}
               </Button>
@@ -1359,10 +1359,10 @@ export default function CampanhaPage() {
           </Card>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <Card className="md:col-span-2 bg-[#13131F] border-white/10">
+            <Card className="md:col-span-2 bg-card border-border">
               <CardHeader>
-                <CardTitle className="text-2xl text-white">{campanhaAtiva.nome}</CardTitle>
-                <div className="flex items-center gap-4 text-white/60">
+                <CardTitle className="text-2xl text-foreground">{campanhaAtiva.nome}</CardTitle>
+                <div className="flex items-center gap-4 text-muted-foreground">
                   <div className="flex items-center gap-2">
                     <User size={16} />
                     <span>{campanhaAtiva.artists?.name}</span>
@@ -1376,8 +1376,8 @@ export default function CampanhaPage() {
               <CardContent className="space-y-8">
                 <div className="space-y-4">
                   <div className="flex justify-between text-sm">
-                    <span className="text-white/60">Progresso da Campanha</span>
-                    <span className="text-white font-medium">
+                    <span className="text-muted-foreground">Progresso da Campanha</span>
+                    <span className="text-foreground font-medium">
                       {(() => {
                         const total =
                           differenceInDays(
@@ -1406,46 +1406,46 @@ export default function CampanhaPage() {
                       );
                       return Math.min(100, Math.max(0, (passados / total) * 100));
                     })()}
-                    className="h-2 bg-white/5"
+                    className="h-2 bg-muted/50"
                   />
-                  <div className="flex justify-between text-xs text-white/40">
+                  <div className="flex justify-between text-xs text-muted-foreground">
                     <span>Início: {format(new Date(campanhaAtiva.data_inicio), "dd/MM/yyyy")}</span>
                     <span>Fim: {format(new Date(campanhaAtiva.data_fim), "dd/MM/yyyy")}</span>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
-                  <div className="bg-white/5 p-4 rounded-xl space-y-1">
-                    <div className="text-white/40 text-[10px] uppercase font-bold tracking-widest flex items-center gap-1">
+                  <div className="bg-muted/50 p-4 rounded-xl space-y-1">
+                    <div className="text-muted-foreground text-[10px] uppercase font-bold tracking-widest flex items-center gap-1">
                       <Calendar size={12} className="text-primary" /> Dias
                     </div>
-                    <div className="text-xl font-bold text-white">
+                    <div className="text-xl font-bold text-foreground">
                       {Math.max(0, differenceInDays(new Date(campanhaAtiva.data_fim), new Date()))}
                     </div>
                   </div>
-                  <div className="bg-white/5 p-4 rounded-xl space-y-1">
-                    <div className="text-white/40 text-[10px] uppercase font-bold tracking-widest flex items-center gap-1">
+                  <div className="bg-muted/50 p-4 rounded-xl space-y-1">
+                    <div className="text-muted-foreground text-[10px] uppercase font-bold tracking-widest flex items-center gap-1">
                       <ShieldCheck size={12} className="text-emerald-500" /> Contas
                     </div>
-                    <div className="text-xl font-bold text-white">{selectedAccountIds.length}</div>
+                    <div className="text-xl font-bold text-foreground">{selectedAccountIds.length}</div>
                   </div>
-                  <div className="bg-white/5 p-4 rounded-xl space-y-1">
-                    <div className="text-white/40 text-[10px] uppercase font-bold tracking-widest flex items-center gap-1">
+                  <div className="bg-muted/50 p-4 rounded-xl space-y-1">
+                    <div className="text-muted-foreground text-[10px] uppercase font-bold tracking-widest flex items-center gap-1">
                       <Layers size={12} className="text-[#7C3AED]" /> Pool
                     </div>
-                    <div className="text-xl font-bold text-white">{selectedContentIds.length}</div>
+                    <div className="text-xl font-bold text-foreground">{selectedContentIds.length}</div>
                   </div>
-                  <div className="bg-white/5 p-4 rounded-xl space-y-1">
-                    <div className="text-white/40 text-[10px] uppercase font-bold tracking-widest flex items-center gap-1">
+                  <div className="bg-muted/50 p-4 rounded-xl space-y-1">
+                    <div className="text-muted-foreground text-[10px] uppercase font-bold tracking-widest flex items-center gap-1">
                       <Zap size={12} className="text-yellow-500" /> Cap. Max
                     </div>
-                    <div className="text-xl font-bold text-white">{selectedContentIds.length * selectedAccountIds.length}</div>
+                    <div className="text-xl font-bold text-foreground">{selectedContentIds.length * selectedAccountIds.length}</div>
                   </div>
-                  <div className="bg-white/5 p-4 rounded-xl space-y-1">
-                    <div className="text-white/40 text-[10px] uppercase font-bold tracking-widest flex items-center gap-1">
+                  <div className="bg-muted/50 p-4 rounded-xl space-y-1">
+                    <div className="text-muted-foreground text-[10px] uppercase font-bold tracking-widest flex items-center gap-1">
                       <Megaphone size={12} className="text-blue-500" /> Enviados
                     </div>
-                    <div className="text-xl font-bold text-white">{totalPosts}</div>
+                    <div className="text-xl font-bold text-foreground">{totalPosts}</div>
                   </div>
                 </div>
 
@@ -1479,25 +1479,25 @@ export default function CampanhaPage() {
             </Card>
 
             <div className="space-y-6">
-              <Card className="bg-[#13131F] border-white/10">
+              <Card className="bg-card border-border">
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium text-white/60">Configurações</CardTitle>
+                  <CardTitle className="text-sm font-medium text-muted-foreground">Configurações</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="flex justify-between items-center text-sm">
-                    <span className="text-white/40">Horário Ativo</span>
-                    <span className="text-white">
+                    <span className="text-muted-foreground">Horário Ativo</span>
+                    <span className="text-foreground">
                       {campanhaAtiva.hora_inicio}:00 - {campanhaAtiva.hora_fim}:00
                     </span>
                   </div>
                   <div className="flex justify-between items-center text-sm">
-                    <span className="text-white/40">Intervalo</span>
-                    <span className="text-white">
+                    <span className="text-muted-foreground">Intervalo</span>
+                    <span className="text-foreground">
                       {campanhaAtiva.intervalo_min} - {campanhaAtiva.intervalo_max} min
                     </span>
                   </div>
                   <div className="flex justify-between items-center text-sm">
-                    <span className="text-white/40">Status</span>
+                    <span className="text-muted-foreground">Status</span>
                     <Badge
                       variant={campanhaAtiva.status === "ativo" ? "default" : "secondary"}
                       className={campanhaAtiva.status === "ativo" ? "bg-emerald-500" : ""}
@@ -1505,8 +1505,8 @@ export default function CampanhaPage() {
                       {campanhaAtiva.status}
                     </Badge>
                   </div>
-                  <div className="flex justify-between items-center text-sm pt-2 border-t border-white/5">
-                    <span className="text-white/40">Anti-Repetição</span>
+                  <div className="flex justify-between items-center text-sm pt-2 border-t border-border">
+                    <span className="text-muted-foreground">Anti-Repetição</span>
                     <Badge variant="outline" className="text-[10px] border-emerald-500/20 text-emerald-500 bg-emerald-500/5">
                       {campanhaAtiva.repeat_policy === 'never' ? 'NUNCA REPETIR' : 'COOLDOWN'}
                     </Badge>
@@ -1514,15 +1514,15 @@ export default function CampanhaPage() {
                 </CardContent>
               </Card>
 
-              <Card className="bg-[#13131F] border-white/10">
+              <Card className="bg-card border-border">
                 <CardHeader className="pb-2">
                   <div className="flex justify-between items-center">
-                    <CardTitle className="text-sm font-medium text-white/60">
+                    <CardTitle className="text-sm font-medium text-muted-foreground">
                       Conteúdos Ativos
                     </CardTitle>
                     <Badge
                       variant="outline"
-                      className="text-[10px] h-5 border-white/10 text-white/40"
+                      className="text-[10px] h-5 border-border text-muted-foreground"
                     >
                       {selectedContentIds.length} Itens
                     </Badge>
@@ -1538,7 +1538,7 @@ export default function CampanhaPage() {
                           className="relative aspect-video rounded-md overflow-hidden group"
                         >
                           {loadingUrls[item.id] ? (
-                            <div className="w-full h-full flex items-center justify-center bg-white/5">
+                            <div className="w-full h-full flex items-center justify-center bg-muted/50">
                               <Loader2 className="w-4 h-4 text-primary animate-spin" />
                             </div>
                           ) : signedUrls[item.id] ? (
@@ -1547,7 +1547,7 @@ export default function CampanhaPage() {
                               className="w-full h-full object-cover"
                             />
                           ) : (
-                            <div className="w-full h-full flex items-center justify-center bg-white/5">
+                            <div className="w-full h-full flex items-center justify-center bg-muted/50">
                               <X className="w-4 h-4 text-red-500/50" />
                             </div>
                           )}
@@ -1555,7 +1555,7 @@ export default function CampanhaPage() {
                             <Button
                               size="icon"
                               variant="ghost"
-                              className="h-6 w-6 text-white hover:text-red-400 hover:bg-transparent"
+                              className="h-6 w-6 text-foreground hover:text-red-400 hover:bg-transparent"
                               onClick={async () => {
                                 if (!campanhaAtiva) return;
                                 try {

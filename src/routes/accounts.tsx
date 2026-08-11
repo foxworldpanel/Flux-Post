@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 
 const CONNECTION_STATUS_MAP: Record<ConnectionStatus, { label: string; color: string }> = {
-  nao_conectada: { label: "Não Conectada", color: "bg-slate-500/10 text-slate-400" },
+  nao_conectada: { label: "Não Conectada", color: "bg-slate-500/10 text-muted-foreground" },
   conectada: { label: "Conectada", color: "bg-emerald-500/10 text-emerald-400" },
   requer_reconexao: { label: "Requer Reconexão", color: "bg-amber-500/10 text-amber-400" },
   erro: { label: "Erro", color: "bg-red-500/10 text-red-400" },
@@ -166,8 +166,8 @@ export default function AccountsPage() {
       <div className="space-y-8 p-8 animate-in fade-in duration-500">
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-4xl font-bold text-white mb-2 font-space">Central de Contas Sociais</h1>
-            <p className="text-slate-400">Destinos de publicação para suas campanhas.</p>
+            <h1 className="text-4xl font-bold text-foreground mb-2 font-space">Central de Contas Sociais</h1>
+            <p className="text-muted-foreground">Destinos de publicação para suas campanhas.</p>
           </div>
           <Button className="bg-[#7C3AED] hover:bg-[#6D28D9]" onClick={() => { setSelectedPlatform(null); setIsAddOpen(true); }}>
             <Plus className="mr-2 h-4 w-4" /> Adicionar Conta
@@ -176,25 +176,25 @@ export default function AccountsPage() {
 
         {/* Métricas Simplificadas */}
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
-          <Card className="bg-[#13131F] border-white/5 p-4"><p className="text-[10px] text-slate-500 font-bold uppercase">Total</p><p className="text-xl font-bold text-white">{accounts.length}</p></Card>
+          <Card className="bg-card border-border p-4"><p className="text-[10px] text-muted-foreground font-bold uppercase">Total</p><p className="text-xl font-bold text-foreground">{accounts.length}</p></Card>
           {platformList.map(p => (
-            <Card key={p} className="bg-[#13131F] border-white/5 p-4">
-              <p className="text-[10px] text-slate-500 font-bold uppercase">{p}</p>
-              <p className="text-xl font-bold text-white">{accounts.filter(a => a.platform === p).length}</p>
+            <Card key={p} className="bg-card border-border p-4">
+              <p className="text-[10px] text-muted-foreground font-bold uppercase">{p}</p>
+              <p className="text-xl font-bold text-foreground">{accounts.filter(a => a.platform === p).length}</p>
             </Card>
           ))}
-          <Card className="bg-[#13131F] border-white/5 p-4"><p className="text-[10px] text-slate-500 font-bold uppercase">Conectadas</p><p className="text-xl font-bold text-emerald-400">{accounts.filter(a => a.connection_status === 'conectada').length}</p></Card>
-          <Card className="bg-[#13131F] border-white/5 p-4"><p className="text-[10px] text-slate-500 font-bold uppercase">Off</p><p className="text-xl font-bold text-amber-400">{accounts.filter(a => a.connection_status !== 'conectada').length}</p></Card>
+          <Card className="bg-card border-border p-4"><p className="text-[10px] text-muted-foreground font-bold uppercase">Conectadas</p><p className="text-xl font-bold text-emerald-400">{accounts.filter(a => a.connection_status === 'conectada').length}</p></Card>
+          <Card className="bg-card border-border p-4"><p className="text-[10px] text-muted-foreground font-bold uppercase">Off</p><p className="text-xl font-bold text-amber-400">{accounts.filter(a => a.connection_status !== 'conectada').length}</p></Card>
         </div>
 
         {/* Filtros */}
-        <div className="flex gap-4 items-center bg-[#13131F]/50 p-4 rounded-xl border border-white/5">
+        <div className="flex gap-4 items-center bg-card/50 p-4 rounded-xl border border-border">
           <div className="flex items-center gap-2">
-            <Label className="text-slate-500 text-xs uppercase">Plataforma:</Label>
+            <Label className="text-muted-foreground text-xs uppercase">Plataforma:</Label>
             <div className="flex gap-2">
               {["Todas", ...platformList].map(p => (
                 <Button key={p} variant={filterPlatform === p ? "default" : "outline"} size="sm" 
-                  className={filterPlatform === p ? "bg-[#7C3AED]" : "border-white/10 text-slate-400 text-xs h-7"}
+                  className={filterPlatform === p ? "bg-[#7C3AED]" : "border-border text-muted-foreground text-xs h-7"}
                   onClick={() => setFilterPlatform(p)}>
                   {p}
                 </Button>
@@ -208,10 +208,10 @@ export default function AccountsPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredAccounts.map(account => (
-              <Card key={account.id} className="bg-[#13131F] border-white/5 p-6 hover:border-purple-500/30 transition-all flex flex-col group">
+              <Card key={account.id} className="bg-card border-border p-6 hover:border-purple-500/30 transition-all flex flex-col group">
                 <div className="flex justify-between items-start mb-4">
                   <div className="flex gap-3">
-                    <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center border border-white/10 text-xl overflow-hidden">
+                    <div className="w-10 h-10 rounded-full bg-muted/50 flex items-center justify-center border border-border text-xl overflow-hidden">
                       {account.profile_image_url ? (
                         <img src={account.profile_image_url} alt="" className="w-full h-full object-cover" />
                       ) : (
@@ -219,29 +219,29 @@ export default function AccountsPage() {
                       )}
                     </div>
                     <div>
-                      <h3 className="text-sm font-bold text-slate-500 uppercase tracking-tight">{account.account_name}</h3>
+                      <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-tight">{account.account_name}</h3>
                       <div className="flex flex-col">
-                        <span className="text-lg font-bold text-white group-hover:text-purple-400 transition-colors">
+                        <span className="text-lg font-bold text-foreground group-hover:text-purple-400 transition-colors">
                           {account.external_display_name || account.username || 'Identidade Pendente'}
                         </span>
                         {account.username && account.username !== account.external_display_name && !account.username.startsWith('tiktok_conta_') && (
-                           <span className="text-xs text-slate-500">@{account.username}</span>
+                           <span className="text-xs text-muted-foreground">@{account.username}</span>
                         )}
                       </div>
                     </div>
                   </div>
                   <div className="flex flex-col items-end gap-1">
-                    <Badge className={`text-[10px] ${CONNECTION_STATUS_MAP[account.connection_status]?.color || 'bg-slate-500/10 text-slate-400'}`}>
+                    <Badge className={`text-[10px] ${CONNECTION_STATUS_MAP[account.connection_status]?.color || 'bg-slate-500/10 text-muted-foreground'}`}>
                       {account.connection_status === 'conectada' ? '🟢 CONECTADA' : CONNECTION_STATUS_MAP[account.connection_status]?.label}
                     </Badge>
                     <span className="text-[9px] text-slate-600 uppercase font-bold tracking-widest">PostPeer</span>
                   </div>
                 </div>
 
-                <div className="flex gap-2 mt-auto pt-4 border-t border-white/5">
+                <div className="flex gap-2 mt-auto pt-4 border-t border-border">
                   {account.connection_status === 'conectada' ? (
                     <>
-                      <Button variant="outline" size="sm" className="flex-1 border-white/10 hover:bg-white/5 text-slate-400 text-xs h-8 gap-1.5" 
+                      <Button variant="outline" size="sm" className="flex-1 border-border hover:bg-muted/50 text-muted-foreground text-xs h-8 gap-1.5" 
                         onClick={() => socialService.syncAccount(account.id)
                           .then(() => { toast.success("Sincronizado!"); loadData(); })
                           .catch((e: Error) => toast.error(e.message))}>
@@ -276,16 +276,16 @@ export default function AccountsPage() {
                   )}
 
                   <div className="flex gap-1">
-                    <Button variant="ghost" size="sm" className="h-8 px-2 text-[10px] text-slate-500 hover:text-white uppercase font-bold" onClick={() => {
+                    <Button variant="ghost" size="sm" className="h-8 px-2 text-[10px] text-muted-foreground hover:text-foreground uppercase font-bold" onClick={() => {
                       setEditingAccount(account);
                       setIsDialogOpen(true);
                     }}>
                       RENOMEAR
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-500 hover:text-white" onClick={() => toggleStatus(account)}>
-                      <Power className={`w-4 h-4 ${account.status === 'active' ? 'text-emerald-500' : 'text-slate-500'}`} />
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={() => toggleStatus(account)}>
+                      <Power className={`w-4 h-4 ${account.status === 'active' ? 'text-emerald-500' : 'text-muted-foreground'}`} />
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-500 hover:text-red-400" onClick={() => archiveAccount(account.id)}>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-red-400" onClick={() => archiveAccount(account.id)}>
                       <Archive className="w-4 h-4" />
                     </Button>
                   </div>
@@ -294,12 +294,12 @@ export default function AccountsPage() {
             ))}
 
             {filteredAccounts.length === 0 && (
-              <div className="col-span-full py-20 text-center border-2 border-dashed border-white/5 rounded-3xl">
-                <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-4 border border-white/10">
+              <div className="col-span-full py-20 text-center border-2 border-dashed border-border rounded-3xl">
+                <div className="w-16 h-16 bg-muted/50 rounded-full flex items-center justify-center mx-auto mb-4 border border-border">
                    <Plus className="text-slate-600" />
                 </div>
-                <h3 className="text-xl font-bold text-white mb-2">Nenhuma conta social</h3>
-                <p className="text-slate-500 mb-6">Conecte uma rede social para começar a distribuir conteúdo.</p>
+                <h3 className="text-xl font-bold text-foreground mb-2">Nenhuma conta social</h3>
+                <p className="text-muted-foreground mb-6">Conecte uma rede social para começar a distribuir conteúdo.</p>
                 <Button className="bg-[#7C3AED]" onClick={() => { setSelectedPlatform(null); setIsAddOpen(true); }}>
                   ADICIONAR CONTA
                 </Button>
@@ -310,7 +310,7 @@ export default function AccountsPage() {
 
         {/* Modal Simples de Edição */}
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogContent className="bg-[#0A0A0F] border-white/10 text-white max-w-md">
+          <DialogContent className="bg-background border-border text-foreground max-w-md">
             <DialogHeader>
               <DialogTitle className="text-xl font-space font-bold">Configurar Conta</DialogTitle>
             </DialogHeader>
@@ -319,11 +319,11 @@ export default function AccountsPage() {
                 <Label>Nome Interno (Flux)</Label>
                 <Input 
                   placeholder="Ex: TikTok Conta 01" 
-                  className="bg-white/5 border-white/10 h-10"
+                  className="bg-muted/50 border-border h-10"
                   value={editingAccount?.account_name || ''}
                   onChange={(e) => setEditingAccount({...editingAccount!, account_name: e.target.value})}
                 />
-                <p className="text-[10px] text-slate-500">Este nome é usado apenas para sua organização interna.</p>
+                <p className="text-[10px] text-muted-foreground">Este nome é usado apenas para sua organização interna.</p>
               </div>
 
               <div className="space-y-2">
@@ -341,7 +341,7 @@ export default function AccountsPage() {
               </div>
 
               <DialogFooter>
-                <Button type="button" variant="ghost" className="text-slate-400" onClick={() => setIsDialogOpen(false)}>Cancelar</Button>
+                <Button type="button" variant="ghost" className="text-muted-foreground" onClick={() => setIsDialogOpen(false)}>Cancelar</Button>
                 <Button type="submit" className="bg-[#7C3AED] px-8">Salvar</Button>
               </DialogFooter>
             </form>
@@ -350,7 +350,7 @@ export default function AccountsPage() {
 
         {/* Modal Adicionar Conta */}
         <Dialog open={isAddOpen} onOpenChange={(open) => { setIsAddOpen(open); if (!open) { setSelectedPlatform(null); setIsConnecting(false); } }}>
-          <DialogContent className="bg-[#0A0A0F] border-white/10 text-white max-w-lg">
+          <DialogContent className="bg-background border-border text-foreground max-w-lg">
             <DialogHeader>
               <DialogTitle className="text-xl font-bold font-space text-center">
                 {selectedPlatform ? `Conectar ${PLATFORM_LABEL[selectedPlatform]}` : "Escolha a plataforma"}
@@ -364,7 +364,7 @@ export default function AccountsPage() {
                     key={p}
                     type="button"
                     onClick={() => setSelectedPlatform(p)}
-                    className="flex flex-col items-center gap-2 p-6 rounded-xl bg-white/5 border border-white/10 hover:border-purple-500/50 hover:bg-purple-500/5 transition-all"
+                    className="flex flex-col items-center gap-2 p-6 rounded-xl bg-muted/50 border border-border hover:border-purple-500/50 hover:bg-purple-500/5 transition-all"
                   >
                     <span className="text-3xl">{PLATFORM_ICON[p]}</span>
                     <span className="text-sm font-bold">{PLATFORM_LABEL[p]}</span>
@@ -373,10 +373,10 @@ export default function AccountsPage() {
               </div>
             ) : (
               <div className="py-6 space-y-5 text-center">
-                <div className="w-16 h-16 rounded-full bg-white/5 border border-white/10 flex items-center justify-center mx-auto text-3xl">
+                <div className="w-16 h-16 rounded-full bg-muted/50 border border-border flex items-center justify-center mx-auto text-3xl">
                   {PLATFORM_ICON[selectedPlatform]}
                 </div>
-                <p className="text-sm text-slate-400 leading-relaxed px-4">
+                <p className="text-sm text-muted-foreground leading-relaxed px-4">
                   Você será redirecionado para o {PLATFORM_LABEL[selectedPlatform]} para autorizar o acesso.
                 </p>
                 <Button
@@ -386,7 +386,7 @@ export default function AccountsPage() {
                 >
                   {isConnecting ? <Loader2 className="animate-spin" /> : `CONECTAR ${PLATFORM_LABEL[selectedPlatform].toUpperCase()}`}
                 </Button>
-                <Button variant="ghost" className="text-slate-500 text-xs" onClick={() => setSelectedPlatform(null)}>Voltar</Button>
+                <Button variant="ghost" className="text-muted-foreground text-xs" onClick={() => setSelectedPlatform(null)}>Voltar</Button>
               </div>
             )}
           </DialogContent>

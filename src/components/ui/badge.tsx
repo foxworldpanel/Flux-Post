@@ -7,7 +7,7 @@ const Badge = ({ className, variant, ...props }: React.HTMLAttributes<HTMLDivEle
     secondary: "bg-secondary text-secondary-foreground",
     destructive: "bg-destructive text-destructive-foreground",
     outline: "text-foreground border border-input",
-    success: "bg-emerald-500 text-white"
+    success: "bg-emerald-500 text-foreground"
   }
   
   return (

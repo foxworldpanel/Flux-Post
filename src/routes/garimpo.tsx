@@ -16,8 +16,8 @@ import { cn } from "@/lib/utils";
 
 function SkeletonCard() {
   return (
-    <Card className="bg-[#13131F] border-white/5 overflow-hidden flex flex-col h-full">
-      <div className="aspect-[9/16] relative bg-slate-900">
+    <Card className="bg-card border-border overflow-hidden flex flex-col h-full">
+      <div className="aspect-[9/16] relative bg-muted">
         <Skeleton className="w-full h-full rounded-none" />
       </div>
       <CardContent className="p-3 space-y-2">
@@ -60,9 +60,9 @@ function VideoCard({
   const duration = video.duration;
 
   return (
-    <Card className="bg-[#13131F] border-white/5 overflow-hidden group flex flex-col h-full hover:border-purple-500/30 transition-all">
+    <Card className="bg-card border-border overflow-hidden group flex flex-col h-full hover:border-purple-500/30 transition-all">
       <div 
-        className="aspect-[9/16] relative bg-slate-900 cursor-pointer overflow-hidden"
+        className="aspect-[9/16] relative bg-muted cursor-pointer overflow-hidden"
         onClick={() => onPreview(video)}
       >
         <img 
@@ -72,11 +72,11 @@ function VideoCard({
         />
         
         {/* Hover Overlay */}
-        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-          <div className="bg-white/10 backdrop-blur-md rounded-full p-3 border border-white/20 transform scale-90 group-hover:scale-100 transition-transform">
-            <Play className="w-6 h-6 text-white fill-white" />
+        <div className="absolute inset-0 bg-background/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+          <div className="bg-muted/20 backdrop-blur-md rounded-full p-3 border border-white/20 transform scale-90 group-hover:scale-100 transition-transform">
+            <Play className="w-6 h-6 text-foreground fill-white" />
           </div>
-          <span className="absolute bottom-10 text-[10px] font-bold text-white uppercase tracking-widest bg-black/40 px-3 py-1 rounded-full backdrop-blur-sm">
+          <span className="absolute bottom-10 text-[10px] font-bold text-foreground uppercase tracking-widest bg-background/40 px-3 py-1 rounded-full backdrop-blur-sm">
             Visualizar
           </span>
         </div>
@@ -84,17 +84,17 @@ function VideoCard({
         {/* Top Badges */}
         <div className="absolute top-2 left-2 flex flex-col gap-1">
           {isImported && (
-             <Badge className="bg-emerald-500 text-white border-none text-[9px] font-bold py-0 h-5">
+             <Badge className="bg-emerald-500 text-foreground border-none text-[9px] font-bold py-0 h-5">
                <Check className="w-3 h-3 mr-1" /> NA BIBLIOTECA
              </Badge>
           )}
           {isPublished && (
-             <Badge className="bg-blue-500 text-white border-none text-[9px] font-bold py-0 h-5">
+             <Badge className="bg-blue-500 text-foreground border-none text-[9px] font-bold py-0 h-5">
                <CheckCircle2 className="w-3 h-3 mr-1" /> JÁ UTILIZADO
              </Badge>
           )}
           {isDiscarded && (
-             <Badge className="bg-slate-500 text-white border-none text-[9px] font-bold py-0 h-5">
+             <Badge className="bg-slate-500 text-foreground border-none text-[9px] font-bold py-0 h-5">
                <XCircle className="w-3 h-3 mr-1" /> DESCARTADO
              </Badge>
           )}
@@ -102,7 +102,7 @@ function VideoCard({
           {isCandidate && video.status && video.status !== 'pendente' && (
              <Badge className={cn(
                "text-[9px] font-bold py-0 h-5 border-none",
-               video.status === 'aprovado' ? "bg-emerald-500 text-white" : "bg-rose-500 text-white"
+               video.status === 'aprovado' ? "bg-emerald-500 text-foreground" : "bg-rose-500 text-foreground"
              )}>
                {video.status.toUpperCase()}
              </Badge>
@@ -110,24 +110,24 @@ function VideoCard({
         </div>
 
         {/* Bottom Metadata Overlay */}
-        <div className="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black/80 via-black/40 to-transparent flex flex-col gap-1">
+        <div className="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-background/80 via-background/40 to-transparent flex flex-col gap-1">
           <div className="flex justify-between items-end">
             <div className="flex flex-col">
-              <span className="text-[9px] text-white/70 font-medium flex items-center gap-1">
+              <span className="text-[9px] text-muted-foreground font-medium flex items-center gap-1">
                 <User className="w-2.5 h-2.5" /> {author}
               </span>
-              <span className="text-[9px] text-white/50 uppercase font-bold tracking-wider">
+              <span className="text-[9px] text-muted-foreground uppercase font-bold tracking-wider">
                 Pexels • {res.width}x{res.height}
               </span>
             </div>
-            <div className="bg-black/60 backdrop-blur-md px-1.5 py-0.5 rounded text-[10px] font-bold text-white border border-white/10">
+            <div className="bg-background/60 backdrop-blur-md px-1.5 py-0.5 rounded text-[10px] font-bold text-foreground border border-border">
               {formatDuration(duration)}
             </div>
           </div>
         </div>
       </div>
 
-      <CardContent className="p-3 bg-[#13131F] mt-auto border-t border-white/5">
+      <CardContent className="p-3 bg-card mt-auto border-t border-border">
         <div className="flex gap-2">
           {isImported ? (
             <Button className="w-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs h-8 cursor-default hover:bg-emerald-500/10" disabled>
@@ -442,15 +442,15 @@ export default function GarimpoPage() {
       <div className="space-y-8 p-8 animate-in fade-in duration-500">
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-4xl font-bold text-white mb-2 font-space">Garimpo</h1>
-            <p className="text-slate-400">Automação de estoque inteligente e curadoria.</p>
+            <h1 className="text-4xl font-bold text-foreground mb-2 font-space">Garimpo</h1>
+            <p className="text-muted-foreground">Automação de estoque inteligente e curadoria.</p>
           </div>
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 mr-4 bg-white/5 p-1 rounded-lg border border-white/10">
+            <div className="flex items-center gap-2 mr-4 bg-muted/50 p-1 rounded-lg border border-border">
               <Button 
                 variant="ghost" 
                 size="sm" 
-                className={cn("h-7 text-[10px] font-bold", hideUsed && "bg-purple-600 text-white hover:bg-purple-700")}
+                className={cn("h-7 text-[10px] font-bold", hideUsed && "bg-purple-600 text-foreground hover:bg-purple-700")}
                 onClick={() => setHideUsed(true)}
               >
                 OCULTAR UTILIZADOS
@@ -458,7 +458,7 @@ export default function GarimpoPage() {
               <Button 
                 variant="ghost" 
                 size="sm" 
-                className={cn("h-7 text-[10px] font-bold", !hideUsed && "bg-purple-600 text-white hover:bg-purple-700")}
+                className={cn("h-7 text-[10px] font-bold", !hideUsed && "bg-purple-600 text-foreground hover:bg-purple-700")}
                 onClick={() => setHideUsed(false)}
               >
                 MOSTRAR TUDO
@@ -481,19 +481,19 @@ export default function GarimpoPage() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="bg-[#13131F] border border-white/5 p-1">
+          <TabsList className="bg-card border border-border p-1">
             <TabsTrigger value="buscar" className="px-8 data-[state=active]:bg-purple-600">EXPLORAR</TabsTrigger>
             <TabsTrigger value="candidatos" className="px-8 data-[state=active]:bg-purple-600">FILA ({candidates.length})</TabsTrigger>
             <TabsTrigger value="automacao" className="px-8 data-[state=active]:bg-purple-600">ESTRATÉGIA</TabsTrigger>
           </TabsList>
 
           <TabsContent value="buscar" className="space-y-6">
-             <div className="bg-[#13131F] p-6 rounded-2xl border border-white/5 space-y-6">
+             <div className="bg-card p-6 rounded-2xl border border-border space-y-6">
                 <div className="flex gap-4">
                   <div className="relative flex-1">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     <Input 
-                      className="bg-white/5 border-white/10 pl-10" 
+                      className="bg-muted/50 border-border pl-10" 
                       value={query} 
                       onChange={(e) => setQuery(e.target.value)} 
                       onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
@@ -513,7 +513,7 @@ export default function GarimpoPage() {
                       <button
                         key={chip}
                         onClick={() => handleChipSearch(chip)}
-                        className="text-[10px] px-3 py-1 rounded-full bg-white/5 border border-white/10 text-slate-400 hover:bg-purple-600/20 hover:text-purple-400 transition-colors"
+                        className="text-[10px] px-3 py-1 rounded-full bg-muted/50 border border-border text-muted-foreground hover:bg-purple-600/20 hover:text-purple-400 transition-colors"
                       >
                         {chip}
                       </button>
@@ -521,14 +521,14 @@ export default function GarimpoPage() {
                   </div>
                 )}
 
-                <div className="flex flex-wrap gap-4 pt-4 border-t border-white/5 items-center">
+                <div className="flex flex-wrap gap-4 pt-4 border-t border-border items-center">
                   <div className="flex items-center gap-2">
-                    <Filter className="w-3.5 h-3.5 text-slate-500" />
-                    <span className="text-[10px] text-slate-500 uppercase font-bold">Filtros API:</span>
+                    <Filter className="w-3.5 h-3.5 text-muted-foreground" />
+                    <span className="text-[10px] text-muted-foreground uppercase font-bold">Filtros API:</span>
                   </div>
                   
                   <Select value={filterOrientation} onValueChange={setFilterOrientation}>
-                    <SelectTrigger className="w-[140px] bg-white/5 border-white/10 h-8 text-xs">
+                    <SelectTrigger className="w-[140px] bg-muted/50 border-border h-8 text-xs">
                       <SelectValue placeholder="Orientação" />
                     </SelectTrigger>
                     <SelectContent>
@@ -540,7 +540,7 @@ export default function GarimpoPage() {
                   </Select>
 
                   <Select value={filterQuality} onValueChange={setFilterQuality}>
-                    <SelectTrigger className="w-[140px] bg-white/5 border-white/10 h-8 text-xs">
+                    <SelectTrigger className="w-[140px] bg-muted/50 border-border h-8 text-xs">
                       <SelectValue placeholder="Qualidade" />
                     </SelectTrigger>
                     <SelectContent>
@@ -551,14 +551,14 @@ export default function GarimpoPage() {
                     </SelectContent>
                   </Select>
 
-                  <div className="h-4 w-px bg-white/10 mx-2" />
+                  <div className="h-4 w-px bg-muted/20 mx-2" />
 
                   <div className="flex items-center gap-2">
-                    <span className="text-[10px] text-slate-500 uppercase font-bold">Local:</span>
+                    <span className="text-[10px] text-muted-foreground uppercase font-bold">Local:</span>
                   </div>
 
                   <Select value={filterDuration} onValueChange={setFilterDuration}>
-                    <SelectTrigger className="w-[140px] bg-white/5 border-white/10 h-8 text-xs">
+                    <SelectTrigger className="w-[140px] bg-muted/50 border-border h-8 text-xs">
                       <SelectValue placeholder="Duração" />
                     </SelectTrigger>
                     <SelectContent>
@@ -571,7 +571,7 @@ export default function GarimpoPage() {
                   </Select>
 
                   <Select value={sortBy} onValueChange={setSortBy}>
-                    <SelectTrigger className="w-[140px] bg-white/5 border-white/10 h-8 text-xs">
+                    <SelectTrigger className="w-[140px] bg-muted/50 border-border h-8 text-xs">
                       <SelectValue placeholder="Ordenar" />
                     </SelectTrigger>
                     <SelectContent>
@@ -582,7 +582,7 @@ export default function GarimpoPage() {
                   </Select>
 
                   {totalResults > 0 && (
-                    <span className="ml-auto text-[10px] text-slate-500 font-mono uppercase">
+                    <span className="ml-auto text-[10px] text-muted-foreground font-mono uppercase">
                       {results.length} de {totalResults.toLocaleString()} vídeos carregados
                     </span>
                   )}
@@ -625,7 +625,7 @@ export default function GarimpoPage() {
 
                 {!loading && (query || searchType === 'popular') && results.length === 0 && (
                   <div className="col-span-full py-20 text-center">
-                    <p className="text-slate-500 italic">Nenhum resultado encontrado.</p>
+                    <p className="text-muted-foreground italic">Nenhum resultado encontrado.</p>
                   </div>
                 )}
              </div>
@@ -636,7 +636,7 @@ export default function GarimpoPage() {
                    variant="outline" 
                    onClick={handleLoadMore} 
                    disabled={loading}
-                   className="bg-[#13131F] border-white/5 hover:border-purple-500/50 hover:bg-purple-600/10 px-12 h-12 text-sm font-bold uppercase tracking-widest transition-all"
+                   className="bg-card border-border hover:border-purple-500/50 hover:bg-purple-600/10 px-12 h-12 text-sm font-bold uppercase tracking-widest transition-all"
                  >
                    {loading ? (
                      <Loader2 className="w-5 h-5 animate-spin mr-3" />
@@ -645,13 +645,13 @@ export default function GarimpoPage() {
                    )}
                    Carregar Mais
                  </Button>
-                 <p className="text-[10px] text-slate-500 font-mono">Página {page} | Exibindo {results.length} de {totalResults.toLocaleString()} {ignoredCount > 0 && `| ${ignoredCount} repetidos ignorados`}</p>
+                 <p className="text-[10px] text-muted-foreground font-mono">Página {page} | Exibindo {results.length} de {totalResults.toLocaleString()} {ignoredCount > 0 && `| ${ignoredCount} repetidos ignorados`}</p>
                </div>
              )}
           </TabsContent>
 
           <TabsContent value="candidatos" className="space-y-6">
-            <div className="flex justify-between items-center bg-[#13131F] p-4 rounded-xl border border-white/5">
+            <div className="flex justify-between items-center bg-card p-4 rounded-xl border border-border">
               <div className="flex gap-2">
                 <Button 
                   variant={candidateFilter === 'pendente' ? 'default' : 'ghost'} 
@@ -672,7 +672,7 @@ export default function GarimpoPage() {
                   className={candidateFilter === 'descartado' ? 'bg-rose-600' : ''}
                 >Descartados</Button>
               </div>
-              <p className="text-xs text-slate-500 font-mono">Exibindo {candidates.length} registros</p>
+              <p className="text-xs text-muted-foreground font-mono">Exibindo {candidates.length} registros</p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -715,7 +715,7 @@ export default function GarimpoPage() {
              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 <div className="lg:col-span-2 space-y-6">
                   <div className="flex justify-between items-center">
-                    <h2 className="text-xl font-bold text-white font-space">Categorias & Metas</h2>
+                    <h2 className="text-xl font-bold text-foreground font-space">Categorias & Metas</h2>
                     <Button onClick={handleAddCategory} variant="outline" size="sm" className="border-purple-500/30 text-purple-400">
                       <Plus className="w-4 h-4 mr-2" /> Adicionar Categoria
                     </Button>
@@ -723,18 +723,18 @@ export default function GarimpoPage() {
 
                   <div className="space-y-4">
                     {discoveryCategories.map(cat => (
-                      <Card key={cat.id} className="bg-[#13131F] border-white/5">
+                      <Card key={cat.id} className="bg-card border-border">
                         <CardContent className="p-6">
                           <div className="flex flex-col gap-6">
                             <div className="flex justify-between items-start">
                               <div className="space-y-1">
                                 <div className="flex items-center gap-3">
-                                  <h3 className="text-lg font-bold text-white">{cat.name}</h3>
-                                  <Badge className={cat.is_active ? "bg-emerald-500/10 text-emerald-400" : "bg-slate-500/10 text-slate-400"}>
+                                  <h3 className="text-lg font-bold text-foreground">{cat.name}</h3>
+                                  <Badge className={cat.is_active ? "bg-emerald-500/10 text-emerald-400" : "bg-slate-500/10 text-muted-foreground"}>
                                     {cat.is_active ? "Ativa" : "Inativa"}
                                   </Badge>
                                 </div>
-                                <p className="text-xs text-slate-500">Déficit: {Math.max(0, (cat.target_count || 0))} unidades</p>
+                                <p className="text-xs text-muted-foreground">Déficit: {Math.max(0, (cat.target_count || 0))} unidades</p>
                               </div>
                               <div className="flex gap-2">
                                 <Button size="icon" variant="ghost" onClick={() => handleUpdateCategory(cat.id, { is_active: !cat.is_active })}>
@@ -748,18 +748,18 @@ export default function GarimpoPage() {
 
                             <div className="grid grid-cols-2 gap-4">
                                <div className="space-y-2">
-                                  <label className="text-xs text-slate-500 font-bold uppercase">Meta de Estoque</label>
+                                  <label className="text-xs text-muted-foreground font-bold uppercase">Meta de Estoque</label>
                                   <Input 
                                     type="number" 
-                                    className="bg-white/5" 
+                                    className="bg-muted/50" 
                                     defaultValue={cat.target_count} 
                                     onBlur={(e) => handleUpdateCategory(cat.id, { target_count: parseInt(e.target.value) })}
                                   />
                                </div>
                                <div className="space-y-2">
-                                  <label className="text-xs text-slate-500 font-bold uppercase">Termos de Busca (CSV)</label>
+                                  <label className="text-xs text-muted-foreground font-bold uppercase">Termos de Busca (CSV)</label>
                                   <Input 
-                                    className="bg-white/5" 
+                                    className="bg-muted/50" 
                                     defaultValue={cat.search_terms?.join(', ')} 
                                     onBlur={(e) => handleUpdateTerms(cat.id, e.target.value)}
                                     placeholder="termo 1, termo 2..."
@@ -774,7 +774,7 @@ export default function GarimpoPage() {
                 </div>
 
                 <div className="space-y-6">
-                   <Card className="bg-[#13131F] border-white/5">
+                   <Card className="bg-card border-border">
                       <CardHeader><CardTitle>Parâmetros Globais</CardTitle></CardHeader>
                       <CardContent className="space-y-6">
                          <div className="space-y-2">
@@ -784,7 +784,7 @@ export default function GarimpoPage() {
                               value={settings?.max_per_execution} 
                               onChange={e => updateSettings({ max_per_execution: parseInt(e.target.value) })} 
                             />
-                            <p className="text-[10px] text-slate-500">Máximo de vídeos importados por rodada.</p>
+                            <p className="text-[10px] text-muted-foreground">Máximo de vídeos importados por rodada.</p>
                          </div>
                          <div className="space-y-2">
                             <label className="text-sm font-medium">Orientação Preferencial</label>
@@ -792,7 +792,7 @@ export default function GarimpoPage() {
                               value={settings?.default_orientation} 
                               onValueChange={(val: any) => updateSettings({ default_orientation: val })}
                             >
-                              <SelectTrigger className="bg-white/5">
+                              <SelectTrigger className="bg-muted/50">
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
@@ -804,11 +804,11 @@ export default function GarimpoPage() {
                          </div>
                          <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
-                               <label className="text-xs text-slate-500">Duração Mín (s)</label>
+                               <label className="text-xs text-muted-foreground">Duração Mín (s)</label>
                                <Input type="number" value={settings?.min_duration} onChange={e => updateSettings({ min_duration: parseInt(e.target.value) })} />
                             </div>
                             <div className="space-y-2">
-                               <label className="text-xs text-slate-500">Duração Máx (s)</label>
+                               <label className="text-xs text-muted-foreground">Duração Máx (s)</label>
                                <Input type="number" value={settings?.max_duration} onChange={e => updateSettings({ max_duration: parseInt(e.target.value) })} />
                             </div>
                          </div>
@@ -823,7 +823,7 @@ export default function GarimpoPage() {
                         </CardTitle>
                       </CardHeader>
                       <CardContent className="space-y-4">
-                        <p className="text-sm text-slate-400">Inicia a busca automática no Pexels baseada nas categorias deficitárias.</p>
+                        <p className="text-sm text-muted-foreground">Inicia a busca automática no Pexels baseada nas categorias deficitárias.</p>
                         <Button 
                           onClick={async () => {
                             setLoading(true);
@@ -847,12 +847,12 @@ export default function GarimpoPage() {
                    </Card>
 
                    {lastReport && (
-                     <Card className="bg-slate-900 border-white/5">
+                     <Card className="bg-muted border-border">
                        <CardHeader><CardTitle className="text-sm">Última Rodada</CardTitle></CardHeader>
                        <CardContent className="space-y-2">
                           {lastReport.summary.details.map((d, i) => (
-                            <div key={i} className="flex justify-between text-xs border-b border-white/5 pb-1">
-                               <span className="text-slate-400">{d.category}</span>
+                            <div key={i} className="flex justify-between text-xs border-b border-border pb-1">
+                               <span className="text-muted-foreground">{d.category}</span>
                                <span className={d.added > 0 ? "text-emerald-400" : "text-slate-600"}>+{d.added}</span>
                             </div>
                           ))}
@@ -865,7 +865,7 @@ export default function GarimpoPage() {
         </Tabs>
 
         <Dialog open={!!selectedCandidate} onOpenChange={() => setSelectedCandidate(null)}>
-          <DialogContent className="max-w-4xl bg-[#0A0A0F] border-white/10 p-0 overflow-hidden ring-0">
+          <DialogContent className="max-w-4xl bg-background border-border p-0 overflow-hidden ring-0">
              {selectedCandidate && (
                <div className="flex flex-col md:flex-row h-full max-h-[90vh]">
                   <div className="md:w-[45%] aspect-[9/16] bg-black flex items-center justify-center relative group">
@@ -877,7 +877,7 @@ export default function GarimpoPage() {
                        className="w-full h-full object-contain" 
                      />
                      <div className="absolute top-4 left-4">
-                       <Badge className="bg-black/60 backdrop-blur-md border-white/10 text-[10px] font-bold">PREVIEW</Badge>
+                       <Badge className="bg-background/60 backdrop-blur-md border-border text-[10px] font-bold">PREVIEW</Badge>
                      </div>
                   </div>
                   
@@ -887,41 +887,41 @@ export default function GarimpoPage() {
                           <Video className="w-4 h-4" />
                           <span className="text-[10px] font-bold uppercase tracking-wider">Garimpo Inteligente</span>
                         </div>
-                        <DialogTitle className="text-3xl font-space font-bold text-white">Visualização Técnica</DialogTitle>
-                        <p className="text-slate-500 text-sm">Analise os metadados antes de importar para sua biblioteca.</p>
+                        <DialogTitle className="text-3xl font-space font-bold text-foreground">Visualização Técnica</DialogTitle>
+                        <p className="text-muted-foreground text-sm">Analise os metadados antes de importar para sua biblioteca.</p>
                      </DialogHeader>
                      
                      <div className="grid grid-cols-2 gap-4">
-                        <div className="bg-white/[0.03] p-4 rounded-2xl border border-white/5 space-y-1">
-                           <div className="flex items-center gap-2 text-slate-500">
+                        <div className="bg-white/[0.03] p-4 rounded-2xl border border-border space-y-1">
+                           <div className="flex items-center gap-2 text-muted-foreground">
                              <Filter className="w-3.5 h-3.5" />
                              <span className="text-[10px] font-bold uppercase tracking-tighter">Categoria</span>
                            </div>
-                           <p className="text-white font-medium text-lg">{selectedCandidate.category || "Manual"}</p>
+                           <p className="text-foreground font-medium text-lg">{selectedCandidate.category || "Manual"}</p>
                         </div>
                         
-                        <div className="bg-white/[0.03] p-4 rounded-2xl border border-white/5 space-y-1">
-                           <div className="flex items-center gap-2 text-slate-500">
+                        <div className="bg-white/[0.03] p-4 rounded-2xl border border-border space-y-1">
+                           <div className="flex items-center gap-2 text-muted-foreground">
                              <Clock className="w-3.5 h-3.5" />
                              <span className="text-[10px] font-bold uppercase tracking-tighter">Duração</span>
                            </div>
-                           <p className="text-white font-medium text-lg">{formatDuration(selectedCandidate.duration || 0)}</p>
+                           <p className="text-foreground font-medium text-lg">{formatDuration(selectedCandidate.duration || 0)}</p>
                         </div>
 
-                        <div className="bg-white/[0.03] p-4 rounded-2xl border border-white/5 space-y-1">
-                           <div className="flex items-center gap-2 text-slate-500">
+                        <div className="bg-white/[0.03] p-4 rounded-2xl border border-border space-y-1">
+                           <div className="flex items-center gap-2 text-muted-foreground">
                              <User className="w-3.5 h-3.5" />
                              <span className="text-[10px] font-bold uppercase tracking-tighter">Autor</span>
                            </div>
-                           <p className="text-white font-medium text-lg truncate">{selectedCandidate.author || "Pexels"}</p>
+                           <p className="text-foreground font-medium text-lg truncate">{selectedCandidate.author || "Pexels"}</p>
                         </div>
 
-                        <div className="bg-white/[0.03] p-4 rounded-2xl border border-white/5 space-y-1">
-                           <div className="flex items-center gap-2 text-slate-500">
+                        <div className="bg-white/[0.03] p-4 rounded-2xl border border-border space-y-1">
+                           <div className="flex items-center gap-2 text-muted-foreground">
                              <Maximize2 className="w-3.5 h-3.5" />
                              <span className="text-[10px] font-bold uppercase tracking-tighter">Resolução</span>
                            </div>
-                           <p className="text-white font-medium text-lg">
+                           <p className="text-foreground font-medium text-lg">
                              {getResolutionInfo(selectedCandidate.metadata || selectedCandidate).width}x{getResolutionInfo(selectedCandidate.metadata || selectedCandidate).height}
                            </p>
                         </div>
@@ -929,7 +929,7 @@ export default function GarimpoPage() {
 
                      <div className="space-y-4 pt-4">
                         <div className="flex flex-col gap-2">
-                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Fonte Oficial</label>
+                          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Fonte Oficial</label>
                           <a 
                             href={selectedCandidate.original_url || `https://www.pexels.com/video/${selectedCandidate.external_id}/`}
                             target="_blank" 
@@ -942,8 +942,8 @@ export default function GarimpoPage() {
                         </div>
 
                         <div className="flex flex-col gap-2">
-                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">ID Pexels</label>
-                          <code className="bg-white/5 px-3 py-2 rounded-lg text-xs text-slate-400 border border-white/5 font-mono">
+                          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">ID Pexels</label>
+                          <code className="bg-muted/50 px-3 py-2 rounded-lg text-xs text-muted-foreground border border-border font-mono">
                             {selectedCandidate.external_id}
                           </code>
                         </div>
@@ -963,8 +963,8 @@ export default function GarimpoPage() {
                             {importingId ? <Loader2 className="w-6 h-6 animate-spin" /> : (selectedCandidate.id === 'new' ? "IMPORTAR AGORA" : "APROVAR E IMPORTAR")}
                           </Button>
                         )}
-                        <p className="text-[10px] text-slate-500 text-center uppercase tracking-widest font-bold">
-                          Vídeo fornecido por <a href="https://www.pexels.com" target="_blank" rel="noopener noreferrer" className="text-white hover:underline">Pexels</a>
+                        <p className="text-[10px] text-muted-foreground text-center uppercase tracking-widest font-bold">
+                          Vídeo fornecido por <a href="https://www.pexels.com" target="_blank" rel="noopener noreferrer" className="text-foreground hover:underline">Pexels</a>
                         </p>
                      </div>
                   </div>
