@@ -15,6 +15,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { renderService } from "@/services/renderService";
 import { toast } from "sonner";
 import { Play, Save, Loader2, Video as VideoIcon, Music, CheckCircle2, History } from "lucide-react";
+import { storageService } from "@/services/storage";
 
 interface LibraryItem {
   id: string;
@@ -95,13 +96,21 @@ export default function ProcessarPage() {
 
     try {
       setSaving(true);
-      const fileName = `processed-${Date.now()}.mp4`;
-      
-      console.log('Salvando vídeo processado:', fileName);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Usuário não autenticado");
 
-      const { data: uploadData, error: uploadError } = await supabase.storage
+      const extension = "mp4";
+      const filePath = storageService.generateSafePath({
+        userId: user.id,
+        assetType: 'video',
+        extension
+      });
+      
+      console.log('Salvando vídeo processado (seguro):', filePath);
+
+      const { error: uploadError } = await supabase.storage
         .from('videos')
-        .upload(fileName, resultBlob, {
+        .upload(filePath, resultBlob, {
           cacheControl: '3600',
           upsert: true,
           contentType: 'video/mp4'
@@ -109,15 +118,22 @@ export default function ProcessarPage() {
 
       if (uploadError) {
         console.error('Erro upload storage:', uploadError);
-        throw uploadError;
+        throw new Error("Não foi possível salvar o vídeo na biblioteca.");
       }
 
-      // Fluxo legado removido conforme auditoria.
-      // O media_renders já é persistido pelo renderService.requestRender().
-      
-      toast.success("Vídeo processado e disponível na Central de Renders!");
+      // 3. Save to videos table (Manual processing)
+      const { error: dbError } = await supabase.from("videos").insert({
+        nome: `Processado ${new Date().toLocaleDateString()}`,
+        storage_path: filePath,
+        user_id: user.id
+      });
 
-      toast.success("Vídeo salvo na biblioteca!");
+      if (dbError) {
+        await storageService.cleanup('videos', filePath);
+        throw dbError;
+      }
+      
+      toast.success("Vídeo processado e salvo na biblioteca!");
     } catch (error: any) {
       toast.error("Erro ao salvar: " + error.message);
     } finally {
