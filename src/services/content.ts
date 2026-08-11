@@ -63,16 +63,19 @@ export interface DiscoveryReport {
 }
 
 export const contentService = {
-  async searchPexels({ query, orientation, page = 1, per_page = 20 }: {
-    query: string;
+  async searchPexels({ query, orientation, size, locale, type = 'search', page = 1, per_page = 40 }: {
+    query?: string;
     orientation?: string;
+    size?: string;
+    locale?: string;
+    type?: 'search' | 'popular';
     page?: number;
     per_page?: number;
   }) {
     const { data: { session } } = await supabase.auth.getSession();
     
     const { data, error } = await supabase.functions.invoke("pexels-search", {
-      body: { query, orientation, page, per_page },
+      body: { query, orientation, size, locale, type, page, per_page },
       headers: {
         Authorization: `Bearer ${session?.access_token}`
       }
