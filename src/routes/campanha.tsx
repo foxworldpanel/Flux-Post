@@ -1504,6 +1504,12 @@ export default function CampanhaPage() {
                       {campanhaAtiva.status}
                     </Badge>
                   </div>
+                  <div className="flex justify-between items-center text-sm pt-2 border-t border-white/5">
+                    <span className="text-white/40">Anti-Repetição</span>
+                    <Badge variant="outline" className="text-[10px] border-emerald-500/20 text-emerald-500 bg-emerald-500/5">
+                      {campanhaAtiva.repeat_policy === 'never' ? 'NUNCA REPETIR' : 'COOLDOWN'}
+                    </Badge>
+                  </div>
                 </CardContent>
               </Card>
 
