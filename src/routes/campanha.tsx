@@ -81,6 +81,7 @@ type Campanha = {
   data_inicio: string;
   data_fim: string;
   status: string;
+  repeat_policy?: string;
   music_tracks?: MusicTrack;
   artists?: Artist;
 };
