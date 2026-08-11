@@ -172,6 +172,11 @@ export default function Index() {
                     status="ok" 
                   />
                    <AuditItem 
+                    label="Reconciliação de Schema" 
+                    desc="Alinhamento completo entre código, banco remoto e PostgREST." 
+                    status="ok" 
+                  />
+                  <AuditItem 
                     label="Publicações: scheduled_for" 
                     desc="Unificação do campo canônico de agendamento TIMESTAMPTZ (Database & API)." 
                     status="ok" 
