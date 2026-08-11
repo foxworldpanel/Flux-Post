@@ -868,7 +868,7 @@ export type Database = {
           media_render_id: string | null
           metadata: Json | null
           music_id: string | null
-          platform: string | null
+          platform: string
           post_url: string | null
           provider_connection_id: string | null
           provider_post_id: string | null
@@ -892,7 +892,7 @@ export type Database = {
           media_render_id?: string | null
           metadata?: Json | null
           music_id?: string | null
-          platform?: string | null
+          platform: string
           post_url?: string | null
           provider_connection_id?: string | null
           provider_post_id?: string | null
@@ -916,7 +916,7 @@ export type Database = {
           media_render_id?: string | null
           metadata?: Json | null
           music_id?: string | null
-          platform?: string | null
+          platform?: string
           post_url?: string | null
           provider_connection_id?: string | null
           provider_post_id?: string | null

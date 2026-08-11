@@ -130,7 +130,7 @@ export default function PublicacoesPage() {
                       <div className="space-y-2 flex-1">
                         <div className="flex items-center gap-2">
                            {getStatusBadge(pub.status)}
-                           <Badge variant="outline" className="border-border text-[10px] text-muted-foreground uppercase font-bold tracking-widest">{pub.platform}</Badge>
+                           <Badge variant="outline" className="border-border text-[10px] text-muted-foreground uppercase font-bold tracking-widest">{pub.platform || pub.social_accounts?.platform}</Badge>
                         </div>
                         <h4 className="text-foreground font-medium line-clamp-1">{pub.caption || "Sem legenda"}</h4>
                         <div className="flex items-center gap-4 text-xs text-muted-foreground">
