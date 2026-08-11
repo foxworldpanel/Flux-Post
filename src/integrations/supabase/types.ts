@@ -197,10 +197,14 @@ export type Database = {
         Row: {
           artist_id: string | null
           audio_mode: string | null
+          batch_interval_minutes: number | null
           cooldown_days: number | null
           criado_em: string | null
+          daily_end_time: string | null
+          daily_start_time: string | null
           data_fim: string | null
           data_inicio: string | null
+          destination_interval_seconds: number | null
           distribution_mode: string | null
           distribution_variation: string | null
           editorial_language: string | null
@@ -216,16 +220,22 @@ export type Database = {
           nome: string
           original_audio_volume: number | null
           posts_por_dia: number | null
+          start_mode: string | null
           status: string | null
+          timezone: string | null
           user_id: string | null
         }
         Insert: {
           artist_id?: string | null
           audio_mode?: string | null
+          batch_interval_minutes?: number | null
           cooldown_days?: number | null
           criado_em?: string | null
+          daily_end_time?: string | null
+          daily_start_time?: string | null
           data_fim?: string | null
           data_inicio?: string | null
+          destination_interval_seconds?: number | null
           distribution_mode?: string | null
           distribution_variation?: string | null
           editorial_language?: string | null
@@ -241,16 +251,22 @@ export type Database = {
           nome: string
           original_audio_volume?: number | null
           posts_por_dia?: number | null
+          start_mode?: string | null
           status?: string | null
+          timezone?: string | null
           user_id?: string | null
         }
         Update: {
           artist_id?: string | null
           audio_mode?: string | null
+          batch_interval_minutes?: number | null
           cooldown_days?: number | null
           criado_em?: string | null
+          daily_end_time?: string | null
+          daily_start_time?: string | null
           data_fim?: string | null
           data_inicio?: string | null
+          destination_interval_seconds?: number | null
           distribution_mode?: string | null
           distribution_variation?: string | null
           editorial_language?: string | null
@@ -266,7 +282,9 @@ export type Database = {
           nome?: string
           original_audio_volume?: number | null
           posts_por_dia?: number | null
+          start_mode?: string | null
           status?: string | null
+          timezone?: string | null
           user_id?: string | null
         }
         Relationships: [
