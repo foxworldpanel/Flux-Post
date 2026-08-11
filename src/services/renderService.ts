@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { storageService } from "./storage";
 import { processVideo } from "./videoProcessor";
 import { toast } from "sonner";
 
@@ -97,7 +98,16 @@ export const renderService = {
       const { data: signedVideo } = await supabase.storage.from('content-library').createSignedUrl(videoData.storage_path, 3600);
       if (!signedVideo) throw new Error("Erro ao gerar URL do vídeo");
 
-      const musicUrl = musicData?.storage_path || '';
+      let musicUrl = '';
+      if (musicData?.storage_path) {
+        // Se o path for uma URL (legado), usa direto. Se for o novo path relativo, gera signed URL.
+        if (musicData.storage_path.startsWith('http')) {
+          musicUrl = musicData.storage_path;
+        } else {
+          const { data: signedMusic } = await supabase.storage.from('musicas').createSignedUrl(musicData.storage_path, 3600);
+          if (signedMusic) musicUrl = signedMusic.signedUrl;
+        }
+      }
 
       const blob = await processVideo(
         signedVideo.signedUrl,
