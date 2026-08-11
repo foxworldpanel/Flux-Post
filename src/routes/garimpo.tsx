@@ -33,6 +33,8 @@ interface VideoCardProps {
   onPreview: (video: any) => void;
   isImporting: boolean;
   isImported: boolean;
+  isPublished?: boolean;
+  isDiscarded?: boolean;
   formatDuration: (s: number) => string;
   getResolutionInfo: (v: any) => { width: number, height: number, quality: string };
   isCandidate?: boolean;
@@ -45,7 +47,10 @@ function VideoCard({
   onPreview, 
   isImporting, 
   isImported, 
+  isPublished,
+  isDiscarded,
   formatDuration, 
+
   getResolutionInfo,
   isCandidate,
   onDiscard
@@ -83,6 +88,17 @@ function VideoCard({
                <Check className="w-3 h-3 mr-1" /> NA BIBLIOTECA
              </Badge>
           )}
+          {isPublished && (
+             <Badge className="bg-blue-500 text-white border-none text-[9px] font-bold py-0 h-5">
+               <CheckCircle2 className="w-3 h-3 mr-1" /> JÁ UTILIZADO
+             </Badge>
+          )}
+          {isDiscarded && (
+             <Badge className="bg-slate-500 text-white border-none text-[9px] font-bold py-0 h-5">
+               <XCircle className="w-3 h-3 mr-1" /> DESCARTADO
+             </Badge>
+          )}
+
           {isCandidate && video.status && video.status !== 'pendente' && (
              <Badge className={cn(
                "text-[9px] font-bold py-0 h-5 border-none",
@@ -154,6 +170,11 @@ export default function GarimpoPage() {
   const [candidateFilter, setCandidateFilter] = useState<'pendente' | 'aprovado' | 'descartado'>('pendente');
   const [importingId, setImportingId] = useState<string | null>(null);
   const [importedExternalIds, setImportedExternalIds] = useState<Set<string>>(new Set());
+  const [publishedExternalIds, setPublishedExternalIds] = useState<Set<string>>(new Set());
+  const [discardedExternalIds, setDiscardedExternalIds] = useState<Set<string>>(new Set());
+  const [hideUsed, setHideUsed] = useState(true);
+  const [ignoredCount, setIgnoredCount] = useState(0);
+
 
   // Pagination & Search State
   const [page, setPage] = useState(1);
@@ -174,8 +195,16 @@ export default function GarimpoPage() {
 
   const fetchData = async () => {
     const library = await contentService.getLibrary();
-    const ids = new Set(library.map(item => item.metadata?.pexels_id?.toString()).filter(Boolean));
-    setImportedExternalIds(ids as Set<string>);
+    const libIds = new Set(library.map(item => item.metadata?.pexels_id?.toString()).filter(Boolean));
+    setImportedExternalIds(libIds as Set<string>);
+
+    const { data: pubData } = await supabase.from('publications').select('content_library(metadata)');
+    const pubIds = new Set(pubData?.map(p => (p.content_library as any)?.metadata?.pexels_id?.toString()).filter(Boolean));
+    setPublishedExternalIds(pubIds as Set<string>);
+
+    const { data: discData } = await supabase.from('content_candidates').select('external_id').eq('status', 'descartado');
+    const discIds = new Set(discData?.map(d => d.external_id).filter(Boolean));
+    setDiscardedExternalIds(discIds as Set<string>);
 
     if (activeTab === "candidatos") {
       setLoadingCandidates(true);
@@ -215,16 +244,26 @@ export default function GarimpoPage() {
         '4k': 'large'
       };
 
+      const excludeIds = hideUsed ? [
+        ...Array.from(importedExternalIds),
+        ...Array.from(publishedExternalIds),
+        ...Array.from(discardedExternalIds)
+      ] : [];
+
       const data = await contentService.searchPexels({ 
         query: searchType === 'search' ? query : undefined, 
         type: searchType,
         orientation: filterOrientation === 'all' ? undefined : filterOrientation,
         size: filterQuality !== 'all' ? sizeMap[filterQuality] : undefined,
         page: targetPage,
-        per_page: 40
+        per_page: 40,
+        exclude_ids: excludeIds,
+        ensure_min_results: 40
       });
 
       const newVideos = data.videos || [];
+      setIgnoredCount(data.ignored_count || 0);
+
       if (isLoadMore) {
         setResults(prev => [...prev, ...newVideos]);
       } else {
@@ -407,6 +446,24 @@ export default function GarimpoPage() {
             <p className="text-slate-400">Automação de estoque inteligente e curadoria.</p>
           </div>
           <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 mr-4 bg-white/5 p-1 rounded-lg border border-white/10">
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className={cn("h-7 text-[10px] font-bold", hideUsed && "bg-purple-600 text-white hover:bg-purple-700")}
+                onClick={() => setHideUsed(true)}
+              >
+                OCULTAR UTILIZADOS
+              </Button>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className={cn("h-7 text-[10px] font-bold", !hideUsed && "bg-purple-600 text-white hover:bg-purple-700")}
+                onClick={() => setHideUsed(false)}
+              >
+                MOSTRAR TUDO
+              </Button>
+            </div>
             <Button 
               variant="outline" 
               onClick={handlePopular} 
@@ -418,6 +475,7 @@ export default function GarimpoPage() {
             >
               <Video className="w-4 h-4 mr-2" /> POPULARES
             </Button>
+
             <Badge className="bg-purple-500/10 text-purple-400 border-purple-500/20 px-3 py-1">Fase 2.3 Ativa</Badge>
           </div>
         </div>
@@ -557,10 +615,13 @@ export default function GarimpoPage() {
                     })}
                     isImporting={importingId === video.id.toString()}
                     isImported={importedExternalIds.has(video.id.toString())}
+                    isPublished={publishedExternalIds.has(video.id.toString())}
+                    isDiscarded={discardedExternalIds.has(video.id.toString())}
                     formatDuration={formatDuration}
                     getResolutionInfo={getResolutionInfo}
                   />
                 ))}
+
 
                 {!loading && (query || searchType === 'popular') && results.length === 0 && (
                   <div className="col-span-full py-20 text-center">
@@ -584,7 +645,7 @@ export default function GarimpoPage() {
                    )}
                    Carregar Mais
                  </Button>
-                 <p className="text-[10px] text-slate-500 font-mono">Página {page} | Exibindo {results.length} de {totalResults.toLocaleString()}</p>
+                 <p className="text-[10px] text-slate-500 font-mono">Página {page} | Exibindo {results.length} de {totalResults.toLocaleString()} {ignoredCount > 0 && `| ${ignoredCount} repetidos ignorados`}</p>
                </div>
              )}
           </TabsContent>
@@ -633,6 +694,8 @@ export default function GarimpoPage() {
                     onPreview={() => setSelectedCandidate(cand)}
                     isImporting={importingId === cand.id}
                     isImported={cand.status === 'aprovado' || importedExternalIds.has(cand.external_id)}
+                    isPublished={publishedExternalIds.has(cand.external_id)}
+                    isDiscarded={cand.status === 'descartado' || discardedExternalIds.has(cand.external_id)}
                     formatDuration={formatDuration}
                     getResolutionInfo={getResolutionInfo}
                     isCandidate={true}
