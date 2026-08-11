@@ -175,18 +175,21 @@ serve(async (req) => {
     }
 
     // 3. Atualizar estado do cron para auditoria REAL
-    // Usamos um ID fixo ou singleton para o dispatcher principal
     const { error: upsertError } = await supabaseAdmin
       .from("server_cron_state")
       .upsert({ 
-        id: '00000000-0000-0000-0000-000000000001', // UUID fixo para o motor principal
+        id: '00000000-0000-0000-0000-000000000001',
         last_run_at: new Date().toISOString(),
         last_success_at: new Date().toISOString(),
         processed_count: publications.length,
-        executor_type: 'edge_function_dispatcher'
+        executor_type: 'edge_function_dispatcher',
+        last_error: null
       }, { onConflict: 'id' });
 
-    if (upsertError) console.error("[campaign-dispatcher] Erro ao atualizar server_cron_state:", upsertError.message);
+    if (upsertError) {
+      console.error(`[campaign-dispatcher] Erro ao atualizar server_cron_state: ${upsertError.code} - ${upsertError.message}`);
+      console.error(`Detalhes: ${upsertError.details}, Hint: ${upsertError.hint}`);
+    }
 
     return new Response(JSON.stringify({ processed: publications.length, results }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
