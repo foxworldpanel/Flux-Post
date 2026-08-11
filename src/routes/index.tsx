@@ -181,6 +181,7 @@ export default function Index() {
                     desc="Cálculo dinâmico de horários imediatos com intervalos entre destinos." 
                     status="ok" 
                   />
+                </div>
               </CardContent>
             </Card>
           </div>
