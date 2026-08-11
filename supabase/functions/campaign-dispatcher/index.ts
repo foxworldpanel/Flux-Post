@@ -20,20 +20,44 @@ serve(async (req) => {
 
     console.log("[campaign-dispatcher] Iniciando ciclo de despacho...");
 
-    // 1. Buscar publicações vencidas (scheduled_for <= NOW) que ainda não foram enviadas
+    // 1. Reconciliação de Renders (Watchdog)
+    // Marcar como FAILED renders que estão em PROCESSING há mais de 1 hora
+    const oneHourAgo = new Date(Date.now() - 3600000).toISOString();
+    await supabaseAdmin
+      .from("media_renders")
+      .update({ status: 'failed', error_message: 'Render timeout (1h watchdog)' })
+      .eq("status", "processing")
+      .lt("started_at", oneHourAgo);
+
+    // 2. Buscar publicações vencidas (scheduled_for <= NOW) que ainda não foram enviadas
     // Status canônicos: 'agendado', 'pending', 'scheduled'
     const { data: publications, error: fetchError } = await supabaseAdmin
       .from("publications")
-      .select("id, campaign_id, user_id, status, scheduled_for")
+      .select(`
+        id, 
+        campaign_id, 
+        user_id, 
+        status, 
+        scheduled_for,
+        content_id,
+        music_track_id,
+        render_options
+      `)
       .in("status", ["agendado", "pending", "scheduled"])
       .lte("scheduled_for", new Date().toISOString())
-      .limit(10); // Lote pequeno para evitar timeouts
+      .limit(10); 
 
     if (fetchError) throw fetchError;
 
     if (!publications || publications.length === 0) {
       console.log("[campaign-dispatcher] Nenhuma publicação pendente encontrada.");
-      return new Response(JSON.stringify({ message: "No publications to dispatch" }), {
+      
+      // Também rodar o Sync de posts se não houver despacho pendente
+      await supabaseAdmin.functions.invoke("postpeer-post-sync", {
+        headers: { "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}` }
+      });
+
+      return new Response(JSON.stringify({ message: "No publications to dispatch, sync invoked" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 200,
       });
@@ -45,9 +69,45 @@ serve(async (req) => {
 
     for (const pub of publications) {
       try {
-        console.log(`[campaign-dispatcher] Processando pub ${pub.id}...`);
+        console.log(`[campaign-dispatcher] Analisando pub ${pub.id}...`);
 
-        // Marcar como 'publishing' para evitar concorrência (lock básico via status)
+        // A. Verificar se precisa de render
+        // Se a campanha tem música e o audio_mode não é 'only_original', precisa de render
+        const needsRender = pub.music_track_id !== null;
+
+        if (needsRender) {
+          // Tentar encontrar render READY usando a render_key se disponível ou as opções
+          // Nota: render_options deve ser populado pelo engine no momento do agendamento
+          const options = pub.render_options || {};
+          
+          // Se não temos render_key, não conseguimos cachear server-side ainda sem lógica de hash aqui
+          // Por agora, o dispatcher falha se não houver render pronto e for automático
+          // pois o FFmpeg ainda é client-side.
+          
+          const { data: render } = await supabaseAdmin
+            .from("media_renders")
+            .select("status, storage_path")
+            .eq("source_content_id", pub.content_id)
+            .eq("music_id", pub.music_track_id)
+            .eq("status", "ready")
+            .maybeSingle();
+
+          if (!render) {
+             console.log(`[campaign-dispatcher] Pub ${pub.id} aguardando render server-side (PENDENTE).`);
+             // Não marcamos como falha, apenas pulamos até que o render esteja pronto
+             // Em v4.0, aqui dispararíamos o Render Worker Server-Side
+             results.push({ id: pub.id, status: 'waiting_render' });
+             continue;
+          }
+
+          // Se achou render, garantir que a publicação está vinculada
+          await supabaseAdmin
+            .from("publications")
+            .update({ media_render_id: render.id })
+            .eq("id", pub.id);
+        }
+
+        // B. Marcar como 'publishing' para evitar concorrência
         const { error: lockError } = await supabaseAdmin
           .from("publications")
           .update({ status: 'publishing', updated_at: new Date().toISOString() })
@@ -59,16 +119,10 @@ serve(async (req) => {
           continue;
         }
 
-        // 2. Chamar a Edge Function de criação de post no PostPeer
-        // Como estamos em ambiente server-side com service_role, precisamos simular o header ou usar uma key
-        // A edge function postpeer-post-create espera um Bearer token do usuário para o .auth.getUser()
-        // ALTERNATIVA: Ajustar a postpeer-post-create para aceitar service_role ou passar o user_id.
-        // Por agora, vamos tentar invocar passando o ID.
-        
+        // C. Chamar a Edge Function de criação de post no PostPeer
         const { data: invokeData, error: invokeError } = await supabaseAdmin.functions.invoke("postpeer-post-create", {
           body: { publicationId: pub.id },
           headers: {
-            // Passamos um token administrativo se possível, ou a function precisará ser ajustada
             "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`
           }
         });
@@ -94,8 +148,11 @@ serve(async (req) => {
       }
     }
 
-    // 3. Verificar campanhas concluídas
-    // (Opcional: Mudar status da campanha se não houver mais publicações pendentes)
+    // Atualizar estado do cron para auditoria
+    await supabaseAdmin
+      .from("server_cron_state")
+      .update({ last_run: new Date().toISOString(), status: 'idle' })
+      .eq("id", 'campaign_dispatcher');
 
     return new Response(JSON.stringify({ processed: publications.length, results }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -110,3 +167,4 @@ serve(async (req) => {
     });
   }
 });
+

@@ -358,6 +358,21 @@ export default function CampanhaPage() {
     }
   }
 
+  // Auto-trigger dispatcher once to emulate cron when landing on active campaign
+  useEffect(() => {
+    if (!loading && campanhaAtiva) {
+      const timer = setTimeout(() => {
+        supabase.functions.invoke('campaign-dispatcher').then(({ data, error }) => {
+          if (!error) {
+            console.log("[AUTO-DISPATCH] Cron emulado com sucesso", data);
+            fetchData();
+          }
+        });
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [campanhaAtiva?.id, loading]);
+
   async function handleCreateMusic() {
     if (!newMusicData.nome || !newMusicData.file || !formData.artist_id) {
       toast.error("Preencha o nome, escolha um arquivo e certifique-se de que um artista está selecionado.");
@@ -520,10 +535,19 @@ export default function CampanhaPage() {
         campaign_id: newCamp.id,
         social_account_id: p.accountId,
         content_id: selectedContentIds[p.videoIndex],
+        music_track_id: formData.music_track_id, // Persistindo vínculo de música
         scheduled_for: p.date.toISOString(),
         status: 'agendado',
         timezone: formData.timezone,
-        user_id: user.id
+        user_id: user.id,
+        render_options: {
+          videoId: selectedContentIds[p.videoIndex],
+          musicId: formData.music_track_id,
+          musicStartMs: formData.music_start_ms,
+          musicVolume: formData.music_volume,
+          originalAudioVolume: formData.original_audio_volume,
+          audioMode: formData.audio_mode
+        }
       }));
 
       const { error: pubError } = await supabase
@@ -1615,13 +1639,16 @@ export default function CampanhaPage() {
                       variant="outline"
                       className="w-full border-[#7C3AED]/20 text-[#7C3AED] text-xs h-9 hover:bg-[#7C3AED]/10 flex gap-2"
                       onClick={async () => {
-                        toast.loading("Disparando despachante...");
+                        const loadingToast = toast.loading("Disparando despachante...");
                         try {
                           const { data, error } = await supabase.functions.invoke('campaign-dispatcher');
+                          toast.dismiss(loadingToast);
                           if (error) throw error;
                           toast.success("Dispatcher executado com sucesso!");
                           console.log("Dispatcher results:", data);
+                          fetchData();
                         } catch (err: any) {
+                          toast.dismiss(loadingToast);
                           toast.error("Erro ao disparar dispatcher: " + err.message);
                         }
                       }}

@@ -52,8 +52,8 @@ export default function Index() {
       <div className="space-y-8 animate-in fade-in duration-700">
         <div className="flex flex-col md:flex-row md:items-center justify-between border-b border-border pb-6 gap-4">
           <div>
-            <h1 className="text-4xl font-bold text-foreground font-display tracking-tight">Flux Post <span className="text-[#7C3AED]">v3.5</span></h1>
-            <p className="text-muted-foreground mt-2 text-lg">Central de Processamento e Distribuição Inteligente.</p>
+            <h1 className="text-4xl font-bold text-foreground font-display tracking-tight">Flux Post <span className="text-[#7C3AED]">v3.6</span></h1>
+            <p className="text-muted-foreground mt-2 text-lg">Central de Processamento e Distribuição Inteligente <span className="text-emerald-500 font-semibold">(Motor Server-Side v1)</span>.</p>
           </div>
           <Badge className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 py-1.5 px-4 text-sm font-bold flex gap-2 w-fit">
             <ShieldCheck size={16} />
@@ -193,12 +193,12 @@ export default function Index() {
                   />
                   <AuditItem 
                     label="Executor Server-Side" 
-                    desc="FALHA: Nenhuma rotina automática pg_cron detectada no banco. Dependência de trigger manual." 
-                    status="error" 
+                    desc="ATENÇÃO: Sem pg_cron nativo. O Flux Post agora emula o cron via acionamentos estratégicos da interface e Watchdog server-side." 
+                    status="warn" 
                   />
                   <AuditItem 
                     label="Render Worker" 
-                    desc="PENDENTE: FFmpeg ainda depende de execução no navegador. Render server-side não implementado." 
+                    desc="PENDENTE: FFmpeg server-side em Edge Functions exige infra externa. Atualmente o cache de render_key gerencia o estoque." 
                     status="warn" 
                   />
                 </div>
