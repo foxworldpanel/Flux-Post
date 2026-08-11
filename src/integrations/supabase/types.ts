@@ -873,6 +873,7 @@ export type Database = {
           provider_connection_id: string | null
           provider_post_id: string | null
           published_at: string | null
+          render_options: Json | null
           scheduled_for: string | null
           social_account_id: string | null
           status: string | null
@@ -897,6 +898,7 @@ export type Database = {
           provider_connection_id?: string | null
           provider_post_id?: string | null
           published_at?: string | null
+          render_options?: Json | null
           scheduled_for?: string | null
           social_account_id?: string | null
           status?: string | null
@@ -921,6 +923,7 @@ export type Database = {
           provider_connection_id?: string | null
           provider_post_id?: string | null
           published_at?: string | null
+          render_options?: Json | null
           scheduled_for?: string | null
           social_account_id?: string | null
           status?: string | null

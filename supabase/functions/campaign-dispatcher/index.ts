@@ -148,11 +148,19 @@ serve(async (req) => {
       }
     }
 
-    // Atualizar estado do cron para auditoria
-    await supabaseAdmin
+    // 3. Atualizar estado do cron para auditoria REAL
+    // Usamos um ID fixo ou singleton para o dispatcher principal
+    const { error: upsertError } = await supabaseAdmin
       .from("server_cron_state")
-      .update({ last_run: new Date().toISOString(), status: 'idle' })
-      .eq("id", 'campaign_dispatcher');
+      .upsert({ 
+        id: '00000000-0000-0000-0000-000000000001', // UUID fixo para o motor principal
+        last_run_at: new Date().toISOString(),
+        last_success_at: new Date().toISOString(),
+        processed_count: publications.length,
+        executor_type: 'edge_function_dispatcher'
+      }, { onConflict: 'id' });
+
+    if (upsertError) console.error("[campaign-dispatcher] Erro ao atualizar server_cron_state:", upsertError.message);
 
     return new Response(JSON.stringify({ processed: publications.length, results }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

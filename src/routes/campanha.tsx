@@ -358,17 +358,17 @@ export default function CampanhaPage() {
     }
   }
 
-  // Auto-trigger dispatcher once to emulate cron when landing on active campaign
+  // Trigger dispatcher once to clear queue when landing on active campaign (UI Trigger Fallback)
   useEffect(() => {
     if (!loading && campanhaAtiva) {
       const timer = setTimeout(() => {
         supabase.functions.invoke('campaign-dispatcher').then(({ data, error }) => {
           if (!error) {
-            console.log("[AUTO-DISPATCH] Cron emulado com sucesso", data);
+            console.log("[UI-TRIGGER] Fila processada via trigger da interface", data);
             fetchData();
           }
         });
-      }, 3000);
+      }, 2000);
       return () => clearTimeout(timer);
     }
   }, [campanhaAtiva?.id, loading]);
