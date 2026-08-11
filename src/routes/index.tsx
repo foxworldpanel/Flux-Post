@@ -210,8 +210,8 @@ export default function Index() {
         </Card>
 
         <footer className="pt-8 border-t border-border/50 text-xs text-muted-foreground flex justify-between">
-          <p>Flux Post Engine v3.8 — Auditoria Baseada em Código Versionado</p>
-          <p>Estado do Motor: HÍBRIDO (SCHEDULER PENDENTE)</p>
+          <p>Flux Post Engine v3.9 — Automação Server-Side Nativa</p>
+          <p>Estado do Motor: OPERACIONAL (SCHEDULER ONLINE)</p>
         </footer>
       </div>
     </DashboardLayout>
