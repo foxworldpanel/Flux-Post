@@ -74,7 +74,7 @@ export default function Index() {
       // 2. Executor Server-Side (Dispatcher)
       const { data: cronState } = await supabase
         .from("server_cron_state")
-        .select("last_run_at")
+        .select("*")
         .eq("id", "00000000-0000-0000-0000-000000000001")
         .maybeSingle();
 
@@ -82,25 +82,28 @@ export default function Index() {
       
       results.push({
         id: "dispatcher",
-        label: "Executor Server-Side (Autonomia)",
+        label: "Scheduler Server-Side (pg_cron)",
         status: isDispatcherActive ? "success" : "warning",
-        message: isDispatcherActive ? "Dispatcher detectado e operando autonomamente." : "Dispatcher em modo fallback (Emulado via UI)."
+        message: isDispatcherActive 
+          ? `ONLINE: Última execução em ${new Date(cronState.last_run_at).toLocaleTimeString()}.` 
+          : "OFFLINE: Scheduler automático não detectado (Aguardando primeiro ciclo)."
       });
 
-      // 3. Render Engine
+      // 3. Render Worker
       results.push({
         id: "render_worker",
-        label: "Render Engine (FFmpeg)",
-        status: "error",
-        message: "Renderização server-side PENDENTE (Infraestrutura externa necessária)."
+        label: "Render Worker (FFmpeg)",
+        status: "warning",
+        message: "AGUARDANDO DEPLOY: Arquitetura server-side preparada, aguardando provisionamento de container."
       });
 
-      // 4. PostPeer Pipeline
+      // 4. Fila de Automação
+      const { count: queuedRenders } = await supabase.from("media_renders").select("*", { count: 'exact', head: true }).eq("status", "queued");
       results.push({
-        id: "postpeer",
-        label: "PostPeer v1 (Sync & Create)",
-        status: "success",
-        message: "Pipeline integrado com x-access-key e payloads normalizados."
+        id: "queue_status",
+        label: "Fila de Processamento",
+        status: queuedRenders && queuedRenders > 0 ? "warning" : "success",
+        message: `${queuedRenders || 0} renders na fila. ${stats.renders} no cache.`
       });
 
       setAudit(results);
