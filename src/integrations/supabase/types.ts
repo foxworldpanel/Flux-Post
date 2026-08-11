@@ -198,6 +198,7 @@ export type Database = {
           artist_id: string | null
           audio_mode: string | null
           batch_interval_minutes: number | null
+          content_interval_minutes: number | null
           cooldown_days: number | null
           criado_em: string | null
           daily_end_time: string | null
@@ -214,21 +215,28 @@ export type Database = {
           id: string
           intervalo_max: number | null
           intervalo_min: number | null
+          music_start_mode: string | null
           music_start_ms: number | null
           music_track_id: string | null
           music_volume: number | null
           nome: string
           original_audio_volume: number | null
+          posts_per_day: number | null
           posts_por_dia: number | null
+          repeat_cooldown_days: number | null
+          repeat_policy: string | null
+          schedule_mode: string | null
           start_mode: string | null
           status: string | null
           timezone: string | null
           user_id: string | null
+          variation_level: string | null
         }
         Insert: {
           artist_id?: string | null
           audio_mode?: string | null
           batch_interval_minutes?: number | null
+          content_interval_minutes?: number | null
           cooldown_days?: number | null
           criado_em?: string | null
           daily_end_time?: string | null
@@ -245,21 +253,28 @@ export type Database = {
           id?: string
           intervalo_max?: number | null
           intervalo_min?: number | null
+          music_start_mode?: string | null
           music_start_ms?: number | null
           music_track_id?: string | null
           music_volume?: number | null
           nome: string
           original_audio_volume?: number | null
+          posts_per_day?: number | null
           posts_por_dia?: number | null
+          repeat_cooldown_days?: number | null
+          repeat_policy?: string | null
+          schedule_mode?: string | null
           start_mode?: string | null
           status?: string | null
           timezone?: string | null
           user_id?: string | null
+          variation_level?: string | null
         }
         Update: {
           artist_id?: string | null
           audio_mode?: string | null
           batch_interval_minutes?: number | null
+          content_interval_minutes?: number | null
           cooldown_days?: number | null
           criado_em?: string | null
           daily_end_time?: string | null
@@ -276,16 +291,22 @@ export type Database = {
           id?: string
           intervalo_max?: number | null
           intervalo_min?: number | null
+          music_start_mode?: string | null
           music_start_ms?: number | null
           music_track_id?: string | null
           music_volume?: number | null
           nome?: string
           original_audio_volume?: number | null
+          posts_per_day?: number | null
           posts_por_dia?: number | null
+          repeat_cooldown_days?: number | null
+          repeat_policy?: string | null
+          schedule_mode?: string | null
           start_mode?: string | null
           status?: string | null
           timezone?: string | null
           user_id?: string | null
+          variation_level?: string | null
         }
         Relationships: [
           {
@@ -850,6 +871,7 @@ export type Database = {
           music_id: string | null
           platform: string
           post_url: string | null
+          provider_connection_id: string | null
           provider_post_id: string | null
           published_at: string | null
           scheduled_for: string | null
@@ -873,6 +895,7 @@ export type Database = {
           music_id?: string | null
           platform: string
           post_url?: string | null
+          provider_connection_id?: string | null
           provider_post_id?: string | null
           published_at?: string | null
           scheduled_for?: string | null
@@ -896,6 +919,7 @@ export type Database = {
           music_id?: string | null
           platform?: string
           post_url?: string | null
+          provider_connection_id?: string | null
           provider_post_id?: string | null
           published_at?: string | null
           scheduled_for?: string | null
