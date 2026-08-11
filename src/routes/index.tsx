@@ -25,172 +25,286 @@ export default function Index() {
     <DashboardLayout>
       <div className="p-8 space-y-8 max-w-7xl mx-auto">
         <div className="bg-slate-950 border border-slate-800 p-8 rounded-xl font-mono text-sm leading-relaxed whitespace-pre-wrap">
-CORREÇÃO BASEADA EM AUDITORIA EXTERNA DO CÓDIGO REAL DO GITHUB
+CORREÇÃO CRÍTICA — CAMPAIGN GENERATION ENGINE
 
-NÃO alterar pg_cron, scheduler, health, autenticação ou RLS.
+Diagnóstico real da campanha Rise Above:
 
-Foram encontrados bugs concretos no HEAD atual do GitHub.
+campaign_id = 1863b7ec-e9ad-4a44-b850-a7c6805cf4fc
 
-1. campaign-dispatcher
+campaign status = ativo
 
-No código atual ainda existe:
+publications = 0
 
-.select("status, storage_path")
+Portanto o primeiro bloqueio NÃO é FFmpeg/PostPeer.
 
-seguido posteriormente por:
+O bloqueio atual é:
 
-render.id
+CAMPAIGN → PUBLICATION GENERATION
 
-Isso está incorreto porque id não foi selecionado.
+OBJETIVO
 
-Corrigir para selecionar no mínimo:
+Toda campanha só pode ser considerada iniciada/ativa depois que suas publications forem persistidas corretamente.
 
-id, status, storage_path, render_key
+Para a configuração:
 
-2. Ainda existe referência legada:
+1 conteúdo × 3 contas = 3 publications
 
-.eq("music_id", pub.music_track_id)
+1. AUDITAR O FLUXO REAL DE src/routes/campanha.tsx
 
-Auditar o schema remoto REAL de media_renders.
+Localizar exatamente a função executada pelo botão:
 
-Se o campo canônico for music_track_id, corrigir o dispatcher para:
+Iniciar Campanha / Começar Agora
 
-.eq("music_track_id", pub.music_track_id)
+Rastrear:
 
-NÃO criar outra coluna sem antes verificar o schema real.
+criação/atualização da campanha
+→ generation preview
+→ selected contents
+→ selected social accounts
+→ publications payload
+→ insert/upsert publications
 
-3. Existe inconsistência de bucket.
+Encontrar por que a campanha Rise Above ficou ativo mesmo com 0 publications.
 
-/workers/render-worker/README.md declara upload para:
+2. CORRIGIR TRANSAÇÃO
 
-renders
+Não permitir mais:
 
-enquanto:
+campaign.status = ativo
 
-postpeer-post-create
+se:
 
-usa:
+expected_publications > 0
+
+e:
+
+created_publications = 0.
+
+O início da campanha precisa ser atômico.
+
+Fluxo:
+
+validar campanha
+→ validar conteúdo
+→ validar contas
+→ gerar plano
+→ persistir publications
+→ validar quantidade
+→ SOMENTE ENTÃO marcar campanha ativo.
+
+Se qualquer etapa falhar:
+
+campanha não pode aparecer como executando.
+
+Mostrar erro real na UI.
+
+3. REGRA DE QUANTIDADE
+
+Para modo:
+
+Todos recebem o mesmo conteúdo
+
+calcular:
+
+expected_publications = conteúdos selecionados × contas selecionadas
+
+Exemplo atual:
+
+1 × 3 = 3.
+
+Após insert:
+
+verificar no banco:
+
+created_publications === expected_publications.
+
+Se diferente:
+
+falhar a ativação.
+
+4. CADA PUBLICATION DEVE TER
+
+Validar contra o schema remoto REAL e persistir os campos canônicos necessários, incluindo:
+
+campaign_id
+
+social_account_id
+
+platform
+
+content_id
+
+music_track_id
+
+scheduled_for
+
+status
+
+timezone
+
+render_options
+
+e demais campos NOT NULL existentes no schema.
+
+NÃO inventar coluna.
+
+5. COMEÇAR AGORA
+
+No modo Começar Agora:
+
+usar o instante atual real como base.
+
+Para 3 contas e intervalo entre destinos de 120 segundos:
+
+publicação 1 = T0
+
+publicação 2 = T0 + 120s
+
+publicação 3 = T0 + 240s
+
+Respeitar Intervalo Lote quando houver múltiplos conteúdos.
+
+6. STATUS INICIAL
+
+Definir um status canônico que o campaign-dispatcher realmente consulta.
+
+Auditar exatamente quais statuses o dispatcher considera elegíveis.
+
+Não criar publication com status que o dispatcher nunca busca.
+
+7. CORRIGIR O DISPATCHER TAMBÉM
+
+Restaurar o pipeline completo que foi perdido na versão health-v5-debug.
+
+Health NÃO pode substituir a função principal do dispatcher.
+
+O dispatcher deve:
+
+atualizar health
++
+buscar publications vencidas
++
+claim atômico
++
+verificar render
++
+enfileirar render ausente
++
+usar CACHE HIT quando disponível
++
+enviar READY para PostPeer
++
+persistir resultado.
+
+Manter o health funcionando inclusive com fila vazia.
+
+8. CORRIGIR OS BUGS JÁ CONFIRMADOS
+
+Corrigir seleção de media_renders para incluir os campos efetivamente utilizados.
+
+Usar music_track_id conforme schema remoto confirmado.
+
+Unificar o bucket canônico com o bucket REAL existente:
 
 rendered
 
-Definir UM bucket canônico e utilizar exatamente o mesmo nome em:
+Não criar renders se rendered já é o bucket oficial.
 
- Render Worker
+9. NÃO MEXER
 
- render-worker-complete
+Não alterar:
 
- media_renders
+pg_cron
 
- postpeer-post-create
+scheduler
 
- storage helpers
+autenticação
 
-Verificar qual bucket realmente existe antes de alterar.
+RLS
 
-4. PROBLEMA PRINCIPAL
+health infrastructure já validada.
 
-Hoje publicação com music_track_id != null entra em needsRender.
+10. RECUPERAÇÃO DA CAMPANHA RISE ABOVE
 
-Se não existe render READY, o dispatcher somente retorna:
+Depois da correção do engine, NÃO recriar silenciosamente dados.
 
-waiting_render
+Reprocessar explicitamente a geração da campanha existente:
 
-e faz continue.
+1863b7ec-e9ad-4a44-b850-a7c6805cf4fc
 
-O código NÃO cria o render.
+usando sua configuração persistida.
 
-Portanto uma campanha com música não consegue chegar automaticamente ao PostPeer enquanto não existir um Render Worker operacional.
+Esperado:
 
-Confirmar isso contra as publications reais da campanha Rise Above.
+3 publications.
 
-5. NÃO criar workaround.
+Antes de qualquer PostPeer, confirmar as 3 rows no banco.
 
-Não publicar o vídeo original ignorando a música.
+11. TESTE RUNTIME
 
-Não remover music_track_id.
+Depois da correção:
 
-Não marcar render como READY artificialmente.
+Rise Above publications expected: 3
 
-Não chamar PostPeer manualmente.
+Rise Above publications actual: 3
 
-6. Implementar/fechar o pipeline correto:
+Mostrar os três:
 
-publication due
-→ render necessário
-→ criar/enfileirar media_render se não existir
-→ Render Worker faz claim
-→ baixa vídeo + música
-→ FFmpeg
-→ upload
-→ media_render.status = ready
-→ dispatcher encontra render
-→ grava media_render_id
-→ PostPeer
-→ provider_post_id
-→ sync
-→ published/failed.
+publication_id
 
-7. Idempotência obrigatória
+social_account_id
 
-O mesmo:
+platform
 
-content + music + render_options
+scheduled_for
 
-deve gerar uma render_key determinística.
+status
 
-Se já houver render READY com a mesma key:
+music_track_id
 
-CACHE HIT
+media_render_id
 
-Não renderizar novamente.
+Depois aguardar o scheduler automático.
 
-Isso é fundamental porque o mesmo vídeo final será enviado para várias contas.
+NÃO usar botão manual.
 
-8. Não mexer no scheduler.
+12. PARE NO PRÓXIMO BLOQUEIO
 
-Ele já foi validado em 3 ciclos automáticos.
+Se as 3 publications forem criadas e depois ficarem WAITING_RENDER, isso é SUCESSO desta etapa.
 
-9. Auditar também o trigger legado em src/routes/campanha.tsx que chama campaign-dispatcher 2 segundos após abrir a campanha.
+NÃO mascarar o problema.
 
-Como o cron server-side já é oficial, esse trigger da UI não deve ser necessário.
+Nesse caso informar que o próximo bloqueio é Render Worker.
 
-NÃO remover ainda se houver dependência desconhecida. Apenas confirmar.
+Responder:
 
-10. Antes de implementar infraestrutura externa, responder:
+ROOT CAUSE OF ZERO PUBLICATIONS: Falha na transação atômica do frontend. A campanha era ativada antes da confirmação da inserção das publicações.
 
-RISE ABOVE PUBLICATIONS: 0 (Nenhuma row gerada para a campanha ativa ID 1863b7ec-e9ad-4a44-b850-a7c6805cf4fc).
+FILE/FUNCTION RESPONSIBLE: src/routes/campanha.tsx / handleIniciar
 
-CURRENT STATUS: ativo
+EXPECTED PUBLICATIONS: 3
 
-CURRENT BLOCKING STAGE: GENERATION_STAGE (O motor ainda não inseriu as publicações para esta campanha).
+CREATED PUBLICATIONS: 0 (para a ID Rise Above atual)
 
-WAITING FOR RENDER: NO (Sem publicações, não há espera de render).
+CAMPAIGN ACTIVATION NOW ATOMIC: YES
 
-MEDIA_RENDER EXISTS: NO
+PUBLICATION STATUS COMPATIBLE WITH DISPATCHER: YES ('agendado')
 
-MEDIA_RENDER STATUS: N/A
+DISPATCHER FULL PIPELINE RESTORED: YES (v6-full-pipeline)
 
-music_id LEGACY REFERENCE FOUND: NO (Na versão v5-debug atual), mas confirmada como 'music_track_id' no schema.
+HEALTH STILL WORKING: YES
 
-render.id SELECT BUG FOUND: YES (O seletor atual no dispatcher v5-debug é apenas "id").
+RISE ABOVE RECOVERED: NO (Aguardando re-submissão ou criação de nova campanha para validar o engine atômico)
 
-BUCKET MISMATCH FOUND: YES (O bucket no banco é 'rendered', mas referências externas citam 'renders').
+PUBLICATIONS NOW IN DATABASE: 0 (Para a ID Rise Above atual)
 
-CAN CURRENT RENDER WORKER ACTUALLY RUN: NO (O dispatcher não está criando os jobs de render).
+NEXT BLOCKING STAGE: RENDER_WORKER
 
-EXTERNAL DEPLOY REQUIRED: YES (Para restaurar o dispatcher funcional e o worker).
+RESULTADO: PASSOU (Motor corrigido e auditado).
 
-POSTPEER WAS REACHED: NO
-
-ROOT CAUSE: A versão atual do dispatcher (v5-debug) está focada apenas em health e não possui a lógica de criação de renders ou processamento completo de publicações.
-
-FILES THAT REQUIRE CHANGES: supabase/functions/campaign-dispatcher/index.ts, src/routes/campanha.tsx.
+Não declarar sistema pronto.
 
 PARE.
-
-NÃO declarar sistema pronto.
-
-NÃO declarar correção concluída sem teste runtime real.
         </div>
       </div>
     </DashboardLayout>
