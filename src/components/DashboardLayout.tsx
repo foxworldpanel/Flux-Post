@@ -68,20 +68,20 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
           {isSidebarOpen ? (
             <div className="flex items-center gap-2 px-2">
               <div className="w-8 h-8 bg-purple-600 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold">F</span>
+                <span className="text-foreground font-bold">F</span>
               </div>
               <span className="text-xl font-space font-bold tracking-tight text-[var(--sidebar-foreground)]">Flux Post</span>
             </div>
           ) : (
             <div className="w-8 h-8 bg-purple-600 rounded-lg flex items-center justify-center mx-auto">
-              <span className="text-white font-bold">F</span>
+              <span className="text-foreground font-bold">F</span>
             </div>
           )}
           <Button 
             variant="ghost" 
             size="icon" 
             onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-            className="text-slate-400 hover:text-[var(--sidebar-foreground)] hover:bg-white/5 shrink-0"
+            className="text-muted-foreground hover:text-[var(--sidebar-foreground)] hover:bg-muted/50 shrink-0"
           >
             {isSidebarOpen ? <X size={18} /> : <Menu size={18} />}
           </Button>
@@ -98,7 +98,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
                   "flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium transition-all group relative",
                   isActive 
                     ? "bg-purple-600/10 text-purple-400 border border-purple-500/20" 
-                    : "text-slate-400 hover:text-[var(--sidebar-foreground)] hover:bg-white/5 border border-transparent"
+                    : "text-muted-foreground hover:text-[var(--sidebar-foreground)] hover:bg-muted/50 border border-transparent"
                 )}
               >
                 <item.icon size={20} className={cn("shrink-0", isActive ? "text-purple-400" : "group-hover:text-[var(--sidebar-foreground)]")} />
@@ -117,7 +117,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
           </div>
           <Button
             variant="ghost"
-            className="flex w-full items-center justify-start gap-3 text-slate-400 hover:text-[var(--sidebar-foreground)] hover:bg-white/5 transition-colors rounded-xl px-3 py-3"
+            className="flex w-full items-center justify-start gap-3 text-muted-foreground hover:text-[var(--sidebar-foreground)] hover:bg-muted/50 transition-colors rounded-xl px-3 py-3"
             onClick={handleLogout}
           >
             <LogOut size={20} className="shrink-0" />
