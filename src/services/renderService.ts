@@ -70,7 +70,7 @@ export const renderService = {
         user_id: user.id,
         render_key: renderKey,
         source_content_id: options.videoId,
-        music_id: options.musicId,
+        music_track_id: options.musicId,
         music_start_ms: options.musicStartMs,
         audio_mode: options.audioMode,
         music_volume: options.musicVolume,
