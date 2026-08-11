@@ -1000,43 +1000,75 @@ export default function CampanhaPage() {
                         <ShieldCheck size={14} /> Configurações de Distribuição (Avançado)
                       </Label>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-4">
                       <div className="space-y-2">
-                        <Label className="text-white/60 text-[10px] uppercase font-bold">Intervalo entre Destinos (Contas)</Label>
-                        <Select
-                          value={formData.destination_interval_seconds.toString()}
-                          onValueChange={(v) => setFormData({ ...formData, destination_interval_seconds: parseInt(v) })}
-                        >
-                          <SelectTrigger className="bg-white/5 border-white/10 text-white h-8 text-xs">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent className="bg-[#13131F] border-white/10 text-white">
-                            <SelectItem value="30">30 segundos</SelectItem>
-                            <SelectItem value="60">1 minuto</SelectItem>
-                            <SelectItem value="120">2 minutos</SelectItem>
-                            <SelectItem value="300">5 minutos</SelectItem>
-                          </SelectContent>
-                        </Select>
+                        <Label className="text-white/60 text-[10px] uppercase font-bold">Repetição de Conteúdo</Label>
+                        <div className="grid grid-cols-2 gap-3">
+                          <button
+                            type="button"
+                            onClick={() => setFormData({ ...formData, repeat_policy: 'never' })}
+                            className={`flex items-center justify-between p-3 rounded-lg border text-[10px] font-bold transition-all ${
+                              formData.repeat_policy === 'never'
+                                ? "bg-primary/20 border-primary text-white"
+                                : "bg-white/5 border-white/10 text-white/40 hover:border-white/20"
+                            }`}
+                          >
+                            <span>NUNCA REPETIR NA CONTA</span>
+                            {formData.repeat_policy === 'never' && <Check size={12} />}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setFormData({ ...formData, repeat_policy: 'cooldown' })}
+                            className={`flex items-center justify-between p-3 rounded-lg border text-[10px] font-bold transition-all ${
+                              formData.repeat_policy === 'cooldown'
+                                ? "bg-primary/20 border-primary text-white"
+                                : "bg-white/5 border-white/10 text-white/40 hover:border-white/20"
+                            }`}
+                          >
+                            <span>PERMITIR APÓS COOLDOWN</span>
+                            {formData.repeat_policy === 'cooldown' && <Check size={12} />}
+                          </button>
+                        </div>
                       </div>
-                      
-                      {/* Mostrar aviso de sobreposição se necessário */}
-                      {(() => {
-                        const totalDestinations = selectedAccountIds.length;
-                        const timeNeededForBatch = (totalDestinations * formData.destination_interval_seconds) / 60;
-                        const isOverlapping = formData.start_mode === 'now' && timeNeededForBatch > formData.batch_interval_minutes;
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="space-y-2">
+                          <Label className="text-white/60 text-[10px] uppercase font-bold">Intervalo entre Destinos (Contas)</Label>
+                          <Select
+                            value={formData.destination_interval_seconds.toString()}
+                            onValueChange={(v) => setFormData({ ...formData, destination_interval_seconds: parseInt(v) })}
+                          >
+                            <SelectTrigger className="bg-white/5 border-white/10 text-white h-8 text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent className="bg-[#13131F] border-white/10 text-white">
+                              <SelectItem value="30">30 segundos</SelectItem>
+                              <SelectItem value="60">1 minuto</SelectItem>
+                              <SelectItem value="120">2 minutos</SelectItem>
+                              <SelectItem value="300">5 minutos</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
                         
-                        if (isOverlapping) {
-                          return (
-                            <div className="flex items-center gap-2 text-yellow-500 bg-yellow-500/10 p-2 rounded border border-yellow-500/20">
-                              <AlertTriangle size={14} />
-                              <span className="text-[10px] font-medium leading-tight">
-                                Este lote ainda estará sendo distribuído quando o próximo começar.
-                              </span>
-                            </div>
-                          );
-                        }
-                        return null;
-                      })()}
+                        {/* Mostrar aviso de sobreposição se necessário */}
+                        {(() => {
+                          const totalDestinations = selectedAccountIds.length;
+                          const timeNeededForBatch = (totalDestinations * formData.destination_interval_seconds) / 60;
+                          const isOverlapping = formData.start_mode === 'now' && timeNeededForBatch > formData.batch_interval_minutes;
+                          
+                          if (isOverlapping) {
+                            return (
+                              <div className="flex items-center gap-2 text-yellow-500 bg-yellow-500/10 p-2 rounded border border-yellow-500/20 self-end h-8">
+                                <AlertTriangle size={14} />
+                                <span className="text-[10px] font-medium leading-tight">
+                                  Sobreposição detectada.
+                                </span>
+                              </div>
+                            );
+                          }
+                          return null;
+                        })()}
+                      </div>
                     </div>
                   </div>
                 </div>
