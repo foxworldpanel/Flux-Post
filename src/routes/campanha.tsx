@@ -358,6 +358,21 @@ export default function CampanhaPage() {
     }
   }
 
+  // Auto-trigger dispatcher once to emulate cron when landing on active campaign
+  useEffect(() => {
+    if (!loading && campanhaAtiva) {
+      const timer = setTimeout(() => {
+        supabase.functions.invoke('campaign-dispatcher').then(({ data, error }) => {
+          if (!error) {
+            console.log("[AUTO-DISPATCH] Cron emulado com sucesso", data);
+            fetchData();
+          }
+        });
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [campanhaAtiva?.id, loading]);
+
   async function handleCreateMusic() {
     if (!newMusicData.nome || !newMusicData.file || !formData.artist_id) {
       toast.error("Preencha o nome, escolha um arquivo e certifique-se de que um artista está selecionado.");
