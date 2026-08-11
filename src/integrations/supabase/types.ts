@@ -1374,6 +1374,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      dispatch_publications: { Args: never; Returns: Json }
       generate_unique_artist_slug: {
         Args: { p_exclude_id?: string; p_name: string; p_user_id: string }
         Returns: string
