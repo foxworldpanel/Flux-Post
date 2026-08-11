@@ -223,7 +223,7 @@ export default function Index() {
 
             <div className="pt-4 border-t border-[#7C3AED]/20 mt-4 text-[#7C3AED] font-medium flex justify-between items-center">
               <span>ESTADO ATUAL DO MOTOR: {dbData?.cron_state?.[0]?.status === 'idle' ? 'STANDBY / IDLE' : 'BUSY / RUNNING'}</span>
-              <Button size="xs" variant="outline" className="h-7 text-[10px] border-[#7C3AED]/30" onClick={fetchRemoteData}>
+              <Button size="sm" variant="outline" className="h-7 px-2 text-[10px] border-[#7C3AED]/30" onClick={fetchRemoteData}>
                 <RefreshCw className="w-3 h-3 mr-1" /> ATUALIZAR DADOS
               </Button>
             </div>
