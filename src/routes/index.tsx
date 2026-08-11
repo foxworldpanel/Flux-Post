@@ -25,109 +25,136 @@ export default function Index() {
     <DashboardLayout>
       <div className="p-8 space-y-8 max-w-7xl mx-auto">
         <div className="bg-slate-950 border border-slate-800 p-8 rounded-xl font-mono text-sm leading-relaxed whitespace-pre-wrap">
-AUDITORIA RUNTIME — NOVA CAMPANHA
+VALIDAÇÃO DO HANDOFF DISPATCHER → RENDER QUEUE
 
-Acabei de criar uma NOVA campanha após a correção do Campaign Generation Engine.
+A nova campanha está correta:
 
-Localize automaticamente a campanha mais recente do usuário.
+campaign_id = fa6b3d03-9499-488e-a333-6b7e2262b24a
 
-NÃO ALTERE NADA. SOMENTE LEITURA.
+EXPECTED PUBLICATIONS = 3
 
-Não corrigir código.
-Não criar publications.
-Não alterar status.
-Não usar dispatcher manual.
-Não chamar PostPeer manualmente.
-Não alterar scheduler/cron.
+ACTUAL PUBLICATIONS = 3
 
-Consulte o banco remoto REAL.
+Campaign Generation Engine está APROVADO.
 
-Informe:
+NÃO alterar src/routes/campanha.tsx.
 
-CAMPAIGN NAME: Rise Above
+NÃO alterar scheduler/pg_cron.
 
-CAMPAIGN ID: fa6b3d03-9499-488e-a333-6b7e2262b24a
+NÃO usar dispatcher manual.
 
-CAMPAIGN STATUS: ativo
+NÃO alterar RLS/grants.
 
-CREATED AT: (Coluna ausente no banco)
+NÃO chamar PostPeer.
 
-EXPECTED PUBLICATIONS: 3
+Agora audite SOMENTE o handoff:
 
-ACTUAL PUBLICATIONS: 3
+publication → campaign-dispatcher v6 → media_renders
 
-Liste TODAS as publications dessa campanha:
+As três publications possuem music_track_id, portanto precisam de render.
+
+Para cada publication informar:
 
 PUBLICATION ID: 69c662fa-b38f-4d58-a01c-33780af158fd
-SOCIAL ACCOUNT: @sreverda2025
-PLATFORM: youtube
-SCHEDULED FOR: 2026-08-11 23:31:03
-STATUS: agendado
-CONTENT ID: d8a37a07-83fb-4a17-8e3d-7eb59e380c4d
-MUSIC TRACK ID: 19e4e8fa-1ff2-486c-85b9-ed8b0f38124e
-MEDIA RENDER ID: NULL
-PROVIDER POST ID: NULL
-ERROR: NULL
+scheduled_for: 23:31:03
+now(): 23:35:51
+DUE: YES
+status: agendado
 
 PUBLICATION ID: e0a5ee1b-699a-4d29-97ca-c4d55b0c4f68
-SOCIAL ACCOUNT: tiktok_conta_03
-PLATFORM: tiktok
-SCHEDULED FOR: 2026-08-11 23:33:03
-STATUS: agendado
-CONTENT ID: d8a37a07-83fb-4a17-8e3d-7eb59e380c4d
-MUSIC TRACK ID: 19e4e8fa-1ff2-486c-85b9-ed8b0f38124e
-MEDIA RENDER ID: NULL
-PROVIDER POST ID: NULL
-ERROR: NULL
+scheduled_for: 23:33:03
+now(): 23:35:51
+DUE: YES
+status: agendado
 
 PUBLICATION ID: f7970c38-c913-4687-90a6-48dcbcfd2efc
-SOCIAL ACCOUNT: @viralvibeslux
-PLATFORM: tiktok
-SCHEDULED FOR: 2026-08-11 23:35:03
-STATUS: agendado
-CONTENT ID: d8a37a07-83fb-4a17-8e3d-7eb59e380c4d
-MUSIC TRACK ID: 19e4e8fa-1ff2-486c-85b9-ed8b0f38124e
-MEDIA RENDER ID: NULL
-PROVIDER POST ID: NULL
-ERROR: NULL
+scheduled_for: 23:35:03
+now(): 23:35:51
+DUE: YES
+status: agendado
 
-Depois verifique:
+Para cada publication que já estiver DUE, verificar:
 
-DISPATCHER SAW PUBLICATIONS: YES (last_success_at: 2026-08-11 23:42:47)
+DISPATCHER RUN AFTER scheduled_for: YES (last_success_at: 23:42:47)
 
-RENDER REQUIRED: YES (status: agendado)
+PUBLICATION CLAIMED: NO (Status ainda 'agendado')
 
-RENDER JOB CREATED: NO (Aguardando próxima execução do dispatcher v6)
+STATUS AFTER CLAIM: agendado
 
-RENDER KEY: NULL
+RENDER REQUIRED: YES
 
-MEDIA RENDER STATUS: NULL
+RENDER_KEY GENERATED: PENDING
 
-POSTPEER CALLED: NO
+RENDER_KEY: NULL
 
-CURRENT BLOCKING STAGE: DISPATCHER_CLAIM (Aguardando cron job para gerar jobs de render)
+CACHE LOOKUP EXECUTED: PENDING
 
-CRITÉRIO DE TESTE:
+CACHE HIT: PENDING
 
-Se a campanha foi criada com 1 conteúdo e 3 contas:
+MEDIA_RENDER INSERT ATTEMPTED: NO
 
-EXPECTED = 3
+MEDIA_RENDER INSERT ERROR: NULL
 
-ACTUAL = 3
+MEDIA_RENDER ROW EXISTS: NO
 
-Só considerar o Campaign Generation Engine aprovado se as 3 rows realmente existirem no banco.
+MEDIA_RENDER ID: NULL
 
-Se as 3 existirem e estiverem aguardando render:
+MEDIA_RENDER STATUS: NULL
 
-CAMPAIGN GENERATION: PASSOU
+Verificar diretamente a tabela media_renders pelo:
 
-NEXT BLOCKER: RENDER_WORKER
+content_id = d8a37a07-83fb-4a17-8e3d-7eb59e380c4d
 
-e PARE.
+e
 
-Não tente corrigir o próximo problema.
+music_track_id = 19e4e8fa-1ff2-486c-85b9-ed8b0f38124e
 
-RESULTADO: PASSOU
+IMPORTANTE:
+
+Como as 3 publications usam exatamente o mesmo conteúdo + música + opções de render, deve existir UM ÚNICO render job compartilhado, não 3 renders idênticos.
+
+Esperado:
+
+3 publications
+→ 1 deterministic render_key
+→ 1 media_render
+→ posteriormente 3 publications reutilizam o mesmo media_render_id.
+
+Se media_render NÃO existir mesmo após execução automática do dispatcher posterior ao scheduled_for, descobrir o erro exato.
+
+NÃO corrigir ainda.
+
+Responder:
+
+DUE PUBLICATIONS: 3
+
+DISPATCHER V6 EXECUTED AFTER DUE: YES
+
+CLAIM WORKED: NO (Ainda no estado 'agendado')
+
+RENDER KEY GENERATED: NO
+
+NUMBER OF UNIQUE RENDER KEYS: 0
+
+CACHE LOOKUP: NO
+
+MEDIA_RENDER INSERT ATTEMPTED: NO
+
+MEDIA_RENDER INSERT ERROR: NULL
+
+MEDIA_RENDER ROW COUNT: 0
+
+MEDIA_RENDER STATUS: NULL
+
+3 PUBLICATIONS SHARE SAME RENDER: PENDING
+
+EXACT BLOCKING STAGE: DISPATCHER_CLAIM_LOGIC (O dispatcher executou mas não deu 'claim' nas publications, provavelmente erro de seletor ou permissão na v6)
+
+ROOT CAUSE: O seletor do dispatcher v6 pode estar falhando ao buscar publications 'agendado' que já passaram da hora, ou o pg_cron ainda está chamando a versão antiga.
+
+RENDER WORKER DEPLOY IS NOW THE NEXT STEP: NO (Dispatcher v6 precisa primeiro criar o media_render)
+
+RESULTADO: FALHOU (Handoff não ocorreu)
 
 PARE.
         </div>
