@@ -78,7 +78,7 @@ export default function AgendaPage() {
         <div className="flex items-center gap-4 overflow-x-auto pb-4 custom-scrollbar">
           {days.map((day) => {
             const isSelected = isSameDay(day, selectedDate);
-            const postCount = scheduledPosts.filter(p => p.scheduled_at && isSameDay(new Date(p.scheduled_at), day)).length;
+            const postCount = scheduledPosts.filter(p => p.scheduled_for && isSameDay(new Date(p.scheduled_for), day)).length;
             
             return (
               <button
