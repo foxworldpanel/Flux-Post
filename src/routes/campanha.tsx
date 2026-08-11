@@ -477,7 +477,24 @@ export default function CampanhaPage() {
       
       if (accountRelError) throw accountRelError;
 
-      // 4. Update music track
+      // 4. Generate Publications based on Preview
+      const publicationInserts = schedulingPreview.map(p => ({
+        campaign_id: newCamp.id,
+        social_account_id: p.accountId,
+        content_id: selectedContentIds[p.videoIndex],
+        scheduled_for: p.date.toISOString(),
+        status: 'agendado',
+        timezone: formData.timezone,
+        user_id: user.id
+      }));
+
+      const { error: pubError } = await supabase
+        .from("publications")
+        .insert(publicationInserts);
+
+      if (pubError) throw pubError;
+
+      // 5. Update music track
       await supabase
         .from("music_tracks")
         .update({ campanha_ativa: true })
