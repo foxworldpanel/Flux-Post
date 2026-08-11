@@ -157,7 +157,7 @@ export default function VideosPage() {
         {/* Filtros */}
         <div className="bg-card p-4 rounded-2xl border border-border grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
               placeholder="Buscar por título ou autor..."
               value={searchTerm}
@@ -192,7 +192,7 @@ export default function VideosPage() {
             </SelectContent>
           </Select>
           <div className="flex items-center justify-end">
-            <p className="text-xs text-slate-500 font-medium">
+            <p className="text-xs text-muted-foreground font-medium">
               {filteredItems.length} itens encontrados
             </p>
           </div>
@@ -213,7 +213,7 @@ export default function VideosPage() {
               <Video className="w-10 h-10 text-slate-700" />
             </div>
             <h3 className="text-foreground font-space font-bold text-xl mb-2">Biblioteca Vazia</h3>
-            <p className="text-slate-500 max-w-sm mb-8">
+            <p className="text-muted-foreground max-w-sm mb-8">
               Você ainda não importou nenhum conteúdo. Vá para o Garimpo para encontrar vídeos
               virais.
             </p>
@@ -269,9 +269,9 @@ export default function VideosPage() {
                   </div>
                 </div>
 
-                <CardContent className="p-4 bg-[#0A0A0F]/50 flex-1 flex flex-col justify-between">
+                <CardContent className="p-4 bg-background/50 flex-1 flex flex-col justify-between">
                   <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-[11px] text-slate-500">
+                    <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
                       <Calendar size={12} />
                       {item.created_at
                         ? format(new Date(item.created_at), "dd/MM/yy", { locale: ptBR })
@@ -317,7 +317,7 @@ export default function VideosPage() {
           if (!open) setSignedUrl(null);
         }}
       >
-        <DialogContent className="max-w-4xl bg-[#0A0A0F] border-border p-0 overflow-hidden shadow-2xl">
+        <DialogContent className="max-w-4xl bg-background border-border p-0 overflow-hidden shadow-2xl">
           {selectedItem && (
             <div className="grid grid-cols-1 md:grid-cols-3">
               <div className="md:col-span-2 bg-black flex items-center justify-center min-h-[500px]">
@@ -326,7 +326,7 @@ export default function VideosPage() {
                 ) : signedUrl ? (
                   <video src={signedUrl} className="max-h-[85vh] w-full" controls autoPlay />
                 ) : (
-                  <p className="text-slate-500">Falha ao carregar vídeo</p>
+                  <p className="text-muted-foreground">Falha ao carregar vídeo</p>
                 )}
               </div>
               <div className="p-8 space-y-8 bg-card/80 backdrop-blur-xl border-l border-border">
@@ -342,7 +342,7 @@ export default function VideosPage() {
 
                   <div className="space-y-4 pt-4">
                     <div className="flex flex-col gap-1">
-                      <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">
+                      <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
                         Fonte
                       </span>
                       <span className="text-foreground font-medium flex items-center gap-2">
@@ -361,14 +361,14 @@ export default function VideosPage() {
                     </div>
                     {selectedItem.author && (
                       <div className="flex flex-col gap-1">
-                        <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">
+                        <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
                           Criador
                         </span>
                         <span className="text-foreground font-medium">{selectedItem.author}</span>
                       </div>
                     )}
                     <div className="flex flex-col gap-1">
-                      <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">
+                      <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
                         Data de Importação
                       </span>
                       <span className="text-foreground font-medium">
@@ -382,7 +382,7 @@ export default function VideosPage() {
 
                 {selectedItem.credit && (
                   <div className="p-4 bg-muted/50 rounded-xl border border-border">
-                    <p className="text-[10px] text-slate-500 uppercase font-bold mb-2">Créditos</p>
+                    <p className="text-[10px] text-muted-foreground uppercase font-bold mb-2">Créditos</p>
                     <p className="text-xs text-muted-foreground leading-relaxed">{selectedItem.credit}</p>
                   </div>
                 )}

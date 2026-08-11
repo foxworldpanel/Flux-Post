@@ -47,7 +47,7 @@ export default function AnalyticsPage() {
                   <metric.icon size={16} />
                 </div>
                 <p className="text-2xl font-bold text-[#0A0A0F]">{metric.value}</p>
-                <p className="text-xs text-slate-500 font-medium uppercase">{metric.label}</p>
+                <p className="text-xs text-muted-foreground font-medium uppercase">{metric.label}</p>
               </CardContent>
             </Card>
           ))}
@@ -55,11 +55,11 @@ export default function AnalyticsPage() {
 
         {/* Charts Placeholders */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          <Card className="bg-card border-border min-h-[300px] flex flex-col items-center justify-center text-slate-500">
+          <Card className="bg-card border-border min-h-[300px] flex flex-col items-center justify-center text-muted-foreground">
             <p className="text-sm">Performance ao longo do tempo</p>
             <p className="text-xs mt-2 italic">Aguardando dados...</p>
           </Card>
-          <Card className="bg-card border-border min-h-[300px] flex flex-col items-center justify-center text-slate-500">
+          <Card className="bg-card border-border min-h-[300px] flex flex-col items-center justify-center text-muted-foreground">
             <p className="text-sm">Performance por plataforma</p>
             <p className="text-xs mt-2 italic">Aguardando dados...</p>
           </Card>

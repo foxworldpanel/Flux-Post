@@ -176,21 +176,21 @@ export default function AccountsPage() {
 
         {/* Métricas Simplificadas */}
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
-          <Card className="bg-card border-border p-4"><p className="text-[10px] text-slate-500 font-bold uppercase">Total</p><p className="text-xl font-bold text-foreground">{accounts.length}</p></Card>
+          <Card className="bg-card border-border p-4"><p className="text-[10px] text-muted-foreground font-bold uppercase">Total</p><p className="text-xl font-bold text-foreground">{accounts.length}</p></Card>
           {platformList.map(p => (
             <Card key={p} className="bg-card border-border p-4">
-              <p className="text-[10px] text-slate-500 font-bold uppercase">{p}</p>
+              <p className="text-[10px] text-muted-foreground font-bold uppercase">{p}</p>
               <p className="text-xl font-bold text-foreground">{accounts.filter(a => a.platform === p).length}</p>
             </Card>
           ))}
-          <Card className="bg-card border-border p-4"><p className="text-[10px] text-slate-500 font-bold uppercase">Conectadas</p><p className="text-xl font-bold text-emerald-400">{accounts.filter(a => a.connection_status === 'conectada').length}</p></Card>
-          <Card className="bg-card border-border p-4"><p className="text-[10px] text-slate-500 font-bold uppercase">Off</p><p className="text-xl font-bold text-amber-400">{accounts.filter(a => a.connection_status !== 'conectada').length}</p></Card>
+          <Card className="bg-card border-border p-4"><p className="text-[10px] text-muted-foreground font-bold uppercase">Conectadas</p><p className="text-xl font-bold text-emerald-400">{accounts.filter(a => a.connection_status === 'conectada').length}</p></Card>
+          <Card className="bg-card border-border p-4"><p className="text-[10px] text-muted-foreground font-bold uppercase">Off</p><p className="text-xl font-bold text-amber-400">{accounts.filter(a => a.connection_status !== 'conectada').length}</p></Card>
         </div>
 
         {/* Filtros */}
         <div className="flex gap-4 items-center bg-card/50 p-4 rounded-xl border border-border">
           <div className="flex items-center gap-2">
-            <Label className="text-slate-500 text-xs uppercase">Plataforma:</Label>
+            <Label className="text-muted-foreground text-xs uppercase">Plataforma:</Label>
             <div className="flex gap-2">
               {["Todas", ...platformList].map(p => (
                 <Button key={p} variant={filterPlatform === p ? "default" : "outline"} size="sm" 
@@ -219,13 +219,13 @@ export default function AccountsPage() {
                       )}
                     </div>
                     <div>
-                      <h3 className="text-sm font-bold text-slate-500 uppercase tracking-tight">{account.account_name}</h3>
+                      <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-tight">{account.account_name}</h3>
                       <div className="flex flex-col">
                         <span className="text-lg font-bold text-foreground group-hover:text-purple-400 transition-colors">
                           {account.external_display_name || account.username || 'Identidade Pendente'}
                         </span>
                         {account.username && account.username !== account.external_display_name && !account.username.startsWith('tiktok_conta_') && (
-                           <span className="text-xs text-slate-500">@{account.username}</span>
+                           <span className="text-xs text-muted-foreground">@{account.username}</span>
                         )}
                       </div>
                     </div>
@@ -276,16 +276,16 @@ export default function AccountsPage() {
                   )}
 
                   <div className="flex gap-1">
-                    <Button variant="ghost" size="sm" className="h-8 px-2 text-[10px] text-slate-500 hover:text-foreground uppercase font-bold" onClick={() => {
+                    <Button variant="ghost" size="sm" className="h-8 px-2 text-[10px] text-muted-foreground hover:text-foreground uppercase font-bold" onClick={() => {
                       setEditingAccount(account);
                       setIsDialogOpen(true);
                     }}>
                       RENOMEAR
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-500 hover:text-foreground" onClick={() => toggleStatus(account)}>
-                      <Power className={`w-4 h-4 ${account.status === 'active' ? 'text-emerald-500' : 'text-slate-500'}`} />
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={() => toggleStatus(account)}>
+                      <Power className={`w-4 h-4 ${account.status === 'active' ? 'text-emerald-500' : 'text-muted-foreground'}`} />
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-500 hover:text-red-400" onClick={() => archiveAccount(account.id)}>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-red-400" onClick={() => archiveAccount(account.id)}>
                       <Archive className="w-4 h-4" />
                     </Button>
                   </div>
@@ -299,7 +299,7 @@ export default function AccountsPage() {
                    <Plus className="text-slate-600" />
                 </div>
                 <h3 className="text-xl font-bold text-foreground mb-2">Nenhuma conta social</h3>
-                <p className="text-slate-500 mb-6">Conecte uma rede social para começar a distribuir conteúdo.</p>
+                <p className="text-muted-foreground mb-6">Conecte uma rede social para começar a distribuir conteúdo.</p>
                 <Button className="bg-[#7C3AED]" onClick={() => { setSelectedPlatform(null); setIsAddOpen(true); }}>
                   ADICIONAR CONTA
                 </Button>
@@ -310,7 +310,7 @@ export default function AccountsPage() {
 
         {/* Modal Simples de Edição */}
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogContent className="bg-[#0A0A0F] border-border text-foreground max-w-md">
+          <DialogContent className="bg-background border-border text-foreground max-w-md">
             <DialogHeader>
               <DialogTitle className="text-xl font-space font-bold">Configurar Conta</DialogTitle>
             </DialogHeader>
@@ -323,7 +323,7 @@ export default function AccountsPage() {
                   value={editingAccount?.account_name || ''}
                   onChange={(e) => setEditingAccount({...editingAccount!, account_name: e.target.value})}
                 />
-                <p className="text-[10px] text-slate-500">Este nome é usado apenas para sua organização interna.</p>
+                <p className="text-[10px] text-muted-foreground">Este nome é usado apenas para sua organização interna.</p>
               </div>
 
               <div className="space-y-2">
@@ -350,7 +350,7 @@ export default function AccountsPage() {
 
         {/* Modal Adicionar Conta */}
         <Dialog open={isAddOpen} onOpenChange={(open) => { setIsAddOpen(open); if (!open) { setSelectedPlatform(null); setIsConnecting(false); } }}>
-          <DialogContent className="bg-[#0A0A0F] border-border text-foreground max-w-lg">
+          <DialogContent className="bg-background border-border text-foreground max-w-lg">
             <DialogHeader>
               <DialogTitle className="text-xl font-bold font-space text-center">
                 {selectedPlatform ? `Conectar ${PLATFORM_LABEL[selectedPlatform]}` : "Escolha a plataforma"}
@@ -386,7 +386,7 @@ export default function AccountsPage() {
                 >
                   {isConnecting ? <Loader2 className="animate-spin" /> : `CONECTAR ${PLATFORM_LABEL[selectedPlatform].toUpperCase()}`}
                 </Button>
-                <Button variant="ghost" className="text-slate-500 text-xs" onClick={() => setSelectedPlatform(null)}>Voltar</Button>
+                <Button variant="ghost" className="text-muted-foreground text-xs" onClick={() => setSelectedPlatform(null)}>Voltar</Button>
               </div>
             )}
           </DialogContent>

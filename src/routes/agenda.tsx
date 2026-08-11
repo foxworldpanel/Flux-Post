@@ -121,31 +121,31 @@ export default function AgendaPage() {
           ) : postsForSelectedDate.length === 0 ? (
             <div className="py-20 flex flex-col items-center justify-center border border-dashed border-border rounded-2xl bg-muted/50 text-center">
                <Calendar className="w-12 h-12 text-slate-800 mb-4" />
-               <p className="text-slate-500 font-medium">Nenhum post agendado para esta data.</p>
+               <p className="text-muted-foreground font-medium">Nenhum post agendado para esta data.</p>
             </div>
           ) : (
             <div className="space-y-4">
               {postsForSelectedDate.map((post) => (
                 <Card key={post.id} className="bg-card border-border hover:border-border transition-colors">
                   <CardContent className="p-6 flex items-center gap-6">
-                    <div className="w-16 h-16 bg-muted/50 rounded-xl flex flex-col items-center justify-center text-slate-500 flex-shrink-0">
+                    <div className="w-16 h-16 bg-muted/50 rounded-xl flex flex-col items-center justify-center text-muted-foreground flex-shrink-0">
                        <Clock size={20} className="mb-1 text-muted-foreground" />
                        <span className="text-[10px] font-bold">{format(new Date(post.scheduled_for!), "HH:mm")}</span>
                     </div>
 
                     <div className="flex-1 space-y-1">
                       <div className="flex items-center gap-2">
-                         <Badge variant="outline" className="border-border text-[10px] text-slate-500 uppercase font-bold tracking-widest">{post.platform}</Badge>
-                         <span className="text-xs text-slate-500 font-medium">{post.social_accounts?.account_name}</span>
+                         <Badge variant="outline" className="border-border text-[10px] text-muted-foreground uppercase font-bold tracking-widest">{post.platform}</Badge>
+                         <span className="text-xs text-muted-foreground font-medium">{post.social_accounts?.account_name}</span>
                       </div>
                       <h4 className="text-foreground font-medium line-clamp-1">{post.caption || "Sem legenda"}</h4>
                       <p className="text-[10px] text-slate-600 truncate">{post.content_library?.title}</p>
                     </div>
 
                     <div className="flex-shrink-0 flex items-center gap-2">
-                       <Button variant="ghost" size="sm" className="text-slate-500 hover:text-foreground">Editar</Button>
+                       <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">Editar</Button>
                        <Link to="/publicacoes">
-                         <Button variant="outline" size="icon" className="h-8 w-8 border-border text-slate-500 hover:text-foreground">
+                         <Button variant="outline" size="icon" className="h-8 w-8 border-border text-muted-foreground hover:text-foreground">
                             <ArrowRight size={14} />
                          </Button>
                        </Link>

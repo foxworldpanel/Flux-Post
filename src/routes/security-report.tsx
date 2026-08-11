@@ -102,7 +102,7 @@ export default function SecurityReport() {
         </section>
 
         <div className="pt-8 border-t border-border text-center">
-          <p className="text-slate-500 text-sm italic">
+          <p className="text-muted-foreground text-sm italic">
             "Segurança é um processo, não um produto. A Fase 1.2 está agora consolidada."
           </p>
         </div>

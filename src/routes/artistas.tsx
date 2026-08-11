@@ -151,7 +151,7 @@ export default function ArtistasPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-display font-bold text-foreground">Artistas</h1>
-            <p className="text-slate-500 mt-1">Gerencie os artistas e suas identidades</p>
+            <p className="text-muted-foreground mt-1">Gerencie os artistas e suas identidades</p>
           </div>
           <Button onClick={handleOpenCreate} className="bg-[#7C3AED] hover:bg-[#6D28D9]">
             <Plus className="mr-2 h-4 w-4" /> Novo Artista
@@ -168,7 +168,7 @@ export default function ArtistasPage() {
               <User size={48} className="text-slate-700" />
               <div className="text-center">
                 <p className="text-lg font-medium text-foreground">Nenhum artista encontrado</p>
-                <p className="text-slate-500">Cadastre seu primeiro artista para começar.</p>
+                <p className="text-muted-foreground">Cadastre seu primeiro artista para começar.</p>
               </div>
             </CardContent>
           </Card>
@@ -188,7 +188,7 @@ export default function ArtistasPage() {
                     </div>
                     <div className="pt-6">
                       <h2 className="text-2xl font-bold">{artist.name}</h2>
-                      <Badge className={artist.status === 'active' ? 'bg-[#10B981]/20 text-[#10B981] border-none' : 'bg-slate-500/20 text-slate-500 border-none'}>
+                      <Badge className={artist.status === 'active' ? 'bg-[#10B981]/20 text-[#10B981] border-none' : 'bg-slate-500/20 text-muted-foreground border-none'}>
                         {artist.status === 'active' ? 'Ativo' : 'Inativo'}
                       </Badge>
                     </div>
@@ -198,36 +198,36 @@ export default function ArtistasPage() {
                 <CardContent className="pt-12 grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-4">
                     <div>
-                      <label className="text-xs font-semibold text-slate-500 uppercase flex items-center gap-2 mb-1">
+                      <label className="text-xs font-semibold text-muted-foreground uppercase flex items-center gap-2 mb-1">
                         <Music2 size={12} /> Gênero
                       </label>
                       <p className="text-slate-300">{artist.genre || "Não definido"}</p>
                     </div>
                     <div>
-                      <label className="text-xs font-semibold text-slate-500 uppercase flex items-center gap-2 mb-1">
+                      <label className="text-xs font-semibold text-muted-foreground uppercase flex items-center gap-2 mb-1">
                         <Globe size={12} /> Mercados Prioritários
                       </label>
                       <div className="flex flex-wrap gap-1 mt-1">
                         {artist.priority_markets?.map((m: string, i: number) => (
                           <Badge key={i} variant="outline" className="border-border text-muted-foreground text-[10px]">{m}</Badge>
-                        )) || <span className="text-slate-500 text-xs italic">Nenhum</span>}
+                        )) || <span className="text-muted-foreground text-xs italic">Nenhum</span>}
                       </div>
                     </div>
                     <div>
-                      <label className="text-xs font-semibold text-slate-500 uppercase flex items-center gap-2 mb-1">
+                      <label className="text-xs font-semibold text-muted-foreground uppercase flex items-center gap-2 mb-1">
                         <Tag size={12} /> Hashtags
                       </label>
                       <div className="flex flex-wrap gap-1 mt-1">
                         {artist.priority_hashtags?.map((h: string, i: number) => (
                           <Badge key={i} variant="outline" className="border-border text-muted-foreground text-[10px]">#{h.replace('#', '')}</Badge>
-                        )) || <span className="text-slate-500 text-xs italic">Nenhuma</span>}
+                        )) || <span className="text-muted-foreground text-xs italic">Nenhuma</span>}
                       </div>
                     </div>
                   </div>
 
                   <div className="space-y-4">
                     <div>
-                      <label className="text-xs font-semibold text-slate-500 uppercase flex items-center gap-2 mb-1">
+                      <label className="text-xs font-semibold text-muted-foreground uppercase flex items-center gap-2 mb-1">
                         <MessageSquare size={12} /> Identidade
                       </label>
                       <p className="text-sm text-muted-foreground leading-relaxed italic line-clamp-3">
@@ -261,9 +261,9 @@ export default function ArtistasPage() {
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     placeholder="Ex: Sourcee"
-                    className="bg-[#0A0A0F] border-border"
+                    className="bg-background border-border"
                   />
-                  <p className="text-[10px] text-slate-500">O slug da URL será gerado automaticamente a partir do nome.</p>
+                  <p className="text-[10px] text-muted-foreground">O slug da URL será gerado automaticamente a partir do nome.</p>
                 </div>
               </div>
 
@@ -274,13 +274,13 @@ export default function ArtistasPage() {
                     value={formData.genre}
                     onChange={(e) => setFormData({ ...formData, genre: e.target.value })}
                     placeholder="Ex: Eletrônico / Progressive"
-                    className="bg-[#0A0A0F] border-border"
+                    className="bg-background border-border"
                   />
                 </div>
                 <div className="space-y-2">
                   <Label>Status</Label>
                   <Select value={formData.status} onValueChange={(v) => setFormData({ ...formData, status: v })}>
-                    <SelectTrigger className="bg-[#0A0A0F] border-border">
+                    <SelectTrigger className="bg-background border-border">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="bg-card border-border text-foreground">
@@ -300,7 +300,7 @@ export default function ArtistasPage() {
                     onChange={(e) => setNewMarket(e.target.value)}
                     onKeyPress={(e) => e.key === 'Enter' && addTag('priority_markets', newMarket, setNewMarket)}
                     placeholder="Adicionar mercado (ex: Brasil)"
-                    className="bg-[#0A0A0F] border-border"
+                    className="bg-background border-border"
                   />
                   <Button size="icon" variant="ghost" onClick={() => addTag('priority_markets', newMarket, setNewMarket)}>
                     <Plus size={16} />
@@ -321,7 +321,7 @@ export default function ArtistasPage() {
                   value={formData.communication_identity}
                   onChange={(e) => setFormData({ ...formData, communication_identity: e.target.value })}
                   placeholder="Descreva a personalidade do artista..."
-                  className="bg-[#0A0A0F] border-border min-h-[80px]"
+                  className="bg-background border-border min-h-[80px]"
                 />
               </div>
 
@@ -334,7 +334,7 @@ export default function ArtistasPage() {
                       onChange={(e) => setNewHashtag(e.target.value)}
                       onKeyPress={(e) => e.key === 'Enter' && addTag('priority_hashtags', newHashtag, setNewHashtag)}
                       placeholder="Tag"
-                      className="bg-[#0A0A0F] border-border"
+                      className="bg-background border-border"
                     />
                     <Button size="icon" variant="ghost" onClick={() => addTag('priority_hashtags', newHashtag, setNewHashtag)}>
                       <Plus size={16} />
@@ -356,7 +356,7 @@ export default function ArtistasPage() {
                       onChange={(e) => setNewBlockedHashtag(e.target.value)}
                       onKeyPress={(e) => e.key === 'Enter' && addTag('blocked_hashtags', newBlockedHashtag, setNewBlockedHashtag)}
                       placeholder="Tag"
-                      className="bg-[#0A0A0F] border-border"
+                      className="bg-background border-border"
                     />
                     <Button size="icon" variant="ghost" onClick={() => addTag('blocked_hashtags', newBlockedHashtag, setNewBlockedHashtag)}>
                       <Plus size={16} />
@@ -380,7 +380,7 @@ export default function ArtistasPage() {
                   value={formData.ai_briefing}
                   onChange={(e) => setFormData({ ...formData, ai_briefing: e.target.value })}
                   placeholder="Instruções para a IA gerar legendas..."
-                  className="bg-[#0A0A0F] border-border min-h-[100px]"
+                  className="bg-background border-border min-h-[100px]"
                 />
               </div>
             </div>

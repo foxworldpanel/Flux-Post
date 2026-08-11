@@ -130,10 +130,10 @@ export default function PublicacoesPage() {
                       <div className="space-y-2 flex-1">
                         <div className="flex items-center gap-2">
                            {getStatusBadge(pub.status)}
-                           <Badge variant="outline" className="border-border text-[10px] text-slate-500 uppercase font-bold tracking-widest">{pub.platform}</Badge>
+                           <Badge variant="outline" className="border-border text-[10px] text-muted-foreground uppercase font-bold tracking-widest">{pub.platform}</Badge>
                         </div>
                         <h4 className="text-foreground font-medium line-clamp-1">{pub.caption || "Sem legenda"}</h4>
-                        <div className="flex items-center gap-4 text-xs text-slate-500">
+                        <div className="flex items-center gap-4 text-xs text-muted-foreground">
                           <span className="flex items-center gap-1">
                             <Clock size={12} /> {format(new Date(pub.created_at), "dd 'de' MMM, HH:mm", { locale: ptBR })}
                           </span>
@@ -154,7 +154,7 @@ export default function PublicacoesPage() {
                             <ExternalLink size={14} className="mr-1" /> Ver Post
                           </Button>
                         )}
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-500">
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground">
                            <MoreVertical size={16} />
                         </Button>
                       </div>

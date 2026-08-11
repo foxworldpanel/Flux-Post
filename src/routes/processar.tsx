@@ -171,7 +171,7 @@ export default function ProcessarPage() {
               <div className="space-y-2">
                 <Label className="text-muted-foreground">Escolha o vídeo</Label>
                 <Select value={selectedVideo} onValueChange={setSelectedVideo}>
-                  <SelectTrigger className="bg-[#0A0A0F] border-border text-foreground">
+                  <SelectTrigger className="bg-background border-border text-foreground">
                     <SelectValue placeholder="Selecione um vídeo" />
                   </SelectTrigger>
                   <SelectContent className="bg-card border-border text-foreground">
@@ -195,7 +195,7 @@ export default function ProcessarPage() {
               <div className="space-y-2">
                 <Label className="text-muted-foreground">Escolha a música</Label>
                 <Select value={selectedMusic} onValueChange={setSelectedMusic}>
-                  <SelectTrigger className="bg-[#0A0A0F] border-border text-foreground">
+                  <SelectTrigger className="bg-background border-border text-foreground">
                     <SelectValue placeholder="Selecione uma música" />
                   </SelectTrigger>
                   <SelectContent className="bg-card border-border text-foreground">

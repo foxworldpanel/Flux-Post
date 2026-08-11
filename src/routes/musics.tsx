@@ -260,7 +260,7 @@ export default function MusicsPage() {
                     type="file"
                     accept=".mp3,audio/mpeg"
                     onChange={handleFileChange}
-                    className="bg-[#0A0A0F] border-border"
+                    className="bg-background border-border"
                   />
                 </div>
                 <div className="space-y-2">
@@ -270,13 +270,13 @@ export default function MusicsPage() {
                     value={nome}
                     onChange={(e) => setNome(e.target.value)}
                     placeholder="Ex: Chill Vibe"
-                    className="bg-[#0A0A0F] border-border"
+                    className="bg-background border-border"
                   />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="artista">Artista Vinculado</Label>
                   <Select value={artistId} onValueChange={setArtistId}>
-                    <SelectTrigger className="bg-[#0A0A0F] border-border w-full">
+                    <SelectTrigger className="bg-background border-border w-full">
                       <SelectValue placeholder="Selecione um artista" />
                     </SelectTrigger>
                     <SelectContent className="bg-card border-border text-foreground">
@@ -289,7 +289,7 @@ export default function MusicsPage() {
                 <div className="space-y-2">
                   <Label htmlFor="estilo">Estilo</Label>
                   <Select value={estilo} onValueChange={setEstilo}>
-                    <SelectTrigger className="bg-[#0A0A0F] border-border w-full">
+                    <SelectTrigger className="bg-background border-border w-full">
                       <SelectValue placeholder="Selecione o estilo" />
                     </SelectTrigger>
                     <SelectContent className="bg-card border-border text-foreground">
@@ -359,7 +359,7 @@ export default function MusicsPage() {
                   <p className="text-sm text-muted-foreground">{music.artists?.name || "Artista desconhecido"}</p>
                 </CardHeader>
                 <CardContent className="pt-0 space-y-4">
-                  <div className="flex justify-between text-xs text-slate-500 font-medium">
+                  <div className="flex justify-between text-xs text-muted-foreground font-medium">
                     <span>{formatDuration(music.duracao_segundos)}</span>
                     <span>Usada {music.vezes_usada || 0} vezes</span>
                   </div>

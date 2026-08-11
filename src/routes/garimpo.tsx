@@ -865,7 +865,7 @@ export default function GarimpoPage() {
         </Tabs>
 
         <Dialog open={!!selectedCandidate} onOpenChange={() => setSelectedCandidate(null)}>
-          <DialogContent className="max-w-4xl bg-[#0A0A0F] border-border p-0 overflow-hidden ring-0">
+          <DialogContent className="max-w-4xl bg-background border-border p-0 overflow-hidden ring-0">
              {selectedCandidate && (
                <div className="flex flex-col md:flex-row h-full max-h-[90vh]">
                   <div className="md:w-[45%] aspect-[9/16] bg-black flex items-center justify-center relative group">
