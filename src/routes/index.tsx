@@ -74,11 +74,11 @@ export default function Index() {
       // 2. Executor Server-Side (Dispatcher)
       const { data: cronState } = await supabase
         .from("server_cron_state")
-        .select("*")
+        .select("last_run_at")
         .eq("id", "00000000-0000-0000-0000-000000000001")
         .maybeSingle();
 
-      const isDispatcherActive = cronState && (new Date().getTime() - new Date(cronState.last_run_at).getTime() < 300000); // 5 min
+      const isDispatcherActive = cronState?.last_run_at && (new Date().getTime() - new Date(cronState.last_run_at).getTime() < 300000); // 5 min
       
       results.push({
         id: "dispatcher",
@@ -91,8 +91,8 @@ export default function Index() {
       results.push({
         id: "render_worker",
         label: "Render Engine (FFmpeg)",
-        status: "warning",
-        message: "Renderização server-side pendente. Utilizando cache de renders gerados via UI."
+        status: "error",
+        message: "Renderização server-side PENDENTE (Infraestrutura externa necessária)."
       });
 
       // 4. PostPeer Pipeline
@@ -128,9 +128,16 @@ export default function Index() {
   return (
     <DashboardLayout>
       <div className="space-y-8 animate-in fade-in duration-500">
-        <header>
-          <h1 className="text-3xl font-bold text-foreground">Flux Post Dashboard</h1>
-          <p className="text-muted-foreground">Monitoramento crítico da infraestrutura de automação.</p>
+        <header className="flex flex-col gap-2">
+          <div className="flex items-center gap-3">
+            <h1 className="text-3xl font-bold text-foreground">Flux Post Dashboard</h1>
+            <Badge variant="outline" className="border-red-500 text-red-500 bg-red-500/10">
+              AUDITORIA CRÍTICA ATIVA
+            </Badge>
+          </div>
+          <p className="text-muted-foreground italic">
+            "NÃO declarar sistema pronto para produção enquanto scheduler autônomo e render server-side não estiverem comprovadamente implementados."
+          </p>
         </header>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -143,8 +150,8 @@ export default function Index() {
         <Card className="bg-card border-border">
           <CardHeader className="flex flex-row items-center justify-between">
             <div>
-              <CardTitle>Auditoria de Sistema</CardTitle>
-              <CardDescription>Verificação de saúde do Motor Server-Side</CardDescription>
+              <CardTitle>Auditoria de Sistema (v3.8)</CardTitle>
+              <CardDescription>Zero Schema Drift & Contract Check</CardDescription>
             </div>
             <div className="flex gap-2">
               <Button variant="outline" size="sm" onClick={runAudit} disabled={loading}>
@@ -153,7 +160,7 @@ export default function Index() {
               </Button>
               <Button size="sm" className="bg-[#7C3AED]" onClick={handleManualDispatch} disabled={diagnosing}>
                 <Server className="mr-2 h-4 w-4" />
-                Disparar Dispatcher
+                Disparar Dispatcher (Manual)
               </Button>
             </div>
           </CardHeader>
@@ -173,6 +180,11 @@ export default function Index() {
             ))}
           </CardContent>
         </Card>
+
+        <footer className="pt-8 border-t border-border/50 text-xs text-muted-foreground flex justify-between">
+          <p>Flux Post Engine v3.8 — Auditoria Baseada em Código Versionado</p>
+          <p>Estado do Motor: HÍBRIDO (SCHEDULER PENDENTE)</p>
+        </footer>
       </div>
     </DashboardLayout>
   );

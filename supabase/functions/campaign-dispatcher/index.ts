@@ -86,7 +86,7 @@ serve(async (req) => {
           
           const { data: render } = await supabaseAdmin
             .from("media_renders")
-            .select("id, status, storage_path") // ID é essencial para o update posterior
+            .select("id, status, storage_path, render_key")
             .eq("source_content_id", pub.content_id)
             .eq("music_track_id", pub.music_track_id)
             .eq("status", "ready")

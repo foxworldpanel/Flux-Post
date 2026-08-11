@@ -975,13 +975,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "publications_music_id_fkey"
-            columns: ["music_track_id"]
-            isOneToOne: false
-            referencedRelation: "music_tracks"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "publications_social_account_id_fkey"
             columns: ["social_account_id"]
             isOneToOne: false
@@ -1060,21 +1053,36 @@ export type Database = {
       }
       server_cron_state: {
         Row: {
+          executor_type: string | null
           id: string
-          last_run: string | null
+          last_error: string | null
+          last_run_at: string | null
+          last_success_at: string | null
+          next_expected_run_at: string | null
           next_run: string | null
+          processed_count: number | null
           status: string | null
         }
         Insert: {
+          executor_type?: string | null
           id: string
-          last_run?: string | null
+          last_error?: string | null
+          last_run_at?: string | null
+          last_success_at?: string | null
+          next_expected_run_at?: string | null
           next_run?: string | null
+          processed_count?: number | null
           status?: string | null
         }
         Update: {
+          executor_type?: string | null
           id?: string
-          last_run?: string | null
+          last_error?: string | null
+          last_run_at?: string | null
+          last_success_at?: string | null
+          next_expected_run_at?: string | null
           next_run?: string | null
+          processed_count?: number | null
           status?: string | null
         }
         Relationships: []
