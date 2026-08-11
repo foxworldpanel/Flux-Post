@@ -27,6 +27,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import {
   Megaphone,
+  Zap,
   Music as MusicIcon,
   Calendar,
   Clock,
