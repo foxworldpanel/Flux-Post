@@ -1125,19 +1125,54 @@ export default function CampanhaPage() {
                         </p>
                       </div>
                     ) : (
-                      <div className="max-h-[300px] overflow-y-auto custom-scrollbar">
-                        <table className="w-full text-left text-xs">
-                          <thead className="sticky top-0 bg-[#1A1A2E] text-white/60 uppercase tracking-tighter font-bold border-b border-white/5">
-                            <tr>
-                              <th className="px-4 py-3">Data/Hora</th>
-                              <th className="px-4 py-3">Conta</th>
-                              <th className="px-4 py-3">Conteúdo</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-white/5">
-                            {schedulingPreview.map((item, idx) => (
-                              <tr key={idx} className="hover:bg-white/5 transition-colors">
-                                <td className="px-4 py-3 text-white font-medium flex items-center gap-2">
+                      <div className="p-4 space-y-6">
+                        <div className="relative pl-8 space-y-6 before:absolute before:left-3 before:top-2 before:bottom-2 before:w-px before:bg-white/10">
+                          {schedulingPreview.filter((_, i) => i === 0 || schedulingPreview[i-1].videoIndex !== _.videoIndex).slice(0, 10).map((batch, bIdx) => {
+                            const batchPosts = schedulingPreview.filter(p => p.videoIndex === batch.videoIndex && Math.abs(p.date.getTime() - batch.date.getTime()) < 60000 * (selectedAccountIds.length + 1));
+                            
+                            return (
+                              <div key={bIdx} className="relative">
+                                <div className="absolute -left-[25px] top-1.5 w-2 h-2 rounded-full bg-primary shadow-[0_0_8px_rgba(124,58,237,0.5)]" />
+                                <div className="space-y-2">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-xs font-bold text-white uppercase tracking-widest flex items-center gap-2">
+                                      Lote {bIdx + 1} — {batch.isNow ? 'AGORA' : format(batch.date, "HH:mm")}
+                                      {batch.isNow && <Badge className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 text-[8px] h-4">Início Imediato</Badge>}
+                                    </span>
+                                    <span className="text-[10px] text-white/40">{format(batch.date, "dd/MM/yyyy")}</span>
+                                  </div>
+                                  <div className="bg-white/5 rounded-lg p-3 border border-white/5">
+                                    <div className="flex items-center gap-3 mb-2">
+                                      <div className="w-8 h-8 rounded bg-primary/10 flex items-center justify-center text-primary">
+                                        <Layers size={14} />
+                                      </div>
+                                      <div>
+                                        <p className="text-[10px] text-white/60 font-medium">Conteúdo #{batch.videoIndex + 1}</p>
+                                        <p className="text-[9px] text-white/40">{selectedAccountIds.length} destinos programados</p>
+                                      </div>
+                                    </div>
+                                    <div className="flex flex-wrap gap-1">
+                                      {batchPosts.slice(0, 5).map((p, pIdx) => (
+                                        <Badge key={pIdx} variant="outline" className="text-[8px] h-4 border-white/5 text-white/40">
+                                          {p.accountName}
+                                        </Badge>
+                                      ))}
+                                      {batchPosts.length > 5 && <span className="text-[8px] text-white/20">+{batchPosts.length - 5}</span>}
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                          {schedulingPreview.length > 10 && (
+                            <div className="text-center py-2">
+                              <p className="text-[10px] text-white/20 italic">...e mais {Math.floor(schedulingPreview.length / selectedAccountIds.length) - 10} lotes</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                                   {format(item.date, "dd/MM HH:mm", { locale: ptBR })}
                                   <Badge variant="outline" className="text-[8px] h-3 px-1 border-white/5 text-slate-500 uppercase">
                                     {item.platform}
