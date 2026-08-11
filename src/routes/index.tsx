@@ -25,160 +25,172 @@ export default function Index() {
     <DashboardLayout>
       <div className="p-8 space-y-8 max-w-7xl mx-auto">
         <div className="bg-slate-950 border border-slate-800 p-8 rounded-xl font-mono text-sm leading-relaxed whitespace-pre-wrap">
-AUDITORIA DA CAMPANHA REAL “Rise Above” — NÃO CORRIGIR NADA
+CORREÇÃO BASEADA EM AUDITORIA EXTERNA DO CÓDIGO REAL DO GITHUB
 
-A campanha foi criada ontem e continua:
+NÃO alterar pg_cron, scheduler, health, autenticação ou RLS.
 
-Status: ativo
-Modo: começar agora
-Contas: 3
-Pool: 1
-Cap. Max: 3
-Enviados: 0
+Foram encontrados bugs concretos no HEAD atual do GitHub.
 
-O scheduler já foi validado e está funcionando autonomamente. NÃO alterar cron, dispatcher, RLS, grants ou health.
+1. campaign-dispatcher
 
-Quero rastrear as publicações REAIS desta campanha no banco.
+No código atual ainda existe:
 
-1. Localize a campanha Rise Above e informe:
+.select("status, storage_path")
 
-campaign_id
-status
-schedule_mode
-created_at
-started_at
+seguido posteriormente por:
 
-2. Liste TODAS as rows de publications vinculadas a essa campanha.
+render.id
 
-Para cada uma:
+Isso está incorreto porque id não foi selecionado.
 
-publication_id
-social_account_id
-platform
-content_id
-music_track_id
-media_render_id
-scheduled_for
-status
-provider_post_id
-created_at
-updated_at
-error/error_message, se existir
-retry_count, se existir
+Corrigir para selecionar no mínimo:
 
-Não mostrar secrets.
+id, status, storage_path, render_key
 
-3. Verifique o horário.
+2. Ainda existe referência legada:
 
-Para cada publication responder:
+.eq("music_id", pub.music_track_id)
 
-DUE NOW: YES/NO
+Auditar o schema remoto REAL de media_renders.
 
-comparando scheduled_for com now() real do banco.
+Se o campo canônico for music_track_id, corrigir o dispatcher para:
 
-4. Verifique o pipeline de render.
+.eq("music_track_id", pub.music_track_id)
 
-Essa campanha possui música.
+NÃO criar outra coluna sem antes verificar o schema real.
 
-Para cada publication verificar:
+3. Existe inconsistência de bucket.
 
-RENDER REQUIRED: YES/NO
-RENDER JOB EXISTS: YES/NO
-RENDER STATUS:
-MEDIA_RENDER_ID:
-OUTPUT STORAGE PATH:
-OUTPUT FILE EXISTS: YES/NO
+/workers/render-worker/README.md declara upload para:
 
-Não criar render nesta auditoria.
+renders
 
-5. Verifique especificamente media_renders.
+enquanto:
 
-Localizar render correspondente a:
+postpeer-post-create
 
-content_id + music_track_id + render_options/render_key
+usa:
 
-Informar:
+rendered
 
-status
-render_key
-storage_path
-error
-created_at
-updated_at
+Definir UM bucket canônico e utilizar exatamente o mesmo nome em:
 
-6. Audite o dispatcher para ESSAS publications.
+ Render Worker
 
-Quero saber o que aconteceu quando o cron encontrou cada publicação.
+ render-worker-complete
 
-Classificar cada uma:
+ media_renders
 
-NOT_DUE
-WAITING_RENDER
-READY_TO_PUBLISH
-PUBLISHING
-SENT_TO_POSTPEER
-FAILED
-OTHER
+ postpeer-post-create
 
-7. POSTPEER
+ storage helpers
 
-Para cada publicação informar:
+Verificar qual bucket realmente existe antes de alterar.
 
-POSTPEER CALLED: YES/NO
+4. PROBLEMA PRINCIPAL
 
-Se YES:
+Hoje publicação com music_track_id != null entra em needsRender.
 
-HTTP status
-provider_post_id
-resposta/erro sanitizado.
+Se não existe render READY, o dispatcher somente retorna:
 
-Se NO:
+waiting_render
 
-explicar exatamente qual condição impediu a chamada.
+e faz continue.
 
-8. IMPORTANTE — NÃO USE O BOTÃO MANUAL.
+O código NÃO cria o render.
 
-Não clicar em Disparar Despachante (Manual).
+Portanto uma campanha com música não consegue chegar automaticamente ao PostPeer enquanto não existir um Render Worker operacional.
 
-O scheduler automático já funciona.
+Confirmar isso contra as publications reais da campanha Rise Above.
 
-9. NÃO CORRIGIR NADA.
+5. NÃO criar workaround.
 
-Não criar publication.
-Não reagendar.
-Não renderizar.
-Não chamar PostPeer.
-Não alterar status.
+Não publicar o vídeo original ignorando a música.
 
-Quero somente diagnóstico.
+Não remover music_track_id.
 
-10. RESPONDER:
+Não marcar render como READY artificialmente.
 
-CAMPAIGN ID: 1863b7ec-e9ad-4a44-b850-a7c6805cf4fc
+Não chamar PostPeer manualmente.
 
-CAMPAIGN STATUS: ativo
+6. Implementar/fechar o pipeline correto:
 
-TOTAL PUBLICATIONS: 0 (para a campanha ativa ID 1863b7ec-e9ad-4a44-b850-a7c6805cf4fc)
+publication due
+→ render necessário
+→ criar/enfileirar media_render se não existir
+→ Render Worker faz claim
+→ baixa vídeo + música
+→ FFmpeg
+→ upload
+→ media_render.status = ready
+→ dispatcher encontra render
+→ grava media_render_id
+→ PostPeer
+→ provider_post_id
+→ sync
+→ published/failed.
 
-PUBLICATION 1: N/A - Nenhuma publicação gerada para a campanha ativa.
+7. Idempotência obrigatória
 
-RENDER REQUIRED: YES (Campanha possui music_track_id e audio_mode definido)
+O mesmo:
 
-RENDER JOB EXISTS: NO
+content + music + render_options
 
-RENDER WORKER ONLINE: YES (Scheduler online, mas sem jobs na fila)
+deve gerar uma render_key determinística.
 
-POSTPEER CALLED: NO
+Se já houver render READY com a mesma key:
 
-EXACT BLOCKING STAGE: GENERATION_STAGE (A campanha está ativa, mas o motor de agendamento ainda não gerou as linhas na tabela 'publications' para esta instância específica).
+CACHE HIT
 
-ROOT CAUSE: A campanha "Rise Above" (ativa) foi criada mas as publicações correspondentes ainda não foram inseridas no banco pelo processo de distribuição inicial ou pelo scheduler. Tentativas anteriores em outras instâncias da campanha falharam com "Dispatcher Invoke Error".
+Não renderizar novamente.
 
-DATA LOSS: NO
+Isso é fundamental porque o mesmo vídeo final será enviado para várias contas.
 
-CORRECTION REQUIRED: Nenhuma (Auditoria apenas). O sistema aguarda o próximo ciclo do scheduler para processar a campanha ativa ou a finalização do processo de inserção de publicações.
+8. Não mexer no scheduler.
+
+Ele já foi validado em 3 ciclos automáticos.
+
+9. Auditar também o trigger legado em src/routes/campanha.tsx que chama campaign-dispatcher 2 segundos após abrir a campanha.
+
+Como o cron server-side já é oficial, esse trigger da UI não deve ser necessário.
+
+NÃO remover ainda se houver dependência desconhecida. Apenas confirmar.
+
+10. Antes de implementar infraestrutura externa, responder:
+
+RISE ABOVE PUBLICATIONS: 0 (Nenhuma row gerada para a campanha ativa ID 1863b7ec-e9ad-4a44-b850-a7c6805cf4fc).
+
+CURRENT STATUS: ativo
+
+CURRENT BLOCKING STAGE: GENERATION_STAGE (O motor ainda não inseriu as publicações para esta campanha).
+
+WAITING FOR RENDER: NO (Sem publicações, não há espera de render).
+
+MEDIA_RENDER EXISTS: NO
+
+MEDIA_RENDER STATUS: N/A
+
+music_id LEGACY REFERENCE FOUND: NO (Na versão v5-debug atual), mas confirmada como 'music_track_id' no schema.
+
+render.id SELECT BUG FOUND: YES (O seletor atual no dispatcher v5-debug é apenas "id").
+
+BUCKET MISMATCH FOUND: YES (O bucket no banco é 'rendered', mas referências externas citam 'renders').
+
+CAN CURRENT RENDER WORKER ACTUALLY RUN: NO (O dispatcher não está criando os jobs de render).
+
+EXTERNAL DEPLOY REQUIRED: YES (Para restaurar o dispatcher funcional e o worker).
+
+POSTPEER WAS REACHED: NO
+
+ROOT CAUSE: A versão atual do dispatcher (v5-debug) está focada apenas em health e não possui a lógica de criação de renders ou processamento completo de publicações.
+
+FILES THAT REQUIRE CHANGES: supabase/functions/campaign-dispatcher/index.ts, src/routes/campanha.tsx.
 
 PARE.
+
+NÃO declarar sistema pronto.
+
+NÃO declarar correção concluída sem teste runtime real.
         </div>
       </div>
     </DashboardLayout>
