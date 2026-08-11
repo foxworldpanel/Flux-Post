@@ -27,6 +27,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import {
   Megaphone,
+  Zap,
   Music as MusicIcon,
   Calendar,
   Clock,
@@ -80,6 +81,7 @@ type Campanha = {
   data_inicio: string;
   data_fim: string;
   status: string;
+  repeat_policy?: string;
   music_tracks?: MusicTrack;
   artists?: Artist;
 };
@@ -124,6 +126,7 @@ export default function CampanhaPage() {
     distribution_mode: "intelligent" as "all" | "intelligent",
     distribution_variation: "medium" as "low" | "medium" | "high",
     cooldown_days: 30,
+    repeat_policy: "never" as "never" | "cooldown",
     distribution_interval_minutes: 5,
     editorial_language: "pt-BR",
     editorial_style: "engaging",
@@ -148,42 +151,59 @@ export default function CampanhaPage() {
 
     const preview: any[] = [];
     const isNow = formData.start_mode === "now";
-    
-    // Timezone handling - for preview we use local browser time for simplicity but should ideally use tz
     const now = new Date();
     const startDate = isNow ? now : new Date(formData.data_inicio + "T" + formData.daily_start_time);
     const endDate = new Date(formData.data_fim + "T" + formData.daily_end_time);
 
+    // Identity & Anti-Repetition logic
+    // We maintain a tracker of used content per account to avoid repetition
+    const usedContentPerAccount = new Map<string, Set<string>>();
+    selectedAccountIds.forEach(id => usedContentPerAccount.set(id, new Set()));
+
     if (isNow) {
-      // MODO: COMEÇAR AGORA
-      // 1 lote = 1 conteúdo distribuído entre todas as contas
-      // Vamos simular os lotes baseados no intervalo entre conteúdos
       for (let batchIdx = 0; batchIdx < selectedContentIds.length; batchIdx++) {
         const batchStartTime = addMinutes(now, batchIdx * formData.batch_interval_minutes);
         
         selectedAccountIds.forEach((accountId, accIdx) => {
           const account = socialAccounts.find(a => a.id === accountId);
-          // O tempo de cada destino dentro do lote
           const scheduledTime = addMinutes(batchStartTime, (accIdx * formData.destination_interval_seconds) / 60);
+          
+          // Selection logic with anti-repetition
+          let videoIdx = batchIdx % selectedContentIds.length;
+          
+          if (formData.repeat_policy === 'never') {
+            const used = usedContentPerAccount.get(accountId)!;
+            // Find first unused video in the selection for this specific account
+            let found = false;
+            for (let i = 0; i < selectedContentIds.length; i++) {
+              const checkIdx = (batchIdx + i) % selectedContentIds.length;
+              if (!used.has(selectedContentIds[checkIdx])) {
+                videoIdx = checkIdx;
+                used.add(selectedContentIds[checkIdx]);
+                found = true;
+                break;
+              }
+            }
+            if (!found) return; // Stock exhausted for this account
+          }
           
           preview.push({
             date: scheduledTime,
             accountId,
             accountName: account?.account_name || "Conta",
-            videoIndex: batchIdx % selectedContentIds.length,
+            videoIndex: videoIdx,
             platform: account?.platform || "tiktok",
             isNow: batchIdx === 0 && accIdx === 0
           });
         });
       }
     } else {
-      // MODO: PROGRAMAR PERÍODO
       const [startH, startM] = formData.daily_start_time.split(":").map(Number);
       const [endH, endM] = formData.daily_end_time.split(":").map(Number);
       const postsPerDay = formData.posts_por_dia;
       
       let currentDay = startOfDay(startDate);
-      let videoIndex = 0;
+      let batchCounter = 0;
 
       while (isBefore(currentDay, endDate) || currentDay.getTime() === startOfDay(endDate).getTime()) {
         const totalMinutes = (endH * 60 + endM) - (startH * 60 + startM);
@@ -191,30 +211,41 @@ export default function CampanhaPage() {
 
         for (let p = 0; p < postsPerDay; p++) {
           const batchTime = addMinutes(setMinutes(setHours(currentDay, startH), startM), interval * p);
-          
           if (isBefore(batchTime, startDate) || isAfter(batchTime, endDate)) continue;
 
           selectedAccountIds.forEach((accountId, accIdx) => {
             const account = socialAccounts.find(a => a.id === accountId);
             const scheduledTime = addMinutes(batchTime, (accIdx * formData.destination_interval_seconds) / 60);
 
-            let effectiveVideoIdx;
-            if (formData.distribution_mode === 'all') {
-              effectiveVideoIdx = videoIndex % selectedContentIds.length;
-            } else {
+            let videoIdx = batchCounter % selectedContentIds.length;
+            const used = usedContentPerAccount.get(accountId)!;
+
+            if (formData.repeat_policy === 'never') {
+              let found = false;
+              for (let i = 0; i < selectedContentIds.length; i++) {
+                const checkIdx = (batchCounter + i + accIdx) % selectedContentIds.length; // accIdx helps randomize order between accounts
+                if (!used.has(selectedContentIds[checkIdx])) {
+                  videoIdx = checkIdx;
+                  used.add(selectedContentIds[checkIdx]);
+                  found = true;
+                  break;
+                }
+              }
+              if (!found) return; // Stock exhausted
+            } else if (formData.distribution_mode === 'intelligent') {
               const seed = batchTime.getTime() + accIdx;
-              effectiveVideoIdx = Math.floor(Math.abs(Math.sin(seed) * selectedContentIds.length));
+              videoIdx = Math.floor(Math.abs(Math.sin(seed) * selectedContentIds.length));
             }
 
             preview.push({
               date: scheduledTime,
               accountId,
               accountName: account?.account_name || "Conta",
-              videoIndex: effectiveVideoIdx,
+              videoIndex: videoIdx,
               platform: account?.platform || "tiktok"
             });
           });
-          videoIndex++;
+          batchCounter++;
         }
         currentDay = addDays(currentDay, 1);
       }
@@ -444,7 +475,8 @@ export default function CampanhaPage() {
           daily_end_time: formData.daily_end_time,
           batch_interval_minutes: formData.batch_interval_minutes,
           destination_interval_seconds: formData.destination_interval_seconds,
-          timezone: formData.timezone
+          timezone: formData.timezone,
+          repeat_policy: formData.repeat_policy
         })
         .select()
         .single();
@@ -999,43 +1031,75 @@ export default function CampanhaPage() {
                         <ShieldCheck size={14} /> Configurações de Distribuição (Avançado)
                       </Label>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-4">
                       <div className="space-y-2">
-                        <Label className="text-white/60 text-[10px] uppercase font-bold">Intervalo entre Destinos (Contas)</Label>
-                        <Select
-                          value={formData.destination_interval_seconds.toString()}
-                          onValueChange={(v) => setFormData({ ...formData, destination_interval_seconds: parseInt(v) })}
-                        >
-                          <SelectTrigger className="bg-white/5 border-white/10 text-white h-8 text-xs">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent className="bg-[#13131F] border-white/10 text-white">
-                            <SelectItem value="30">30 segundos</SelectItem>
-                            <SelectItem value="60">1 minuto</SelectItem>
-                            <SelectItem value="120">2 minutos</SelectItem>
-                            <SelectItem value="300">5 minutos</SelectItem>
-                          </SelectContent>
-                        </Select>
+                        <Label className="text-white/60 text-[10px] uppercase font-bold">Repetição de Conteúdo</Label>
+                        <div className="grid grid-cols-2 gap-3">
+                          <button
+                            type="button"
+                            onClick={() => setFormData({ ...formData, repeat_policy: 'never' })}
+                            className={`flex items-center justify-between p-3 rounded-lg border text-[10px] font-bold transition-all ${
+                              formData.repeat_policy === 'never'
+                                ? "bg-primary/20 border-primary text-white"
+                                : "bg-white/5 border-white/10 text-white/40 hover:border-white/20"
+                            }`}
+                          >
+                            <span>NUNCA REPETIR NA CONTA</span>
+                            {formData.repeat_policy === 'never' && <Check size={12} />}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setFormData({ ...formData, repeat_policy: 'cooldown' })}
+                            className={`flex items-center justify-between p-3 rounded-lg border text-[10px] font-bold transition-all ${
+                              formData.repeat_policy === 'cooldown'
+                                ? "bg-primary/20 border-primary text-white"
+                                : "bg-white/5 border-white/10 text-white/40 hover:border-white/20"
+                            }`}
+                          >
+                            <span>PERMITIR APÓS COOLDOWN</span>
+                            {formData.repeat_policy === 'cooldown' && <Check size={12} />}
+                          </button>
+                        </div>
                       </div>
-                      
-                      {/* Mostrar aviso de sobreposição se necessário */}
-                      {(() => {
-                        const totalDestinations = selectedAccountIds.length;
-                        const timeNeededForBatch = (totalDestinations * formData.destination_interval_seconds) / 60;
-                        const isOverlapping = formData.start_mode === 'now' && timeNeededForBatch > formData.batch_interval_minutes;
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="space-y-2">
+                          <Label className="text-white/60 text-[10px] uppercase font-bold">Intervalo entre Destinos (Contas)</Label>
+                          <Select
+                            value={formData.destination_interval_seconds.toString()}
+                            onValueChange={(v) => setFormData({ ...formData, destination_interval_seconds: parseInt(v) })}
+                          >
+                            <SelectTrigger className="bg-white/5 border-white/10 text-white h-8 text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent className="bg-[#13131F] border-white/10 text-white">
+                              <SelectItem value="30">30 segundos</SelectItem>
+                              <SelectItem value="60">1 minuto</SelectItem>
+                              <SelectItem value="120">2 minutos</SelectItem>
+                              <SelectItem value="300">5 minutos</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
                         
-                        if (isOverlapping) {
-                          return (
-                            <div className="flex items-center gap-2 text-yellow-500 bg-yellow-500/10 p-2 rounded border border-yellow-500/20">
-                              <AlertTriangle size={14} />
-                              <span className="text-[10px] font-medium leading-tight">
-                                Este lote ainda estará sendo distribuído quando o próximo começar.
-                              </span>
-                            </div>
-                          );
-                        }
-                        return null;
-                      })()}
+                        {/* Mostrar aviso de sobreposição se necessário */}
+                        {(() => {
+                          const totalDestinations = selectedAccountIds.length;
+                          const timeNeededForBatch = (totalDestinations * formData.destination_interval_seconds) / 60;
+                          const isOverlapping = formData.start_mode === 'now' && timeNeededForBatch > formData.batch_interval_minutes;
+                          
+                          if (isOverlapping) {
+                            return (
+                              <div className="flex items-center gap-2 text-yellow-500 bg-yellow-500/10 p-2 rounded border border-yellow-500/20 self-end h-8">
+                                <AlertTriangle size={14} />
+                                <span className="text-[10px] font-medium leading-tight">
+                                  Sobreposição detectada.
+                                </span>
+                              </div>
+                            );
+                          }
+                          return null;
+                        })()}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1350,10 +1414,10 @@ export default function CampanhaPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
                   <div className="bg-white/5 p-4 rounded-xl space-y-1">
                     <div className="text-white/40 text-[10px] uppercase font-bold tracking-widest flex items-center gap-1">
-                      <Calendar size={12} className="text-primary" /> Dias Restantes
+                      <Calendar size={12} className="text-primary" /> Dias
                     </div>
                     <div className="text-xl font-bold text-white">
                       {Math.max(0, differenceInDays(new Date(campanhaAtiva.data_fim), new Date()))}
@@ -1367,13 +1431,19 @@ export default function CampanhaPage() {
                   </div>
                   <div className="bg-white/5 p-4 rounded-xl space-y-1">
                     <div className="text-white/40 text-[10px] uppercase font-bold tracking-widest flex items-center gap-1">
-                      <Layers size={12} className="text-[#7C3AED]" /> Conteúdos
+                      <Layers size={12} className="text-[#7C3AED]" /> Pool
                     </div>
                     <div className="text-xl font-bold text-white">{selectedContentIds.length}</div>
                   </div>
                   <div className="bg-white/5 p-4 rounded-xl space-y-1">
                     <div className="text-white/40 text-[10px] uppercase font-bold tracking-widest flex items-center gap-1">
-                      <Megaphone size={12} className="text-blue-500" /> Total Posts
+                      <Zap size={12} className="text-yellow-500" /> Cap. Max
+                    </div>
+                    <div className="text-xl font-bold text-white">{selectedContentIds.length * selectedAccountIds.length}</div>
+                  </div>
+                  <div className="bg-white/5 p-4 rounded-xl space-y-1">
+                    <div className="text-white/40 text-[10px] uppercase font-bold tracking-widest flex items-center gap-1">
+                      <Megaphone size={12} className="text-blue-500" /> Enviados
                     </div>
                     <div className="text-xl font-bold text-white">{totalPosts}</div>
                   </div>
@@ -1433,6 +1503,12 @@ export default function CampanhaPage() {
                       className={campanhaAtiva.status === "ativo" ? "bg-emerald-500" : ""}
                     >
                       {campanhaAtiva.status}
+                    </Badge>
+                  </div>
+                  <div className="flex justify-between items-center text-sm pt-2 border-t border-white/5">
+                    <span className="text-white/40">Anti-Repetição</span>
+                    <Badge variant="outline" className="text-[10px] border-emerald-500/20 text-emerald-500 bg-emerald-500/5">
+                      {campanhaAtiva.repeat_policy === 'never' ? 'NUNCA REPETIR' : 'COOLDOWN'}
                     </Badge>
                   </div>
                 </CardContent>
