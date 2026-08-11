@@ -56,8 +56,8 @@ export default function AgendaPage() {
     startOfDay(addDays(new Date(), 4)),
   ];
 
-  const postsForSelectedDate = scheduledPosts.filter(post => 
-    post.scheduled_at && isSameDay(new Date(post.scheduled_at), selectedDate)
+   const postsForSelectedDate = scheduledPosts.filter(post => 
+    post.scheduled_for && isSameDay(new Date(post.scheduled_for), selectedDate)
   );
 
   return (
