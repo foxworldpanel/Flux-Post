@@ -857,7 +857,6 @@ export type Database = {
       }
       publications: {
         Row: {
-          account_id: string | null
           attempts: number | null
           campaign_id: string | null
           caption: string | null
@@ -875,13 +874,13 @@ export type Database = {
           provider_post_id: string | null
           published_at: string | null
           scheduled_for: string | null
+          social_account_id: string | null
           status: string | null
           timezone: string | null
           updated_at: string | null
           user_id: string | null
         }
         Insert: {
-          account_id?: string | null
           attempts?: number | null
           campaign_id?: string | null
           caption?: string | null
@@ -899,13 +898,13 @@ export type Database = {
           provider_post_id?: string | null
           published_at?: string | null
           scheduled_for?: string | null
+          social_account_id?: string | null
           status?: string | null
           timezone?: string | null
           updated_at?: string | null
           user_id?: string | null
         }
         Update: {
-          account_id?: string | null
           attempts?: number | null
           campaign_id?: string | null
           caption?: string | null
@@ -923,6 +922,7 @@ export type Database = {
           provider_post_id?: string | null
           published_at?: string | null
           scheduled_for?: string | null
+          social_account_id?: string | null
           status?: string | null
           timezone?: string | null
           updated_at?: string | null
@@ -930,8 +930,15 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "fk_publications_social_account"
+            columns: ["social_account_id"]
+            isOneToOne: false
+            referencedRelation: "social_accounts"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "publications_account_id_fkey"
-            columns: ["account_id"]
+            columns: ["social_account_id"]
             isOneToOne: false
             referencedRelation: "social_accounts"
             referencedColumns: ["id"]
