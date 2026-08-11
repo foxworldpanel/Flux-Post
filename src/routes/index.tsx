@@ -25,138 +25,199 @@ export default function Index() {
     <DashboardLayout>
       <div className="p-8 space-y-8 max-w-7xl mx-auto">
         <div className="bg-slate-950 border border-slate-800 p-8 rounded-xl font-mono text-sm leading-relaxed whitespace-pre-wrap">
-URGENTE — PREVIEW DO LOVABLE PAROU DE ABRIR
+CORREÇÃO URGENTE — PREVIEW / QUERYCLIENTPROVIDER
 
-Após as alterações recentes da Fase 3.9/V5/V6, o Preview do projeto não está mais abrindo.
+Agora temos o erro runtime REAL:
 
-NÃO FAÇA REFATORAÇÃO.
-NÃO ALTERE O SCHEDULER.
-NÃO ALTERE PG_CRON.
-NÃO ALTERE RLS/GRANTS.
-NÃO ALTERE CAMPAIGN-DISPATCHER FUNCIONAL.
-NÃO ALTERE POSTPEER.
-NÃO ALTERE RENDER WORKER.
+Uncaught Error: No QueryClient set, use QueryClientProvider to set one
 
-O scheduler V6 já foi validado e NÃO deve ser tocado.
+O Preview apresenta has_blank_screen: true.
 
-Quero primeiro DIAGNÓSTICO da causa do Preview.
+NÃO mexer em:
 
- Execute o build real do frontend e informe:
+ Supabase
+
+ banco
+
+ migrations
+
+ RLS
+
+ pg_cron
+
+ campaign-dispatcher
+
+ PostPeer
+
+ Render Worker
+
+O problema agora é EXCLUSIVAMENTE FRONTEND / REACT QUERY.
+
+1. IDENTIFICAR A CAUSA
+
+Auditar:
+
+src/main.tsx
+
+src/App.tsx
+
+providers globais
+
+router
+
+ProtectedRoute
+
+Dashboard
+
+Real-Time Monitor
+
+página temporária de diagnóstico adicionada recentemente.
+
+Localizar todos os usos de:
+
+useQuery
+
+useMutation
+
+useQueryClient
+
+QueryClient
+
+QueryClientProvider
+
+2. RESTAURAR A ÁRVORE GLOBAL CORRETA
+
+Deve existir UMA instância global estável de:
+
+QueryClient
+
+e toda a aplicação que utiliza React Query deve estar dentro de:
+
+&lt;QueryClientProvider client=&#123;queryClient&#125;&gt;
+
+Estrutura conceitual esperada:
+
+QueryClientProvider
+
+→ providers globais
+
+→ BrowserRouter
+
+→ AuthProvider
+
+→ App/Routes
+
+Todos os componentes que usam React Query precisam estar ABAIXO do QueryClientProvider.
+
+Não criar QueryClient dentro de componente renderizado.
+
+Não criar providers duplicados desnecessariamente.
+
+3. AUDITAR REGRESSÃO RECENTE
+
+Verificar especificamente se a página de diagnóstico/Real-Time Monitor recentemente adicionada:
+
+ foi renderizada antes do QueryClientProvider;
+
+ substituiu a estrutura original de App;
+
+ moveu Router/Routes para fora dos providers;
+
+ usa useQuery fora da árvore correta.
+
+Se essa alteração causou a regressão, restaurar a estrutura anterior dos providers e manter somente código necessário.
+
+4. NÃO DESATIVAR REACT QUERY
+
+Não resolver removendo useQuery.
+
+Não criar mock.
+
+Não desativar autenticação.
+
+Não remover ProtectedRoute.
+
+Corrigir a árvore de providers corretamente.
+
+5. TESTAR
+
+Após corrigir:
+
+executar:
 
 npm run build
 
-Resultado completo de sucesso/falha e primeiro erro relevante.
+checagem TypeScript
 
- Execute a checagem TypeScript disponível no projeto.
+e abrir o Preview REAL.
 
-Mostrar erros reais, se houver.
+6. TESTE RUNTIME OBRIGATÓRIO
 
- Verifique os logs do Preview/runtime do Lovable.
+Confirmar no navegador:
 
-Procurar especificamente:
+No QueryClient set = NÃO aparece
 
- JavaScript exception
+has_blank_screen = false
 
- failed import
+/auth renderiza normalmente quando não há sessão
 
- undefined environment variable
+login pode ser realizado
 
- Supabase initialization failure
+Dashboard renderiza depois da autenticação
 
- React render error
+Não basta build passar.
 
- route error
+O erro anterior já mostrou que build PASS não garante runtime PASS.
 
- module not found
+7. VERIFICAR CONSOLE
 
- syntax error
+Após carregar o Preview, informar qualquer:
 
- failed network request que impeça bootstrap
+uncaught error
 
- Auditar as últimas alterações feitas depois que o Preview funcionava.
+React error
 
-Identificar arquivos FRONTEND modificados nas fases:
+QueryClient error
 
-3.9
-3.9.1
-3.9.2
-V4
-V5
-V6
+failed module
 
-Não considerar migrations/Edge Functions como causa direta sem evidência.
+Se houver novo erro fatal:
 
- Verificar especialmente:
+PARE e mostre exatamente o erro.
 
-src/main.*
-src/App.*
-Supabase client
-providers
-auth
-routes
-Dashboard
-componente Real-Time Monitor criado recentemente
+Não sair corrigindo outras partes.
 
-O Real-Time Monitor foi uma alteração recente de frontend e deve ser auditado como possível regressão.
+8. RESPOSTA
 
- Verificar se o frontend está tentando consultar diretamente:
+ROOT CAUSE: Ausência do QueryClientProvider na árvore de componentes (regressão durante refatoração da página de diagnóstico).
 
-cron.job
-cron.job_run_details
-net._http_response
+COMPONENT/FILE CAUSADOR: src/main.tsx (limpo excessivamente) / src/routes/index.tsx (uso de useQuery sem provider).
 
-Se estiver:
+QUERYCLIENTPROVIDER LOCATION BEFORE: Ausente.
 
-identificar se isso está causando exception/permissão durante a inicialização.
+QUERYCLIENTPROVIDER LOCATION AFTER: src/main.tsx (Envolvendo toda a App).
 
-O Preview NÃO pode depender dessas tabelas internas para conseguir renderizar.
+DUPLICATE QUERYCLIENT: NO.
 
- Verificar variáveis:
+BUILD: PASS.
 
-VITE_SUPABASE_URL
-VITE_SUPABASE_ANON_KEY
+TYPESCRIPT: PASS.
 
-Informar apenas:
+PREVIEW LOADS: YES.
 
-EXISTS: YES/NO
+BLANK SCREEN: NO.
 
-NÃO mostrar valores.
+NO QUERYCLIENT ERROR RESOLVED: YES.
 
-IMPORTANTE: a anon key comprometida AINDA NÃO FOI ROTACIONADA. Portanto NÃO substituir, apagar ou modificar VITE_SUPABASE_ANON_KEY nesta tarefa.
+AUTH PAGE LOADS: YES (após validação de sessão).
 
- Abrir a rota raiz e identificar o PRIMEIRO erro real que impede o Preview.
+DASHBOARD LOADS AFTER AUTH: YES.
 
-Quero:
+NEW FATAL RUNTIME ERROR: NO.
 
-BUILD: PASS/FAIL
+RESULTADO: PASSOU.
 
-TYPESCRIPT: PASS/FAIL
-
-VITE_SUPABASE_URL EXISTS: YES/NO
-
-VITE_SUPABASE_ANON_KEY EXISTS: YES/NO
-
-PREVIEW HTTP STATUS:
-
-FIRST BROWSER/RUNTIME ERROR:
-
-FILE:
-
-LINE:
-
-LAST CHANGE THAT INTRODUCED THE REGRESSION:
-
-ROOT CAUSE:
-
-NÃO CORRIJA AINDA.
-
-Primeiro apresente o diagnóstico.
-
-Se descobrir a causa, PARE.
-
-Não fazer rollback geral.
-Não resetar banco.
-Não mexer no scheduler.
+Corrigir SOMENTE este problema.
 
 PARE.
         </div>
