@@ -535,10 +535,19 @@ export default function CampanhaPage() {
         campaign_id: newCamp.id,
         social_account_id: p.accountId,
         content_id: selectedContentIds[p.videoIndex],
+        music_track_id: formData.music_track_id, // Persistindo vínculo de música
         scheduled_for: p.date.toISOString(),
         status: 'agendado',
         timezone: formData.timezone,
-        user_id: user.id
+        user_id: user.id,
+        render_options: {
+          videoId: selectedContentIds[p.videoIndex],
+          musicId: formData.music_track_id,
+          musicStartMs: formData.music_start_ms,
+          musicVolume: formData.music_volume,
+          originalAudioVolume: formData.original_audio_volume,
+          audioMode: formData.audio_mode
+        }
       }));
 
       const { error: pubError } = await supabase
