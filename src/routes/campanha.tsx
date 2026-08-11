@@ -530,31 +530,40 @@ export default function CampanhaPage() {
       
       if (accountRelError) throw accountRelError;
 
-      // 4. Generate Publications based on Preview
-      const publicationInserts = schedulingPreview.map(p => ({
-        campaign_id: newCamp.id,
-        social_account_id: p.accountId,
-        content_id: selectedContentIds[p.videoIndex],
-        music_track_id: formData.music_track_id, // Persistindo vínculo de música
-        scheduled_for: p.date.toISOString(),
-        status: 'agendado',
-        timezone: formData.timezone,
-        user_id: user.id,
-        render_options: {
-          videoId: selectedContentIds[p.videoIndex],
-          musicId: formData.music_track_id,
-          musicStartMs: formData.music_start_ms,
-          musicVolume: formData.music_volume,
-          originalAudioVolume: formData.original_audio_volume,
-          audioMode: formData.audio_mode
+      // 4. Generate Publications based on Preview (Atomic check)
+      const expectedCount = schedulingPreview.length;
+      if (expectedCount > 0) {
+        const publicationInserts = schedulingPreview.map(p => ({
+          campaign_id: newCamp.id,
+          social_account_id: p.accountId,
+          content_id: selectedContentIds[p.videoIndex],
+          music_track_id: formData.music_track_id,
+          scheduled_for: p.date.toISOString(),
+          status: 'agendado',
+          timezone: formData.timezone,
+          user_id: user.id,
+          platform: p.platform || 'tiktok',
+          render_options: {
+            render_key: `${selectedContentIds[p.videoIndex]}_${formData.music_track_id}_${formData.music_start_ms}`,
+            videoId: selectedContentIds[p.videoIndex],
+            musicId: formData.music_track_id,
+            musicStartMs: formData.music_start_ms,
+            musicVolume: formData.music_volume,
+            originalAudioVolume: formData.original_audio_volume,
+            audioMode: formData.audio_mode
+          }
+        }));
+
+        const { data: createdPubs, error: pubError } = await supabase
+          .from("publications")
+          .insert(publicationInserts)
+          .select('id');
+
+        if (pubError) throw pubError;
+        if (!createdPubs || createdPubs.length !== expectedCount) {
+          throw new Error(`Falha na integridade: esperado ${expectedCount} publicações, criado ${createdPubs?.length || 0}.`);
         }
-      }));
-
-      const { error: pubError } = await supabase
-        .from("publications")
-        .insert(publicationInserts);
-
-      if (pubError) throw pubError;
+      }
 
       // 5. Update music track
       await supabase
