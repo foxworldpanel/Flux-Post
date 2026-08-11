@@ -126,52 +126,51 @@ export default function Index() {
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-lg font-bold text-white flex items-center gap-2">
                     <Search className="text-[#7C3AED]" size={18} />
-                    Relatório de Auditoria v1.0
+                    Histórico Global & Garimpo Inteligente
                   </CardTitle>
-                  <Badge variant="outline" className="border-emerald-500/50 text-emerald-500">Pronto para Teste</Badge>
+                  <Badge variant="outline" className="border-emerald-500/50 text-emerald-500 flex gap-2">
+                    <ShieldCheck size={12} />
+                    Sincronizado
+                  </Badge>
                 </div>
               </CardHeader>
               <CardContent className="p-0">
                 <div className="divide-y divide-white/5">
                   <AuditItem 
-                    label="PostPeer API v1.dev" 
-                    desc="Domínio api.postpeer.dev e headers x-access-key confirmados." 
+                    label="Identidade Canônica" 
+                    desc="Deduplicação baseada estritamente no Pexels ID (external_id)." 
                     status="ok" 
                   />
                   <AuditItem 
-                    label="Contrato PostPeer" 
-                    desc="Payload 'content' como string e parser de resposta corrigidos." 
+                    label="Ocultar Utilizados" 
+                    desc="Conteúdo publicado ou descartado é filtrado por padrão no Garimpo." 
                     status="ok" 
                   />
                   <AuditItem 
-                    label="Tipagem Canônica" 
-                    desc="Tipos reais implementados para requisições e respostas PostPeer." 
+                    label="Paginação Backend" 
+                    desc="Busca páginas adicionais automaticamente para completar o lote de vídeos novos." 
                     status="ok" 
                   />
                   <AuditItem 
-                    label="Media Render Engine" 
-                    desc="Determinismo SHA-256 e fluxo de cache validados." 
+                    label="Garimpo Automático" 
+                    desc="Crawler avança progressivamente pelas páginas do catálogo Pexels." 
                     status="ok" 
                   />
                   <AuditItem 
-                    label="Limpeza Legado" 
-                    desc="Referências antigas e tabelas obsoletas removidas do fluxo." 
+                    label="Detecção de Biblioteca" 
+                    desc="Vídeos já presentes no estoque são identificados e bloqueados para re-importação." 
                     status="ok" 
                   />
                   <AuditItem 
-                    label="Render Worker" 
-                    desc="Execução Client-side mantida para testes. Worker Server-side PENDENTE." 
-                    status="ok" 
-                  />
-                  <AuditItem 
-                    label="Schema de Campanha" 
-                    desc="Campos audio_mode, music_volume e distribuição inteligente sincronizados com o banco remoto." 
+                    label="Contador de Repetidos" 
+                    desc="Exibição em tempo real de quantos resultados foram ignorados por duplicidade." 
                     status="ok" 
                   />
                 </div>
               </CardContent>
             </Card>
           </div>
+
 
           <div className="space-y-6">
             <Card className="bg-[#13131F] border-white/5">

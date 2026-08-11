@@ -615,10 +615,13 @@ export default function GarimpoPage() {
                     })}
                     isImporting={importingId === video.id.toString()}
                     isImported={importedExternalIds.has(video.id.toString())}
+                    isPublished={publishedExternalIds.has(video.id.toString())}
+                    isDiscarded={discardedExternalIds.has(video.id.toString())}
                     formatDuration={formatDuration}
                     getResolutionInfo={getResolutionInfo}
                   />
                 ))}
+
 
                 {!loading && (query || searchType === 'popular') && results.length === 0 && (
                   <div className="col-span-full py-20 text-center">
@@ -642,7 +645,7 @@ export default function GarimpoPage() {
                    )}
                    Carregar Mais
                  </Button>
-                 <p className="text-[10px] text-slate-500 font-mono">Página {page} | Exibindo {results.length} de {totalResults.toLocaleString()}</p>
+                 <p className="text-[10px] text-slate-500 font-mono">Página {page} | Exibindo {results.length} de {totalResults.toLocaleString()} {ignoredCount > 0 && `| ${ignoredCount} repetidos ignorados`}</p>
                </div>
              )}
           </TabsContent>
@@ -691,6 +694,8 @@ export default function GarimpoPage() {
                     onPreview={() => setSelectedCandidate(cand)}
                     isImporting={importingId === cand.id}
                     isImported={cand.status === 'aprovado' || importedExternalIds.has(cand.external_id)}
+                    isPublished={publishedExternalIds.has(cand.external_id)}
+                    isDiscarded={cand.status === 'descartado' || discardedExternalIds.has(cand.external_id)}
                     formatDuration={formatDuration}
                     getResolutionInfo={getResolutionInfo}
                     isCandidate={true}
