@@ -6,7 +6,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const DISPATCHER_BUILD = "health-v5-debug";
+const DISPATCHER_BUILD = "v6-full-pipeline";
 
 serve(async (req) => {
   const startedAt = new Date().toISOString();
@@ -19,12 +19,8 @@ serve(async (req) => {
   try {
     const cronSecret = req.headers.get("x-cron-secret");
     if (cronSecret !== "v4-dispatcher-secret-internal") {
-      console.error(`[campaign-dispatcher] Unauthorized: Invalid X-Cron-Secret. Received: ${cronSecret}`);
-      return new Response(JSON.stringify({ 
-        error: "Unauthorized",
-        build: DISPATCHER_BUILD,
-        execution_id: executionId
-      }), { 
+      console.error(`[campaign-dispatcher] Unauthorized: Invalid X-Cron-Secret.`);
+      return new Response(JSON.stringify({ error: "Unauthorized" }), { 
         status: 401, 
         headers: { ...corsHeaders, "Content-Type": "application/json" } 
       });
@@ -32,105 +28,174 @@ serve(async (req) => {
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-    
-    // Extrair Project Ref
-    const runtimeProjectRef = new URL(supabaseUrl).hostname.split('.')[0];
-
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
     console.log(`[campaign-dispatcher][${executionId}] Iniciando ciclo ${DISPATCHER_BUILD}...`);
 
-    let healthWriteAttempted = false;
-    let healthWriteSuccess = false;
-    let upsertErrorData = null;
-    let upsertReturnedRow = null;
-    let healthReadbackAt = null;
-
-    // 5. TESTAR O WRITE DIRETAMENTE NO INÍCIO
-    healthWriteAttempted = true;
-    const { data: upsertData, error: upsertError } = await supabaseAdmin
+    // 1. Health Update (Atômico)
+    const { error: healthError } = await supabaseAdmin
       .from("server_cron_state")
       .upsert({ 
         id: '00000000-0000-0000-0000-000000000001',
-        last_run_at: new Date().toISOString(),
-        last_success_at: new Date().toISOString(),
-        processed_count: 0, // Será atualizado no final se houver pubs
+        last_run_at: startedAt,
+        last_success_at: startedAt,
         executor_type: 'edge_function_dispatcher',
         last_error: null
-      }, { onConflict: 'id' })
-      .select('last_run_at')
-      .single();
+      }, { onConflict: 'id' });
 
-    if (upsertError) {
-      upsertErrorData = { code: upsertError.code, message: upsertError.message };
-    } else {
-      healthWriteSuccess = !!upsertData;
-      upsertReturnedRow = upsertData;
+    if (healthError) {
+      console.error("[campaign-dispatcher] Erro ao atualizar health:", healthError);
     }
 
-    // 6. READ-AFTER-WRITE
-    const { data: readbackData } = await supabaseAdmin
-      .from("server_cron_state")
-      .select("last_run_at")
-      .eq("id", '00000000-0000-0000-0000-000000000001')
-      .single();
-    
-    healthReadbackAt = readbackData?.last_run_at;
-
-    // 8. NÃO MASCARAR FALHA (Para Auditoria V5)
-    if (upsertError || !upsertReturnedRow || !healthReadbackAt) {
-        return new Response(JSON.stringify({
-            build: DISPATCHER_BUILD,
-            execution_id: executionId,
-            runtime_project_ref: runtimeProjectRef,
-            health_write_attempted: true,
-            health_write_success: false,
-            upsert_error: upsertErrorData,
-            upsert_returned_row: !!upsertReturnedRow,
-            health_written_at: upsertReturnedRow?.last_run_at,
-            health_readback_at: healthReadbackAt,
-            status: "FAILED_HEALTH_PERSISTENCE"
-        }), {
-            status: 500,
-            headers: { ...corsHeaders, "Content-Type": "application/json" }
-        });
-    }
-
-    // Processamento normal (resumido para debug)
-    const { data: publications } = await supabaseAdmin
+    // 2. Buscar publicações elegíveis
+    // Status canônicos: agendado, pending, scheduled
+    const { data: publications, error: fetchError } = await supabaseAdmin
       .from("publications")
-      .select("id")
+      .select(`
+        *,
+        social_accounts (
+          id,
+          platform,
+          provider_connection_id,
+          username
+        )
+      `)
       .in("status", ["agendado", "pending", "scheduled"])
-      .lte("scheduled_for", new Date().toISOString())
-      .limit(1);
+      .lte("scheduled_for", startedAt)
+      .order("scheduled_for", { ascending: true })
+      .limit(10);
 
-    const finishedAt = new Date().toISOString();
+    if (fetchError) throw fetchError;
+
+    let processedCount = 0;
+    const results = [];
+
+    for (const pub of (publications || [])) {
+      console.log(`[campaign-dispatcher] Processando publicação ${pub.id}...`);
+      
+      // 3. Claim Atômico
+      const { data: claimedPub, error: claimError } = await supabaseAdmin
+        .from("publications")
+        .update({ 
+          status: 'publishing',
+          metadata: { 
+            ...(pub.metadata || {}), 
+            dispatcher_claim_at: new Date().toISOString(),
+            execution_id: executionId
+          }
+        })
+        .eq("id", pub.id)
+        .in("status", ["agendado", "pending", "scheduled"])
+        .select()
+        .single();
+
+      if (claimError || !claimedPub) {
+        console.log(`[campaign-dispatcher] Falha ao dar claim na publicação ${pub.id} (provavelmente já processada).`);
+        continue;
+      }
+
+      // 4. Lógica de Render
+      if (pub.music_track_id) {
+        console.log(`[campaign-dispatcher] Publicação ${pub.id} requer render.`);
+        
+        // Verificar se já existe render pronto (CACHE HIT)
+        const renderKey = pub.render_options?.render_key || 
+          `${pub.content_id}_${pub.music_track_id}_${pub.render_options?.musicStartMs || 0}`;
+
+        const { data: existingRender } = await supabaseAdmin
+          .from("media_renders")
+          .select("id, status, storage_path, render_key")
+          .eq("render_key", renderKey)
+          .eq("status", "ready")
+          .maybeSingle();
+
+        if (existingRender) {
+          console.log(`[campaign-dispatcher] Cache hit para render: ${existingRender.id}`);
+          await supabaseAdmin
+            .from("publications")
+            .update({ 
+              media_render_id: existingRender.id,
+              status: 'ready_to_publish' 
+            })
+            .eq("id", pub.id);
+          results.push({ id: pub.id, status: 'ready_to_publish', cache: true });
+          processedCount++;
+          continue;
+        }
+
+        // Criar job de render se não existir nenhum em andamento
+        const { data: pendingRender } = await supabaseAdmin
+          .from("media_renders")
+          .select("id, status")
+          .eq("render_key", renderKey)
+          .in("status", ["queued", "processing"])
+          .maybeSingle();
+
+        if (!pendingRender) {
+          console.log(`[campaign-dispatcher] Criando novo job de render para key ${renderKey}`);
+          const { data: newRender } = await supabaseAdmin
+            .from("media_renders")
+            .insert({
+              user_id: pub.user_id,
+              render_key: renderKey,
+              source_content_id: pub.content_id,
+              music_track_id: pub.music_track_id,
+              status: 'queued',
+              audio_mode: pub.render_options?.audioMode || 'music_plus_original',
+              music_volume: pub.render_options?.musicVolume || 100,
+              original_audio_volume: pub.render_options?.originalAudioVolume || 20,
+              music_start_ms: pub.render_options?.musicStartMs || 0
+            })
+            .select()
+            .single();
+          
+          if (newRender) {
+             await supabaseAdmin
+              .from("publications")
+              .update({ media_render_id: newRender.id, status: 'waiting_render' })
+              .eq("id", pub.id);
+          }
+        } else {
+          await supabaseAdmin
+            .from("publications")
+            .update({ media_render_id: pendingRender.id, status: 'waiting_render' })
+            .eq("id", pub.id);
+        }
+        
+        results.push({ id: pub.id, status: 'waiting_render' });
+        processedCount++;
+        continue;
+      }
+
+      // 5. Enviar para PostPeer (Simulado nesta auditoria - apenas logs)
+      console.log(`[campaign-dispatcher] Publicação ${pub.id} pronta para PostPeer (sem música).`);
+      // Aqui entraria a chamada ao PostPeer futuramente
+      results.push({ id: pub.id, status: 'ready_to_publish_manual_trigger_next' });
+      processedCount++;
+    }
+
+    // Atualizar processed_count no final
+    if (processedCount > 0) {
+      await supabaseAdmin
+        .from("server_cron_state")
+        .update({ processed_count: processedCount })
+        .eq("id", '00000000-0000-0000-0000-000000000001');
+    }
 
     return new Response(JSON.stringify({ 
       build: DISPATCHER_BUILD,
       execution_id: executionId,
-      started_at: startedAt,
-      finished_at: finishedAt,
-      runtime_project_ref: runtimeProjectRef,
       queue_size: publications?.length || 0,
-      processed_count: 0, // V5-debug foca em health
-      health_write_attempted: true,
-      health_write_success: true,
-      upsert_error: null,
-      upsert_returned_row: true,
-      health_written_at: upsertReturnedRow?.last_run_at,
-      health_readback_at: healthReadbackAt
+      processed_count: processedCount,
+      results
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 200,
     });
 
   } catch (err: any) {
-    return new Response(JSON.stringify({ 
-        error: err.message,
-        build: DISPATCHER_BUILD,
-        execution_id: executionId
-    }), {
+    console.error("[campaign-dispatcher] Fatal error:", err);
+    return new Response(JSON.stringify({ error: err.message }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
