@@ -473,7 +473,8 @@ export default function CampanhaPage() {
           daily_end_time: formData.daily_end_time,
           batch_interval_minutes: formData.batch_interval_minutes,
           destination_interval_seconds: formData.destination_interval_seconds,
-          timezone: formData.timezone
+          timezone: formData.timezone,
+          repeat_policy: formData.repeat_policy
         })
         .select()
         .single();
