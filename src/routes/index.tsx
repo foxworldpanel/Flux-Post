@@ -182,8 +182,13 @@ export default function Index() {
                     status="ok" 
                   />
                   <AuditItem 
-                    label="Lógica de Sobreposição" 
-                    desc="Verificação de janelas temporais e intervalos entre destinos validada." 
+                    label="Começar Agora (Semântica)" 
+                    desc="Modo 'now' calculado no clique, ignora janelas diárias e defaults legados." 
+                    status="ok" 
+                  />
+                  <AuditItem 
+                    label="Timeline Inteligente" 
+                    desc="Cálculo imediato T0 + batch_interval + destination_interval." 
                     status="ok" 
                   />
                 </div>

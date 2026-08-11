@@ -82,6 +82,12 @@ type Campanha = {
   data_fim: string;
   status: string;
   repeat_policy?: string;
+  start_mode?: "period" | "now";
+  daily_start_time?: string;
+  daily_end_time?: string;
+  batch_interval_minutes?: number;
+  destination_interval_seconds?: number;
+  timezone?: string;
   music_tracks?: MusicTrack;
   artists?: Artist;
 };
@@ -1375,43 +1381,46 @@ export default function CampanhaPage() {
               </CardHeader>
               <CardContent className="space-y-8">
                 <div className="space-y-4">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Progresso da Campanha</span>
-                    <span className="text-foreground font-medium">
-                      {(() => {
-                        const total =
-                          differenceInDays(
-                            new Date(campanhaAtiva.data_fim),
-                            new Date(campanhaAtiva.data_inicio),
-                          ) || 1;
-                        const passados = differenceInDays(
-                          new Date(),
-                          new Date(campanhaAtiva.data_inicio),
-                        );
-                        const r = Math.min(100, Math.max(0, (passados / total) * 100));
-                        return `${Math.round(r)}%`;
-                      })()}
-                    </span>
-                  </div>
-                  <Progress
-                    value={(() => {
-                      const total =
-                        differenceInDays(
-                          new Date(campanhaAtiva.data_fim),
-                          new Date(campanhaAtiva.data_inicio),
-                        ) || 1;
-                      const passados = differenceInDays(
-                        new Date(),
+                  {(() => {
+                    const isNow = campanhaAtiva.start_mode === "now";
+                    if (isNow) return (
+                      <div className="bg-primary/5 border border-primary/20 p-4 rounded-xl flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <Zap className="text-primary" size={20} />
+                          <div>
+                            <p className="text-sm font-bold text-foreground">Campanha em Tempo Real</p>
+                            <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">Modo Começar Agora Ativo</p>
+                          </div>
+                        </div>
+                        <Badge className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20">EXECUTANDO</Badge>
+                      </div>
+                    );
+
+                    const total =
+                      differenceInDays(
+                        new Date(campanhaAtiva.data_fim),
                         new Date(campanhaAtiva.data_inicio),
-                      );
-                      return Math.min(100, Math.max(0, (passados / total) * 100));
-                    })()}
-                    className="h-2 bg-muted/50"
-                  />
-                  <div className="flex justify-between text-xs text-muted-foreground">
-                    <span>Início: {format(new Date(campanhaAtiva.data_inicio), "dd/MM/yyyy")}</span>
-                    <span>Fim: {format(new Date(campanhaAtiva.data_fim), "dd/MM/yyyy")}</span>
-                  </div>
+                      ) || 1;
+                    const passados = differenceInDays(
+                      new Date(),
+                      new Date(campanhaAtiva.data_inicio),
+                    );
+                    const r = Math.min(100, Math.max(0, (passados / total) * 100));
+                    
+                    return (
+                      <>
+                        <div className="flex justify-between text-xs mb-2">
+                          <span className="text-muted-foreground uppercase font-bold tracking-widest text-[10px]">Progresso Temporal</span>
+                          <span className="text-foreground font-medium">{Math.round(r)}%</span>
+                        </div>
+                        <Progress value={r} className="h-2 bg-muted/50" />
+                        <div className="flex justify-between text-xs text-muted-foreground mt-2">
+                          <span>Início: {format(new Date(campanhaAtiva.data_inicio), "dd/MM/yyyy")}</span>
+                          <span>Fim: {format(new Date(campanhaAtiva.data_fim), "dd/MM/yyyy")}</span>
+                        </div>
+                      </>
+                    );
+                  })()}
                 </div>
 
                 <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
@@ -1484,18 +1493,37 @@ export default function CampanhaPage() {
                   <CardTitle className="text-sm font-medium text-muted-foreground">Configurações</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="flex justify-between items-center text-sm">
-                    <span className="text-muted-foreground">Horário Ativo</span>
-                    <span className="text-foreground">
-                      {campanhaAtiva.hora_inicio}:00 - {campanhaAtiva.hora_fim}:00
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center text-sm">
-                    <span className="text-muted-foreground">Intervalo</span>
-                    <span className="text-foreground">
-                      {campanhaAtiva.intervalo_min} - {campanhaAtiva.intervalo_max} min
-                    </span>
-                  </div>
+                  {campanhaAtiva.start_mode === 'now' ? (
+                    <>
+                      <div className="flex justify-between items-center text-sm">
+                        <span className="text-muted-foreground">Modo</span>
+                        <Badge variant="outline" className="text-[10px] bg-primary/10 text-primary border-primary/20">COMEÇAR AGORA</Badge>
+                      </div>
+                      <div className="flex justify-between items-center text-sm">
+                        <span className="text-muted-foreground">Intervalo Lote</span>
+                        <span className="text-foreground">{campanhaAtiva.batch_interval_minutes} min</span>
+                      </div>
+                      <div className="flex justify-between items-center text-sm">
+                        <span className="text-muted-foreground">Intervalo Destinos</span>
+                        <span className="text-foreground">{campanhaAtiva.destination_interval_seconds} seg</span>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex justify-between items-center text-sm">
+                        <span className="text-muted-foreground">Horário Ativo</span>
+                        <span className="text-foreground">
+                          {campanhaAtiva.daily_start_time || `${campanhaAtiva.hora_inicio}:00`} - {campanhaAtiva.daily_end_time || `${campanhaAtiva.hora_fim}:00`}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center text-sm">
+                        <span className="text-muted-foreground">Intervalo Variável</span>
+                        <span className="text-foreground">
+                          {campanhaAtiva.intervalo_min} - {campanhaAtiva.intervalo_max} min
+                        </span>
+                      </div>
+                    </>
+                  )}
                   <div className="flex justify-between items-center text-sm">
                     <span className="text-muted-foreground">Status</span>
                     <Badge
