@@ -555,8 +555,8 @@ export type Database = {
           error_message: string | null
           file_size: number | null
           id: string
-          music_id: string | null
           music_start_ms: number | null
+          music_track_id: string | null
           music_volume: number | null
           original_audio_volume: number | null
           output_profile: string | null
@@ -575,8 +575,8 @@ export type Database = {
           error_message?: string | null
           file_size?: number | null
           id?: string
-          music_id?: string | null
           music_start_ms?: number | null
+          music_track_id?: string | null
           music_volume?: number | null
           original_audio_volume?: number | null
           output_profile?: string | null
@@ -595,8 +595,8 @@ export type Database = {
           error_message?: string | null
           file_size?: number | null
           id?: string
-          music_id?: string | null
           music_start_ms?: number | null
+          music_track_id?: string | null
           music_volume?: number | null
           original_audio_volume?: number | null
           output_profile?: string | null
@@ -610,7 +610,7 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "media_renders_music_id_fkey"
-            columns: ["music_id"]
+            columns: ["music_track_id"]
             isOneToOne: false
             referencedRelation: "music_tracks"
             referencedColumns: ["id"]
@@ -867,7 +867,7 @@ export type Database = {
           last_error: string | null
           media_render_id: string | null
           metadata: Json | null
-          music_id: string | null
+          music_track_id: string | null
           platform: string
           post_url: string | null
           provider_connection_id: string | null
@@ -892,7 +892,7 @@ export type Database = {
           last_error?: string | null
           media_render_id?: string | null
           metadata?: Json | null
-          music_id?: string | null
+          music_track_id?: string | null
           platform: string
           post_url?: string | null
           provider_connection_id?: string | null
@@ -917,7 +917,7 @@ export type Database = {
           last_error?: string | null
           media_render_id?: string | null
           metadata?: Json | null
-          music_id?: string | null
+          music_track_id?: string | null
           platform?: string
           post_url?: string | null
           provider_connection_id?: string | null
@@ -932,6 +932,13 @@ export type Database = {
           user_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "fk_publications_music_track_id"
+            columns: ["music_track_id"]
+            isOneToOne: false
+            referencedRelation: "music_tracks"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "fk_publications_social_account"
             columns: ["social_account_id"]
@@ -969,7 +976,7 @@ export type Database = {
           },
           {
             foreignKeyName: "publications_music_id_fkey"
-            columns: ["music_id"]
+            columns: ["music_track_id"]
             isOneToOne: false
             referencedRelation: "music_tracks"
             referencedColumns: ["id"]
