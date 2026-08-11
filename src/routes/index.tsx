@@ -191,6 +191,16 @@ export default function Index() {
                     desc="Cálculo imediato T0 + batch_interval + destination_interval." 
                     status="ok" 
                   />
+                  <AuditItem 
+                    label="Executor Server-Side" 
+                    desc="FALHA: Nenhuma rotina automática pg_cron detectada no banco. Dependência de trigger manual." 
+                    status="error" 
+                  />
+                  <AuditItem 
+                    label="Render Worker" 
+                    desc="PENDENTE: FFmpeg ainda depende de execução no navegador. Render server-side não implementado." 
+                    status="warn" 
+                  />
                 </div>
               </CardContent>
             </Card>
