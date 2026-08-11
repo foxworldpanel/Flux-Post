@@ -25,7 +25,7 @@ export default function Index() {
     <DashboardLayout>
       <div className="p-8 space-y-8 max-w-7xl mx-auto">
         <div className="bg-slate-950 border border-slate-800 p-8 rounded-xl font-mono text-sm leading-relaxed whitespace-pre-wrap">
-CORREÇÃO REAL — DISPATCHER → MEDIA_RENDER QUEUE
+{`CORREÇÃO REAL — DISPATCHER → MEDIA_RENDER QUEUE
 
 Auditoria externa confirmou no HEAD atual do GitHub que o campaign-dispatcher NÃO possui criação automática de render jobs.
 
@@ -199,7 +199,7 @@ NEXT BLOCKER:
 
 RESULTADO:
 
-PARE.
+PARE.`}
         </div>
       </div>
     </DashboardLayout>
