@@ -33,7 +33,7 @@ export default function AgendaPage() {
           social_accounts(account_name, username, platform)
         `)
         .eq('status', 'scheduled')
-        .order('scheduled_at', { ascending: true });
+        .order('scheduled_for', { ascending: true });
 
       if (error) throw error;
       setScheduledPosts(data || []);
@@ -56,8 +56,8 @@ export default function AgendaPage() {
     startOfDay(addDays(new Date(), 4)),
   ];
 
-  const postsForSelectedDate = scheduledPosts.filter(post => 
-    post.scheduled_at && isSameDay(new Date(post.scheduled_at), selectedDate)
+   const postsForSelectedDate = scheduledPosts.filter(post => 
+    post.scheduled_for && isSameDay(new Date(post.scheduled_for), selectedDate)
   );
 
   return (
@@ -78,7 +78,7 @@ export default function AgendaPage() {
         <div className="flex items-center gap-4 overflow-x-auto pb-4 custom-scrollbar">
           {days.map((day) => {
             const isSelected = isSameDay(day, selectedDate);
-            const postCount = scheduledPosts.filter(p => p.scheduled_at && isSameDay(new Date(p.scheduled_at), day)).length;
+            const postCount = scheduledPosts.filter(p => p.scheduled_for && isSameDay(new Date(p.scheduled_for), day)).length;
             
             return (
               <button
@@ -130,7 +130,7 @@ export default function AgendaPage() {
                   <CardContent className="p-6 flex items-center gap-6">
                     <div className="w-16 h-16 bg-white/5 rounded-xl flex flex-col items-center justify-center text-slate-500 flex-shrink-0">
                        <Clock size={20} className="mb-1 text-slate-400" />
-                       <span className="text-[10px] font-bold">{format(new Date(post.scheduled_at!), "HH:mm")}</span>
+                       <span className="text-[10px] font-bold">{format(new Date(post.scheduled_for!), "HH:mm")}</span>
                     </div>
 
                     <div className="flex-1 space-y-1">

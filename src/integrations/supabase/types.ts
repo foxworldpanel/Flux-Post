@@ -852,7 +852,7 @@ export type Database = {
           post_url: string | null
           provider_post_id: string | null
           published_at: string | null
-          scheduled_at: string | null
+          scheduled_for: string | null
           status: string | null
           timezone: string | null
           updated_at: string | null
@@ -875,7 +875,7 @@ export type Database = {
           post_url?: string | null
           provider_post_id?: string | null
           published_at?: string | null
-          scheduled_at?: string | null
+          scheduled_for?: string | null
           status?: string | null
           timezone?: string | null
           updated_at?: string | null
@@ -898,7 +898,7 @@ export type Database = {
           post_url?: string | null
           provider_post_id?: string | null
           published_at?: string | null
-          scheduled_at?: string | null
+          scheduled_for?: string | null
           status?: string | null
           timezone?: string | null
           updated_at?: string | null

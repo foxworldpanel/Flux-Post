@@ -171,6 +171,16 @@ export default function Index() {
                     desc="Trava definitiva: social_account_id + content_id (Identity canonical)." 
                     status="ok" 
                   />
+                   <AuditItem 
+                    label="Publicações: scheduled_for" 
+                    desc="Unificação do campo canônico de agendamento TIMESTAMPTZ (Database & API)." 
+                    status="ok" 
+                  />
+                  <AuditItem 
+                    label="Começar Agora" 
+                    desc="Cálculo dinâmico de horários imediatos com intervalos entre destinos." 
+                    status="ok" 
+                  />
                 </div>
               </CardContent>
             </Card>

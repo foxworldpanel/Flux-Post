@@ -102,8 +102,8 @@ serve(async (req) => {
         type: "VIDEO" as const
       }],
       timezone: pub.timezone || "America/Sao_Paulo",
-      publishNow: pub.status === 'publishing' || !pub.scheduled_at,
-      scheduledFor: pub.scheduled_at || undefined
+      publishNow: pub.status === 'publishing' || !pub.scheduled_for,
+      scheduledFor: pub.scheduled_for || undefined
     };
 
     console.log("[postpeer-post-create] Payload:", JSON.stringify(payload, null, 2));

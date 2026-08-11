@@ -108,7 +108,7 @@ export const socialService = {
     account_id: string;
     platform: string;
     caption: string;
-    scheduled_at?: string;
+    scheduled_for?: string;
     timezone?: string;
   }) {
     const { data: { user } } = await supabase.auth.getUser();
@@ -119,7 +119,7 @@ export const socialService = {
       .insert({
         ...payload,
         user_id: user.id,
-        status: payload.scheduled_at ? 'scheduled' : 'publishing'
+        status: payload.scheduled_for ? 'scheduled' : 'publishing'
       })
       .select()
       .single();
