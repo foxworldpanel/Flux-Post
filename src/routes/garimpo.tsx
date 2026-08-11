@@ -145,7 +145,7 @@ function VideoCard({
 
 export default function GarimpoPage() {
   const [activeTab, setActiveTab] = useState("buscar");
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(() => sessionStorage.getItem('garimpo_query') || "");
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<any[]>([]);
   const [candidates, setCandidates] = useState<ContentCandidate[]>([]);
@@ -155,19 +155,24 @@ export default function GarimpoPage() {
   const [importingId, setImportingId] = useState<string | null>(null);
   const [importedExternalIds, setImportedExternalIds] = useState<Set<string>>(new Set());
 
+  // Pagination & Search State
+  const [page, setPage] = useState(1);
+  const [totalResults, setTotalResults] = useState(0);
+  const [hasNextPage, setHasNextPage] = useState(false);
+  const [searchType, setSearchType] = useState<'search' | 'popular'>('search');
+
   const [settings, setSettings] = useState<DiscoverySettings | null>(null);
   const [discoveryCategories, setDiscoveryCategories] = useState<DiscoveryCategory[]>([]);
   const [loadingSettings, setLoadingSettings] = useState(false);
   const [lastReport, setLastReport] = useState<DiscoveryReport | null>(null);
 
   // Filters state
-  const [filterOrientation, setFilterOrientation] = useState<string>("portrait");
+  const [filterOrientation, setFilterOrientation] = useState<string>(() => sessionStorage.getItem('garimpo_orientation') || "portrait");
   const [filterDuration, setFilterDuration] = useState<string>("all");
   const [filterQuality, setFilterQuality] = useState<string>("all");
   const [sortBy, setSortBy] = useState<string>("none");
 
   const fetchData = async () => {
-    // Load imported IDs for deduplication display
     const library = await contentService.getLibrary();
     const ids = new Set(library.map(item => item.metadata?.pexels_id?.toString()).filter(Boolean));
     setImportedExternalIds(ids as Set<string>);
@@ -198,21 +203,84 @@ export default function GarimpoPage() {
     fetchData();
   }, [activeTab, candidateFilter]);
 
-  const handleSearch = async () => {
-    if (!query) return toast.error("Digite um termo");
+  const performSearch = async (targetPage: number, isLoadMore: boolean = false) => {
+    if (searchType === 'search' && !query) return toast.error("Digite um termo");
+    
     setLoading(true);
     try {
+      // Map filters to Pexels API
+      const sizeMap: Record<string, string> = {
+        'hd+': 'small',
+        'fullhd+': 'medium',
+        '4k': 'large'
+      };
+
       const data = await contentService.searchPexels({ 
-        query, 
-        orientation: filterOrientation as any 
+        query: searchType === 'search' ? query : undefined, 
+        type: searchType,
+        orientation: filterOrientation === 'all' ? undefined : filterOrientation,
+        size: filterQuality !== 'all' ? sizeMap[filterQuality] : undefined,
+        page: targetPage,
+        per_page: 40
       });
-      setResults(data.videos || []);
-      if (data.videos?.length === 0) toast.info("Nenhum vídeo encontrado.");
+
+      const newVideos = data.videos || [];
+      if (isLoadMore) {
+        setResults(prev => [...prev, ...newVideos]);
+      } else {
+        setResults(newVideos);
+      }
+
+      setTotalResults(data.total_results || 0);
+      setHasNextPage(!!data.next_page);
+      setPage(targetPage);
+
+      if (!isLoadMore && newVideos.length === 0) toast.info("Nenhum vídeo encontrado.");
+      
+      // Cache query and filters
+      sessionStorage.setItem('garimpo_query', query);
+      sessionStorage.setItem('garimpo_orientation', filterOrientation);
     } catch (err: any) {
       toast.error("Erro: " + err.message);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSearch = () => {
+    setSearchType('search');
+    performSearch(1, false);
+  };
+
+  const handlePopular = () => {
+    setSearchType('popular');
+    performSearch(1, false);
+  };
+
+  const handleLoadMore = () => {
+    performSearch(page + 1, true);
+  };
+
+  const handleChipSearch = (term: string) => {
+    setQuery(term);
+    setSearchType('search');
+    // We need to wait for state update or pass it directly
+    // Using a direct call with the term
+    setLoading(true);
+    contentService.searchPexels({ 
+      query: term, 
+      type: 'search',
+      orientation: filterOrientation === 'all' ? undefined : filterOrientation,
+      page: 1,
+      per_page: 40
+    }).then(data => {
+      setResults(data.videos || []);
+      setTotalResults(data.total_results || 0);
+      setHasNextPage(!!data.next_page);
+      setPage(1);
+      sessionStorage.setItem('garimpo_query', term);
+    }).catch(err => toast.error(err.message))
+      .finally(() => setLoading(false));
   };
 
   const formatDuration = (seconds: number) => {
@@ -338,12 +406,25 @@ export default function GarimpoPage() {
             <h1 className="text-4xl font-bold text-white mb-2 font-space">Garimpo</h1>
             <p className="text-slate-400">Automação de estoque inteligente e curadoria.</p>
           </div>
-          <Badge className="bg-purple-500/10 text-purple-400 border-purple-500/20 px-3 py-1">Fase 2.2 Consolidada</Badge>
+          <div className="flex items-center gap-3">
+            <Button 
+              variant="outline" 
+              onClick={handlePopular} 
+              disabled={loading}
+              className={cn(
+                "border-purple-500/30 text-purple-400 h-9",
+                searchType === 'popular' && "bg-purple-600/10 border-purple-500"
+              )}
+            >
+              <Video className="w-4 h-4 mr-2" /> POPULARES
+            </Button>
+            <Badge className="bg-purple-500/10 text-purple-400 border-purple-500/20 px-3 py-1">Fase 2.3 Ativa</Badge>
+          </div>
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <TabsList className="bg-[#13131F] border border-white/5 p-1">
-            <TabsTrigger value="buscar" className="px-8 data-[state=active]:bg-purple-600">BUSCAR</TabsTrigger>
+            <TabsTrigger value="buscar" className="px-8 data-[state=active]:bg-purple-600">EXPLORAR</TabsTrigger>
             <TabsTrigger value="candidatos" className="px-8 data-[state=active]:bg-purple-600">FILA ({candidates.length})</TabsTrigger>
             <TabsTrigger value="automacao" className="px-8 data-[state=active]:bg-purple-600">ESTRATÉGIA</TabsTrigger>
           </TabsList>
@@ -367,10 +448,25 @@ export default function GarimpoPage() {
                   </Button>
                 </div>
 
+                {/* Related Searches Chips */}
+                {query && (
+                  <div className="flex flex-wrap gap-2">
+                    {["Nature", "Forest", "Waterfall", "Ocean", "Mountain", "Sunset", "Wildlife", "Flowers", "Rain", "Beach"].map(chip => (
+                      <button
+                        key={chip}
+                        onClick={() => handleChipSearch(chip)}
+                        className="text-[10px] px-3 py-1 rounded-full bg-white/5 border border-white/10 text-slate-400 hover:bg-purple-600/20 hover:text-purple-400 transition-colors"
+                      >
+                        {chip}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
                 <div className="flex flex-wrap gap-4 pt-4 border-t border-white/5 items-center">
                   <div className="flex items-center gap-2">
                     <Filter className="w-3.5 h-3.5 text-slate-500" />
-                    <span className="text-[10px] text-slate-500 uppercase font-bold">Filtros:</span>
+                    <span className="text-[10px] text-slate-500 uppercase font-bold">Filtros API:</span>
                   </div>
                   
                   <Select value={filterOrientation} onValueChange={setFilterOrientation}>
@@ -378,11 +474,30 @@ export default function GarimpoPage() {
                       <SelectValue placeholder="Orientação" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="portrait">Vertical</SelectItem>
-                      <SelectItem value="landscape">Horizontal</SelectItem>
-                      <SelectItem value="square">Quadrado</SelectItem>
+                      <SelectItem value="all">Todas Orientações</SelectItem>
+                      <SelectItem value="portrait">Vertical (Portrait)</SelectItem>
+                      <SelectItem value="landscape">Horizontal (Landscape)</SelectItem>
+                      <SelectItem value="square">Quadrado (Square)</SelectItem>
                     </SelectContent>
                   </Select>
+
+                  <Select value={filterQuality} onValueChange={setFilterQuality}>
+                    <SelectTrigger className="w-[140px] bg-white/5 border-white/10 h-8 text-xs">
+                      <SelectValue placeholder="Qualidade" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todas Qualidades</SelectItem>
+                      <SelectItem value="hd+">HD+</SelectItem>
+                      <SelectItem value="fullhd+">Full HD+</SelectItem>
+                      <SelectItem value="4k">4K (Large)</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  <div className="h-4 w-px bg-white/10 mx-2" />
+
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] text-slate-500 uppercase font-bold">Local:</span>
+                  </div>
 
                   <Select value={filterDuration} onValueChange={setFilterDuration}>
                     <SelectTrigger className="w-[140px] bg-white/5 border-white/10 h-8 text-xs">
@@ -397,17 +512,6 @@ export default function GarimpoPage() {
                     </SelectContent>
                   </Select>
 
-                  <Select value={filterQuality} onValueChange={setFilterQuality}>
-                    <SelectTrigger className="w-[140px] bg-white/5 border-white/10 h-8 text-xs">
-                      <SelectValue placeholder="Qualidade" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todas Qualidades</SelectItem>
-                      <SelectItem value="hd+">HD+</SelectItem>
-                      <SelectItem value="fullhd+">Full HD+</SelectItem>
-                    </SelectContent>
-                  </Select>
-
                   <Select value={sortBy} onValueChange={setSortBy}>
                     <SelectTrigger className="w-[140px] bg-white/5 border-white/10 h-8 text-xs">
                       <SelectValue placeholder="Ordenar" />
@@ -419,20 +523,20 @@ export default function GarimpoPage() {
                     </SelectContent>
                   </Select>
 
-                  {results.length > 0 && (
+                  {totalResults > 0 && (
                     <span className="ml-auto text-[10px] text-slate-500 font-mono uppercase">
-                      {filteredResults.length} vídeos encontrados
+                      {results.length} de {totalResults.toLocaleString()} vídeos carregados
                     </span>
                   )}
                 </div>
              </div>
              
              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                {loading && Array.from({ length: 8 }).map((_, i) => (
+                {(loading && results.length === 0) && Array.from({ length: 8 }).map((_, i) => (
                   <SkeletonCard key={i} />
                 ))}
 
-                {!loading && filteredResults.map(video => (
+                {filteredResults.map(video => (
                   <VideoCard 
                     key={video.id} 
                     video={video}
@@ -444,7 +548,7 @@ export default function GarimpoPage() {
                       preview_url: v.image,
                       original_url: v.url,
                       duration: v.duration,
-                      author: v.user.name,
+                      author: v.user?.name || v.author,
                       category: 'Manual',
                       status: 'pendente',
                       metadata: v,
@@ -458,13 +562,31 @@ export default function GarimpoPage() {
                   />
                 ))}
 
-                {!loading && query && results.length === 0 && (
+                {!loading && (query || searchType === 'popular') && results.length === 0 && (
                   <div className="col-span-full py-20 text-center">
-                    <p className="text-slate-500 italic">Nenhum resultado para "{query}"</p>
+                    <p className="text-slate-500 italic">Nenhum resultado encontrado.</p>
                   </div>
                 )}
              </div>
 
+             {hasNextPage && (
+               <div className="flex flex-col items-center gap-4 py-8">
+                 <Button 
+                   variant="outline" 
+                   onClick={handleLoadMore} 
+                   disabled={loading}
+                   className="bg-[#13131F] border-white/5 hover:border-purple-500/50 hover:bg-purple-600/10 px-12 h-12 text-sm font-bold uppercase tracking-widest transition-all"
+                 >
+                   {loading ? (
+                     <Loader2 className="w-5 h-5 animate-spin mr-3" />
+                   ) : (
+                     <RotateCw className="w-5 h-5 mr-3" />
+                   )}
+                   Carregar Mais
+                 </Button>
+                 <p className="text-[10px] text-slate-500 font-mono">Página {page} | Exibindo {results.length} de {totalResults.toLocaleString()}</p>
+               </div>
+             )}
           </TabsContent>
 
           <TabsContent value="candidatos" className="space-y-6">
@@ -742,59 +864,46 @@ export default function GarimpoPage() {
                         </div>
                      </div>
 
-                     <div className="bg-purple-500/5 p-4 rounded-2xl border border-purple-500/10 flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className={cn(
-                            "p-2 rounded-full",
-                            selectedCandidate.status === 'aprovado' ? "bg-emerald-500/10" : 
-                            selectedCandidate.status === 'descartado' ? "bg-rose-500/10" : "bg-amber-500/10"
-                          )}>
-                            {getStatusIcon(selectedCandidate.status)}
-                          </div>
-                          <div>
-                            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-tight">Status da Descoberta</p>
-                            <p className="text-white font-medium capitalize">{selectedCandidate.status}</p>
-                          </div>
+                     <div className="space-y-4 pt-4">
+                        <div className="flex flex-col gap-2">
+                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Fonte Oficial</label>
+                          <a 
+                            href={selectedCandidate.original_url || `https://www.pexels.com/video/${selectedCandidate.external_id}/`}
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="text-purple-400 hover:text-purple-300 text-sm flex items-center gap-2 group w-fit"
+                          >
+                            Ver no Pexels
+                            <Eye className="w-4 h-4 transition-transform group-hover:scale-110" />
+                          </a>
                         </div>
-                        <Badge className="bg-white/5 text-white/40 border-none font-mono text-[9px]">ID: {selectedCandidate.external_id || selectedCandidate.id}</Badge>
-                     </div>
 
-                     <div className="pt-6 flex gap-4">
-                        {selectedCandidate.status === 'pendente' || selectedCandidate.id === 'new' ? (
-                           <>
-                             <Button 
-                               className="flex-[2] bg-purple-600 hover:bg-purple-700 h-12 text-sm font-bold shadow-lg shadow-purple-900/20" 
-                               onClick={() => handleApprove(selectedCandidate.metadata || selectedCandidate, selectedCandidate.id !== 'new' ? selectedCandidate.id : undefined)}
-                               disabled={importingId === (selectedCandidate.external_id || selectedCandidate.id)}
-                             >
-                               {importingId === (selectedCandidate.external_id || selectedCandidate.id) ? (
-                                 <Loader2 className="w-5 h-5 animate-spin" />
-                               ) : (
-                                 <>
-                                   <CheckCircle2 className="w-4 h-4 mr-2" />
-                                   APROVAR E IMPORTAR
-                                 </>
-                               )}
-                             </Button>
-                             {selectedCandidate.id !== 'new' && (
-                               <Button 
-                                 variant="destructive" 
-                                 className="flex-1 h-12 text-sm font-bold bg-rose-500/10 text-rose-500 hover:bg-rose-500/20 border-rose-500/20"
-                                 onClick={() => {
-                                   contentService.discardCandidate(selectedCandidate.id);
-                                   setSelectedCandidate(null);
-                                   fetchData();
-                                 }}
-                               >
-                                 DESCARTAR
-                               </Button>
-                             )}
-                           </>
+                        <div className="flex flex-col gap-2">
+                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">ID Pexels</label>
+                          <code className="bg-white/5 px-3 py-2 rounded-lg text-xs text-slate-400 border border-white/5 font-mono">
+                            {selectedCandidate.external_id}
+                          </code>
+                        </div>
+                     </div>
+                     
+                     <div className="pt-8 flex flex-col gap-4">
+                        {importedExternalIds.has(selectedCandidate.external_id) ? (
+                          <Button className="w-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 py-8 text-lg font-bold cursor-default hover:bg-emerald-500/10" disabled>
+                            ✓ JÁ ESTÁ NA BIBLIOTECA
+                          </Button>
                         ) : (
-                           <Button variant="outline" className="w-full h-12 border-white/10 hover:bg-white/5" onClick={() => setSelectedCandidate(null)}>FECHAR VISUALIZAÇÃO</Button>
+                          <Button 
+                            className="w-full bg-purple-600 hover:bg-purple-700 py-8 text-lg font-bold shadow-2xl shadow-purple-600/20"
+                            disabled={importingId === selectedCandidate.id || importingId === selectedCandidate.external_id}
+                            onClick={() => handleApprove(selectedCandidate.metadata || selectedCandidate, selectedCandidate.id === 'new' ? undefined : selectedCandidate.id)}
+                          >
+                            {importingId ? <Loader2 className="w-6 h-6 animate-spin" /> : (selectedCandidate.id === 'new' ? "IMPORTAR AGORA" : "APROVAR E IMPORTAR")}
+                          </Button>
                         )}
+                        <p className="text-[10px] text-slate-500 text-center uppercase tracking-widest font-bold">
+                          Vídeo fornecido por <a href="https://www.pexels.com" target="_blank" rel="noopener noreferrer" className="text-white hover:underline">Pexels</a>
+                        </p>
                      </div>
-
                   </div>
                </div>
              )}

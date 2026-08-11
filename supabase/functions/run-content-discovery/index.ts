@@ -107,7 +107,10 @@ serve(async (req) => {
 
       const term = searchTerms[Math.floor(Math.random() * searchTerms.length)]
       const orientation = settings.default_orientation === 'all' ? '' : `&orientation=${settings.default_orientation}`
-      const pexelsUrl = `https://api.pexels.com/videos/search?query=${encodeURIComponent(term)}&per_page=15&page=1${orientation}`
+      
+      // Improve page selection to avoid staying on page 1
+      const randomPage = Math.floor(Math.random() * 5) + 1
+      const pexelsUrl = `https://api.pexels.com/v1/videos/search?query=${encodeURIComponent(term)}&per_page=40&page=${randomPage}${orientation}`
       
       try {
         const pexelsRes = await fetch(pexelsUrl, {

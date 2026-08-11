@@ -9,8 +9,11 @@ const corsHeaders = {
 }
 
 interface PexelsSearchRequest {
-  query: string;
+  query?: string;
+  type?: 'search' | 'popular';
   orientation?: 'landscape' | 'portrait' | 'square';
+  size?: 'small' | 'medium' | 'large';
+  locale?: string;
   per_page?: number;
   page?: number;
 }
@@ -38,29 +41,35 @@ serve(async (req) => {
     }
 
     const body: PexelsSearchRequest = await req.json()
-    const { query, orientation, per_page = 20, page = 1 } = body
+    const { 
+      query, 
+      type = 'search', 
+      orientation, 
+      size,
+      locale,
+      per_page = 40, 
+      page = 1 
+    } = body
 
-    // Validation
-    if (!query || query.trim().length === 0) {
-      return new Response(
-        JSON.stringify({ error: 'Query is required' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
-
-    const safePerPage = Math.min(Math.max(1, per_page), 40)
+    const safePerPage = Math.min(Math.max(1, per_page), 80)
     const safePage = Math.max(1, page)
     
-    const allowedOrientations = ['landscape', 'portrait', 'square']
-    if (orientation && !allowedOrientations.includes(orientation)) {
-      return new Response(
-        JSON.stringify({ error: 'Invalid orientation' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+    let url = ''
+    if (type === 'popular') {
+      url = `https://api.pexels.com/v1/videos/popular?per_page=${safePerPage}&page=${safePage}`
+    } else {
+      if (!query || query.trim().length === 0) {
+        return new Response(
+          JSON.stringify({ error: 'Query is required for search' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+      url = `https://api.pexels.com/v1/videos/search?query=${encodeURIComponent(query)}&per_page=${safePerPage}&page=${safePage}`
     }
 
-    let url = `https://api.pexels.com/videos/search?query=${encodeURIComponent(query)}&per_page=${safePerPage}&page=${safePage}`
     if (orientation) url += `&orientation=${orientation}`
+    if (size) url += `&size=${size}`
+    if (locale) url += `&locale=${locale}`
 
     const response = await fetch(url, {
       headers: {
