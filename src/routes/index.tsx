@@ -166,6 +166,11 @@ export default function Index() {
                     desc="Exibição em tempo real de quantos resultados foram ignorados por duplicidade." 
                     status="ok" 
                   />
+                  <AuditItem 
+                    label="Anti-Repetição p/ Conta" 
+                    desc="Trava definitiva: social_account_id + content_id (Identity canonical)." 
+                    status="ok" 
+                  />
                 </div>
               </CardContent>
             </Card>
