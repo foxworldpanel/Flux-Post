@@ -108,7 +108,7 @@ export const socialService = {
     account_id: string;
     platform: string;
     caption: string;
-    scheduled_at?: string;
+    scheduled_for?: string;
     timezone?: string;
   }) {
     const { data: { user } } = await supabase.auth.getUser();
