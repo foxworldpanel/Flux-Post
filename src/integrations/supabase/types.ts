@@ -196,48 +196,75 @@ export type Database = {
       campanhas: {
         Row: {
           artist_id: string | null
+          audio_mode: string | null
+          cooldown_days: number | null
           criado_em: string | null
           data_fim: string | null
           data_inicio: string | null
+          distribution_mode: string | null
+          distribution_variation: string | null
+          editorial_language: string | null
+          editorial_style: string | null
           hora_fim: number | null
           hora_inicio: number | null
           id: string
           intervalo_max: number | null
           intervalo_min: number | null
+          music_start_ms: number | null
           music_track_id: string | null
+          music_volume: number | null
           nome: string
+          original_audio_volume: number | null
           posts_por_dia: number | null
           status: string | null
           user_id: string | null
         }
         Insert: {
           artist_id?: string | null
+          audio_mode?: string | null
+          cooldown_days?: number | null
           criado_em?: string | null
           data_fim?: string | null
           data_inicio?: string | null
+          distribution_mode?: string | null
+          distribution_variation?: string | null
+          editorial_language?: string | null
+          editorial_style?: string | null
           hora_fim?: number | null
           hora_inicio?: number | null
           id?: string
           intervalo_max?: number | null
           intervalo_min?: number | null
+          music_start_ms?: number | null
           music_track_id?: string | null
+          music_volume?: number | null
           nome: string
+          original_audio_volume?: number | null
           posts_por_dia?: number | null
           status?: string | null
           user_id?: string | null
         }
         Update: {
           artist_id?: string | null
+          audio_mode?: string | null
+          cooldown_days?: number | null
           criado_em?: string | null
           data_fim?: string | null
           data_inicio?: string | null
+          distribution_mode?: string | null
+          distribution_variation?: string | null
+          editorial_language?: string | null
+          editorial_style?: string | null
           hora_fim?: number | null
           hora_inicio?: number | null
           id?: string
           intervalo_max?: number | null
           intervalo_min?: number | null
+          music_start_ms?: number | null
           music_track_id?: string | null
+          music_volume?: number | null
           nome?: string
+          original_audio_volume?: number | null
           posts_por_dia?: number | null
           status?: string | null
           user_id?: string | null
@@ -476,6 +503,84 @@ export type Database = {
             columns: ["artist_id"]
             isOneToOne: false
             referencedRelation: "artists"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      media_renders: {
+        Row: {
+          audio_mode: string | null
+          completed_at: string | null
+          created_at: string
+          duration_seconds: number | null
+          error_message: string | null
+          file_size: number | null
+          id: string
+          music_id: string | null
+          music_start_ms: number | null
+          music_volume: number | null
+          original_audio_volume: number | null
+          output_profile: string | null
+          render_key: string
+          source_content_id: string | null
+          started_at: string | null
+          status: Database["public"]["Enums"]["render_status"]
+          storage_path: string | null
+          user_id: string
+        }
+        Insert: {
+          audio_mode?: string | null
+          completed_at?: string | null
+          created_at?: string
+          duration_seconds?: number | null
+          error_message?: string | null
+          file_size?: number | null
+          id?: string
+          music_id?: string | null
+          music_start_ms?: number | null
+          music_volume?: number | null
+          original_audio_volume?: number | null
+          output_profile?: string | null
+          render_key: string
+          source_content_id?: string | null
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["render_status"]
+          storage_path?: string | null
+          user_id: string
+        }
+        Update: {
+          audio_mode?: string | null
+          completed_at?: string | null
+          created_at?: string
+          duration_seconds?: number | null
+          error_message?: string | null
+          file_size?: number | null
+          id?: string
+          music_id?: string | null
+          music_start_ms?: number | null
+          music_volume?: number | null
+          original_audio_volume?: number | null
+          output_profile?: string | null
+          render_key?: string
+          source_content_id?: string | null
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["render_status"]
+          storage_path?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "media_renders_music_id_fkey"
+            columns: ["music_id"]
+            isOneToOne: false
+            referencedRelation: "music_tracks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "media_renders_source_content_id_fkey"
+            columns: ["source_content_id"]
+            isOneToOne: false
+            referencedRelation: "content_library"
             referencedColumns: ["id"]
           },
         ]
@@ -722,6 +827,7 @@ export type Database = {
           hashtags: string[] | null
           id: string
           last_error: string | null
+          media_render_id: string | null
           metadata: Json | null
           music_id: string | null
           platform: string
@@ -744,6 +850,7 @@ export type Database = {
           hashtags?: string[] | null
           id?: string
           last_error?: string | null
+          media_render_id?: string | null
           metadata?: Json | null
           music_id?: string | null
           platform: string
@@ -766,6 +873,7 @@ export type Database = {
           hashtags?: string[] | null
           id?: string
           last_error?: string | null
+          media_render_id?: string | null
           metadata?: Json | null
           music_id?: string | null
           platform?: string
@@ -798,6 +906,13 @@ export type Database = {
             columns: ["content_id"]
             isOneToOne: false
             referencedRelation: "content_library"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "publications_media_render_id_fkey"
+            columns: ["media_render_id"]
+            isOneToOne: false
+            referencedRelation: "media_renders"
             referencedColumns: ["id"]
           },
           {
@@ -1209,7 +1324,7 @@ export type Database = {
       }
     }
     Enums: {
-      [_ in never]: never
+      render_status: "queued" | "processing" | "ready" | "failed" | "cancelled"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1336,6 +1451,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      render_status: ["queued", "processing", "ready", "failed", "cancelled"],
+    },
   },
 } as const
