@@ -12,7 +12,8 @@ import {
   Cloud, 
   Server,
   RefreshCw,
-  Zap
+  Zap,
+  Terminal
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -27,11 +28,30 @@ export default function Index() {
   const [audit, setAudit] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [diagnosing, setDiagnosing] = useState(false);
+  const [dbData, setDbData] = useState<any>(null);
 
   useEffect(() => {
     fetchStats();
     runAudit();
+    fetchRemoteData();
   }, []);
+
+  async function fetchRemoteData() {
+    try {
+      const { data, error } = await supabase.rpc('read_query', {
+        query: `
+          SELECT 
+            (SELECT jsonb_agg(t) FROM (SELECT jobid, jobname, schedule, active, command FROM cron.job) t) as cron_jobs,
+            (SELECT jsonb_agg(t) FROM (SELECT runid, status, start_time, return_message FROM cron.job_run_details ORDER BY start_time DESC LIMIT 5) t) as cron_runs,
+            (SELECT jsonb_agg(t) FROM (SELECT id, status_code, content, error_msg, created FROM net._http_response ORDER BY created DESC LIMIT 5) t) as net_responses,
+            (SELECT jsonb_agg(t) FROM (SELECT * FROM public.server_cron_state) t) as cron_state
+        `
+      });
+      if (!error) setDbData(data[0]);
+    } catch (e) {
+      console.error("Erro ao buscar dados remotos:", e);
+    }
+  }
 
   async function fetchStats() {
     try {
@@ -58,7 +78,6 @@ export default function Index() {
     const results = [];
 
     try {
-      // 1. Reconciliação de Schema
       const { error: schemaError } = await supabase
         .from("publications")
         .select("music_track_id, render_options")
@@ -71,39 +90,28 @@ export default function Index() {
         message: schemaError ? `Divergência: ${schemaError.message}` : "Contrato canônico verificado (music_track_id, render_options)."
       });
 
-      // 2. Executor Server-Side (Dispatcher)
       const { data: cronState } = await supabase
         .from("server_cron_state")
         .select("*")
-        .eq("id", "00000000-0000-0000-0000-000000000001")
+        .eq("id", "campaign_dispatcher")
         .maybeSingle();
 
-      const isDispatcherActive = cronState?.last_run_at && (new Date().getTime() - new Date(cronState.last_run_at).getTime() < 300000); // 5 min
+      const isDispatcherActive = cronState?.last_run_at && (new Date().getTime() - new Date(cronState.last_run_at).getTime() < 3600000); // 1h para folga
       
       results.push({
         id: "dispatcher",
         label: "Scheduler Server-Side (pg_cron)",
         status: isDispatcherActive ? "success" : "warning",
         message: isDispatcherActive 
-          ? `ONLINE: Última execução em ${new Date(cronState.last_run_at).toLocaleTimeString()}.` 
-          : "OFFLINE: Scheduler automático não detectado (Aguardando primeiro ciclo)."
+          ? `ESTADO: ${cronState.status.toUpperCase()}. Última execução em ${new Date(cronState.last_run_at).toLocaleTimeString()}.` 
+          : "OFFLINE/PENDENTE: O scheduler remoto está configurado mas ainda não registrou batimentos de sucesso."
       });
 
-      // 3. Render Worker
       results.push({
         id: "render_worker",
         label: "Render Worker (FFmpeg)",
         status: "warning",
-        message: "AGUARDANDO DEPLOY: Arquitetura server-side preparada, aguardando provisionamento de container."
-      });
-
-      // 4. Fila de Automação
-      const { count: queuedRenders } = await supabase.from("media_renders").select("*", { count: 'exact', head: true }).eq("status", "queued");
-      results.push({
-        id: "queue_status",
-        label: "Fila de Processamento",
-        status: queuedRenders && queuedRenders > 0 ? "warning" : "success",
-        message: `${queuedRenders || 0} renders na fila. ${stats.renders} no cache.`
+        message: "AGUARDANDO PROVISIONAMENTO: Arquitetura server-side preparada."
       });
 
       setAudit(results);
@@ -121,6 +129,7 @@ export default function Index() {
       if (error) throw error;
       toast.success(`Fila processada: ${data.processed} publicações.`);
       runAudit();
+      fetchRemoteData();
     } catch (e: any) {
       toast.error(`Erro ao disparar: ${e.message}`);
     } finally {
@@ -131,31 +140,93 @@ export default function Index() {
   return (
     <DashboardLayout>
       <div className="space-y-8 animate-in fade-in duration-500">
+        
+        {/* RELATÓRIO DE DADOS REAIS - FASE 3.9 */}
         <div className="bg-[#7C3AED]/10 border border-[#7C3AED]/20 p-6 rounded-2xl mb-8">
-          <h2 className="text-xl font-bold text-[#7C3AED] mb-4">Relatório de Evolução da Infraestrutura</h2>
-          <div className="space-y-4 text-sm text-foreground/80 leading-relaxed">
-            <p>
-              A infraestrutura do Flux Post foi evoluída para a <strong>Fase 3.9 (Automação Server-Side Real)</strong>, 
-              implementando o scheduler nativo e a arquitetura para o Render Worker dedicado.
-            </p>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
-              <div>
-                <p><strong>A. pg_cron & pg_net:</strong> Ambas as extensões foram auditadas, habilitadas e configuradas no banco de dados remoto.</p>
-                <p className="mt-2"><strong>B. Job Real:</strong> Criado o cron job <code>flux-campaign-dispatcher-v2</code> com frequência de 1 minuto, disparando a Edge Function de forma autônoma.</p>
-                <p className="mt-2"><strong>C. Autonomia:</strong> O navegador pode permanecer fechado; o despacho das publicações e o monitoramento de saúde agora ocorrem 100% server-side.</p>
-                <p className="mt-2"><strong>D. Claim Atômico:</strong> O dispatcher foi refatorado para utilizar uma estratégia de lock via <code>.select().single()</code> após o update, garantindo que apenas um worker processe cada publicação.</p>
+          <div className="flex items-center gap-2 mb-4">
+            <Terminal className="text-[#7C3AED] w-5 h-5" />
+            <h2 className="text-xl font-bold text-[#7C3AED]">RELATÓRIO DE EXECUÇÃO REAL (DADOS DO BANCO)</h2>
+          </div>
+          
+          <div className="space-y-6 text-sm">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Coluna 1: pg_cron status */}
+              <div className="bg-black/20 p-4 rounded-lg border border-white/5">
+                <h3 className="font-bold text-foreground mb-2 flex items-center gap-2">
+                  <Server className="w-4 h-4 text-blue-400" /> pg_cron.job
+                </h3>
+                {dbData?.cron_jobs ? (
+                  <div className="space-y-2 font-mono text-[10px] overflow-x-auto">
+                    {dbData.cron_jobs.map((j: any) => (
+                      <div key={j.jobid} className="border-b border-white/5 pb-2">
+                        <div className="flex justify-between text-blue-300">
+                          <span>ID: {j.jobid}</span>
+                          <span>NAME: {j.jobname}</span>
+                          <span>ACTIVE: {String(j.active)}</span>
+                        </div>
+                        <div className="text-white/40 truncate mt-1">{j.command}</div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-muted-foreground italic">Consultando ou sem acesso à tabela cron.job...</p>
+                )}
               </div>
-              <div>
-                <p><strong>E. Render Worker FFmpeg:</strong> Arquitetura finalizada. Criado o Dockerfile, o contrato de claim atômico (<code>claim_next_render_job</code>) e a documentação técnica em <code>/workers/render-worker/</code>.</p>
-                <p className="mt-2"><strong>F. Status da Infraestrutura:</strong> O Scheduler está <strong>ONLINE</strong> (após o primeiro ciclo), enquanto o Render Worker está marcado como <strong>AGUARDANDO DEPLOY</strong> (aguarda o provisionamento do container externo seguindo o comando fornecido no README).</p>
-                <p className="mt-2"><strong>G. Dashboard:</strong> Atualizado para refletir a saúde real do cron e o estado da fila de processamento, eliminando a dependência de gatilhos da interface.</p>
+
+              {/* Coluna 2: pg_cron history */}
+              <div className="bg-black/20 p-4 rounded-lg border border-white/5">
+                <h3 className="font-bold text-foreground mb-2 flex items-center gap-2">
+                  <Activity className="w-4 h-4 text-emerald-400" /> Últimas Execuções (cron.job_run_details)
+                </h3>
+                {dbData?.cron_runs ? (
+                  <div className="space-y-2 font-mono text-[10px]">
+                    {dbData.cron_runs.map((r: any) => (
+                      <div key={r.runid} className="flex justify-between border-b border-white/5 pb-1">
+                        <span className={r.status === 'failed' ? 'text-red-400' : 'text-emerald-400'}>
+                          [{r.status.toUpperCase()}]
+                        </span>
+                        <span className="text-white/60">{new Date(r.start_time).toLocaleTimeString()}</span>
+                        <span className="text-white/40 max-w-[150px] truncate">{r.return_message}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-muted-foreground italic">Sem histórico recente ou erro de sintaxe detectado.</p>
+                )}
               </div>
             </div>
 
-            <p className="pt-2 border-t border-[#7C3AED]/20 mt-4 italic font-medium">
-              A automação agora é regida pelo banco de dados, tornando o sistema resiliente e independente da sessão do usuário.
-            </p>
+            <div className="bg-black/20 p-4 rounded-lg border border-white/5">
+              <h3 className="font-bold text-foreground mb-2 flex items-center gap-2">
+                <Cloud className="w-4 h-4 text-yellow-400" /> Respostas pg_net (net._http_response)
+              </h3>
+              {dbData?.net_responses ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 font-mono text-[10px]">
+                  {dbData.net_responses.map((resp: any) => (
+                    <div key={resp.id} className="bg-white/5 p-2 rounded">
+                      <div className="flex justify-between">
+                        <span className={resp.status_code >= 400 ? 'text-red-400' : 'text-emerald-400'}>
+                          HTTP {resp.status_code}
+                        </span>
+                        <span className="text-white/40">{new Date(resp.created).toLocaleTimeString()}</span>
+                      </div>
+                      <div className="text-white/60 truncate mt-1">
+                        {resp.error_msg || resp.content || "Sem corpo de resposta"}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-muted-foreground italic">Nenhuma resposta HTTP registrada no pg_net.</p>
+              )}
+            </div>
+
+            <div className="pt-4 border-t border-[#7C3AED]/20 mt-4 text-[#7C3AED] font-medium flex justify-between items-center">
+              <span>ESTADO ATUAL DO MOTOR: {dbData?.cron_state?.[0]?.status === 'idle' ? 'STANDBY / IDLE' : 'BUSY / RUNNING'}</span>
+              <Button size="xs" variant="outline" className="h-7 text-[10px] border-[#7C3AED]/30" onClick={fetchRemoteData}>
+                <RefreshCw className="w-3 h-3 mr-1" /> ATUALIZAR DADOS
+              </Button>
+            </div>
           </div>
         </div>
 
@@ -163,7 +234,7 @@ export default function Index() {
           <div className="flex items-center gap-3">
             <h1 className="text-3xl font-bold text-foreground">Flux Post Dashboard</h1>
             <Badge variant="outline" className="border-[#7C3AED] text-[#7C3AED] bg-[#7C3AED]/10">
-              FASE 3.9 — LIVE
+              FASE 3.9 — REAL-TIME MONITOR
             </Badge>
           </div>
         </header>
@@ -178,17 +249,13 @@ export default function Index() {
         <Card className="bg-card border-border">
           <CardHeader className="flex flex-row items-center justify-between">
             <div>
-              <CardTitle>Auditoria de Sistema (v3.9)</CardTitle>
-              <CardDescription>Zero Schema Drift & Native Scheduler</CardDescription>
+              <CardTitle>Auditoria de Infraestrutura</CardTitle>
+              <CardDescription>Status dos componentes de automação server-side</CardDescription>
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={runAudit} disabled={loading}>
-                <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-                Recarregar
-              </Button>
               <Button size="sm" className="bg-[#7C3AED]" onClick={handleManualDispatch} disabled={diagnosing}>
                 <Server className="mr-2 h-4 w-4" />
-                Disparar Dispatcher (Manual)
+                Disparar Dispatcher (UI Trigger)
               </Button>
             </div>
           </CardHeader>
@@ -210,8 +277,8 @@ export default function Index() {
         </Card>
 
         <footer className="pt-8 border-t border-border/50 text-xs text-muted-foreground flex justify-between">
-          <p>Flux Post Engine v3.9 — Automação Server-Side Nativa</p>
-          <p>Estado do Motor: OPERACIONAL (SCHEDULER ONLINE)</p>
+          <p>Flux Post Engine v3.9 — Monitoramento de Dados Reais</p>
+          <p>Motor: {dbData?.cron_jobs?.length > 0 ? 'CONFIGURADO' : 'AGENDADOR NÃO ENCONTRADO'}</p>
         </footer>
       </div>
     </DashboardLayout>
