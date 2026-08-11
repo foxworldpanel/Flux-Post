@@ -101,7 +101,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
                     : "text-slate-400 hover:text-[var(--sidebar-foreground)] hover:bg-white/5 border border-transparent"
                 )}
               >
-                <item.icon size={20} className={cn("shrink-0", isActive ? "text-purple-400" : "group-hover:text-white")} />
+                <item.icon size={20} className={cn("shrink-0", isActive ? "text-purple-400" : "group-hover:text-[var(--sidebar-foreground)]")} />
                 {isSidebarOpen && <span className="truncate">{item.label}</span>}
                 {isActive && (
                   <div className="absolute left-0 w-1 h-6 bg-purple-500 rounded-r-full" />
@@ -111,10 +111,13 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
           })}
         </nav>
 
-        <div className="mt-auto p-4 border-t border-white/5 shrink-0">
+        <div className="mt-auto p-4 border-t border-[var(--sidebar-border)] shrink-0 space-y-2">
+          <div className="flex justify-center py-2 border-b border-[var(--sidebar-border)] mb-2">
+            <ModeToggle />
+          </div>
           <Button
             variant="ghost"
-            className="flex w-full items-center justify-start gap-3 text-slate-400 hover:text-white hover:bg-white/5 transition-colors rounded-xl px-3 py-3"
+            className="flex w-full items-center justify-start gap-3 text-slate-400 hover:text-[var(--sidebar-foreground)] hover:bg-white/5 transition-colors rounded-xl px-3 py-3"
             onClick={handleLogout}
           >
             <LogOut size={20} className="shrink-0" />
