@@ -1609,13 +1609,30 @@ export default function CampanhaPage() {
                         </div>
                       ))}
                   </div>
-                  <Button
-                    variant="outline"
-                    className="w-full border-primary/20 text-primary text-xs h-8 hover:bg-primary/10"
-                    onClick={() => toast.info("Funcionalidade de adição rápida em breve")}
-                  >
-                    Adicionar Conteúdo
-                  </Button>
+                  
+                  <div className="pt-2 border-t border-border space-y-2">
+                    <Button
+                      variant="outline"
+                      className="w-full border-[#7C3AED]/20 text-[#7C3AED] text-xs h-9 hover:bg-[#7C3AED]/10 flex gap-2"
+                      onClick={async () => {
+                        toast.loading("Disparando despachante...");
+                        try {
+                          const { data, error } = await supabase.functions.invoke('campaign-dispatcher');
+                          if (error) throw error;
+                          toast.success("Dispatcher executado com sucesso!");
+                          console.log("Dispatcher results:", data);
+                        } catch (err: any) {
+                          toast.error("Erro ao disparar dispatcher: " + err.message);
+                        }
+                      }}
+                    >
+                      <Zap size={14} />
+                      Disparar Despachante (Manual)
+                    </Button>
+                    <p className="text-[10px] text-muted-foreground text-center italic">Use para forçar o processamento imediato da fila agendada.</p>
+                  </div>
+                </CardContent>
+              </Card>
                 </CardContent>
               </Card>
             </div>
