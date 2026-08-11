@@ -1412,10 +1412,10 @@ export default function CampanhaPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
                   <div className="bg-white/5 p-4 rounded-xl space-y-1">
                     <div className="text-white/40 text-[10px] uppercase font-bold tracking-widest flex items-center gap-1">
-                      <Calendar size={12} className="text-primary" /> Dias Restantes
+                      <Calendar size={12} className="text-primary" /> Dias
                     </div>
                     <div className="text-xl font-bold text-white">
                       {Math.max(0, differenceInDays(new Date(campanhaAtiva.data_fim), new Date()))}
@@ -1429,13 +1429,19 @@ export default function CampanhaPage() {
                   </div>
                   <div className="bg-white/5 p-4 rounded-xl space-y-1">
                     <div className="text-white/40 text-[10px] uppercase font-bold tracking-widest flex items-center gap-1">
-                      <Layers size={12} className="text-[#7C3AED]" /> Conteúdos
+                      <Layers size={12} className="text-[#7C3AED]" /> Pool
                     </div>
                     <div className="text-xl font-bold text-white">{selectedContentIds.length}</div>
                   </div>
                   <div className="bg-white/5 p-4 rounded-xl space-y-1">
                     <div className="text-white/40 text-[10px] uppercase font-bold tracking-widest flex items-center gap-1">
-                      <Megaphone size={12} className="text-blue-500" /> Total Posts
+                      <Zap size={12} className="text-yellow-500" /> Cap. Max
+                    </div>
+                    <div className="text-xl font-bold text-white">{selectedContentIds.length * selectedAccountIds.length}</div>
+                  </div>
+                  <div className="bg-white/5 p-4 rounded-xl space-y-1">
+                    <div className="text-white/40 text-[10px] uppercase font-bold tracking-widest flex items-center gap-1">
+                      <Megaphone size={12} className="text-blue-500" /> Enviados
                     </div>
                     <div className="text-xl font-bold text-white">{totalPosts}</div>
                   </div>
