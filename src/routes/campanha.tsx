@@ -149,42 +149,59 @@ export default function CampanhaPage() {
 
     const preview: any[] = [];
     const isNow = formData.start_mode === "now";
-    
-    // Timezone handling - for preview we use local browser time for simplicity but should ideally use tz
     const now = new Date();
     const startDate = isNow ? now : new Date(formData.data_inicio + "T" + formData.daily_start_time);
     const endDate = new Date(formData.data_fim + "T" + formData.daily_end_time);
 
+    // Identity & Anti-Repetition logic
+    // We maintain a tracker of used content per account to avoid repetition
+    const usedContentPerAccount = new Map<string, Set<string>>();
+    selectedAccountIds.forEach(id => usedContentPerAccount.set(id, new Set()));
+
     if (isNow) {
-      // MODO: COMEÇAR AGORA
-      // 1 lote = 1 conteúdo distribuído entre todas as contas
-      // Vamos simular os lotes baseados no intervalo entre conteúdos
       for (let batchIdx = 0; batchIdx < selectedContentIds.length; batchIdx++) {
         const batchStartTime = addMinutes(now, batchIdx * formData.batch_interval_minutes);
         
         selectedAccountIds.forEach((accountId, accIdx) => {
           const account = socialAccounts.find(a => a.id === accountId);
-          // O tempo de cada destino dentro do lote
           const scheduledTime = addMinutes(batchStartTime, (accIdx * formData.destination_interval_seconds) / 60);
+          
+          // Selection logic with anti-repetition
+          let videoIdx = batchIdx % selectedContentIds.length;
+          
+          if (formData.repeat_policy === 'never') {
+            const used = usedContentPerAccount.get(accountId)!;
+            // Find first unused video in the selection for this specific account
+            let found = false;
+            for (let i = 0; i < selectedContentIds.length; i++) {
+              const checkIdx = (batchIdx + i) % selectedContentIds.length;
+              if (!used.has(selectedContentIds[checkIdx])) {
+                videoIdx = checkIdx;
+                used.add(selectedContentIds[checkIdx]);
+                found = true;
+                break;
+              }
+            }
+            if (!found) return; // Stock exhausted for this account
+          }
           
           preview.push({
             date: scheduledTime,
             accountId,
             accountName: account?.account_name || "Conta",
-            videoIndex: batchIdx % selectedContentIds.length,
+            videoIndex: videoIdx,
             platform: account?.platform || "tiktok",
             isNow: batchIdx === 0 && accIdx === 0
           });
         });
       }
     } else {
-      // MODO: PROGRAMAR PERÍODO
       const [startH, startM] = formData.daily_start_time.split(":").map(Number);
       const [endH, endM] = formData.daily_end_time.split(":").map(Number);
       const postsPerDay = formData.posts_por_dia;
       
       let currentDay = startOfDay(startDate);
-      let videoIndex = 0;
+      let batchCounter = 0;
 
       while (isBefore(currentDay, endDate) || currentDay.getTime() === startOfDay(endDate).getTime()) {
         const totalMinutes = (endH * 60 + endM) - (startH * 60 + startM);
@@ -192,30 +209,41 @@ export default function CampanhaPage() {
 
         for (let p = 0; p < postsPerDay; p++) {
           const batchTime = addMinutes(setMinutes(setHours(currentDay, startH), startM), interval * p);
-          
           if (isBefore(batchTime, startDate) || isAfter(batchTime, endDate)) continue;
 
           selectedAccountIds.forEach((accountId, accIdx) => {
             const account = socialAccounts.find(a => a.id === accountId);
             const scheduledTime = addMinutes(batchTime, (accIdx * formData.destination_interval_seconds) / 60);
 
-            let effectiveVideoIdx;
-            if (formData.distribution_mode === 'all') {
-              effectiveVideoIdx = videoIndex % selectedContentIds.length;
-            } else {
+            let videoIdx = batchCounter % selectedContentIds.length;
+            const used = usedContentPerAccount.get(accountId)!;
+
+            if (formData.repeat_policy === 'never') {
+              let found = false;
+              for (let i = 0; i < selectedContentIds.length; i++) {
+                const checkIdx = (batchCounter + i + accIdx) % selectedContentIds.length; // accIdx helps randomize order between accounts
+                if (!used.has(selectedContentIds[checkIdx])) {
+                  videoIdx = checkIdx;
+                  used.add(selectedContentIds[checkIdx]);
+                  found = true;
+                  break;
+                }
+              }
+              if (!found) return; // Stock exhausted
+            } else if (formData.distribution_mode === 'intelligent') {
               const seed = batchTime.getTime() + accIdx;
-              effectiveVideoIdx = Math.floor(Math.abs(Math.sin(seed) * selectedContentIds.length));
+              videoIdx = Math.floor(Math.abs(Math.sin(seed) * selectedContentIds.length));
             }
 
             preview.push({
               date: scheduledTime,
               accountId,
               accountName: account?.account_name || "Conta",
-              videoIndex: effectiveVideoIdx,
+              videoIndex: videoIdx,
               platform: account?.platform || "tiktok"
             });
           });
-          videoIndex++;
+          batchCounter++;
         }
         currentDay = addDays(currentDay, 1);
       }
