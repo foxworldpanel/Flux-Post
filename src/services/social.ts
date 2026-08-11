@@ -119,7 +119,7 @@ export const socialService = {
       .insert({
         ...payload,
         user_id: user.id,
-        status: payload.scheduled_at ? 'scheduled' : 'publishing'
+        status: payload.scheduled_for ? 'scheduled' : 'publishing'
       })
       .select()
       .single();

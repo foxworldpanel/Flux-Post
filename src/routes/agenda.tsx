@@ -33,7 +33,7 @@ export default function AgendaPage() {
           social_accounts(account_name, username, platform)
         `)
         .eq('status', 'scheduled')
-        .order('scheduled_at', { ascending: true });
+        .order('scheduled_for', { ascending: true });
 
       if (error) throw error;
       setScheduledPosts(data || []);
@@ -130,7 +130,7 @@ export default function AgendaPage() {
                   <CardContent className="p-6 flex items-center gap-6">
                     <div className="w-16 h-16 bg-white/5 rounded-xl flex flex-col items-center justify-center text-slate-500 flex-shrink-0">
                        <Clock size={20} className="mb-1 text-slate-400" />
-                       <span className="text-[10px] font-bold">{format(new Date(post.scheduled_at!), "HH:mm")}</span>
+                       <span className="text-[10px] font-bold">{format(new Date(post.scheduled_for!), "HH:mm")}</span>
                     </div>
 
                     <div className="flex-1 space-y-1">
