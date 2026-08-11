@@ -93,7 +93,7 @@ serve(async (req) => {
     
     const payload = {
       platforms: [{
-        platform: pub.platform,
+        platform: pub.platform || pub.social_accounts?.platform,
         accountId: pub.social_accounts.provider_connection_id // IMPORTANTE: Integration ID
       }],
       content: pub.caption || "", // Alterado de { caption: ... } para string conforme contrato V1

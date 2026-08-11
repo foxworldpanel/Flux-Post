@@ -171,14 +171,14 @@ export default function Index() {
                     desc="Trava definitiva: social_account_id + content_id (Identity canonical)." 
                     status="ok" 
                   />
-                   <AuditItem 
-                    label="Reconciliação de Schema" 
-                    desc="social_account_id UUID + FK mapeada e ativa no banco remoto (kdbgfgnopqqnzmvxvtje)." 
+                  <AuditItem 
+                    label="Motor de Snapshot: Platform" 
+                    desc="Coluna 'platform' preenchida via Trigger server-side a partir da Social Account." 
                     status="ok" 
                   />
                   <AuditItem 
-                    label="Distribuição Multi-Conta" 
-                    desc="Payload real do Campaign Engine sincronizado com as colunas remotas." 
+                    label="Consolidação de Schema" 
+                    desc="Remoção de obrigatoriedades legadas incompatíveis com o Campaign Engine." 
                     status="ok" 
                   />
                   <AuditItem 

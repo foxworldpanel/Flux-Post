@@ -971,6 +971,13 @@ export type Database = {
             referencedRelation: "music_tracks"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "publications_social_account_id_fkey"
+            columns: ["social_account_id"]
+            isOneToOne: false
+            referencedRelation: "social_accounts"
+            referencedColumns: ["id"]
+          },
         ]
       }
       scheduled_posts: {
