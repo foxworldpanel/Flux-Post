@@ -57,7 +57,7 @@ serve(async (req) => {
         media_renders(storage_path)
       `)
       .eq("id", publicationId)
-      .eq("user_id", user.id)
+      .filter("user_id", isServiceRole ? "neq" : "eq", isServiceRole ? "00000000-0000-0000-0000-000000000000" : (user?.id || "00000000-0000-0000-0000-000000000000"))
       .single();
 
     if (pubError || !pub) {
