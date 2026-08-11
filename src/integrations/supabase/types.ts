@@ -1048,6 +1048,36 @@ export type Database = {
           },
         ]
       }
+      server_tasks: {
+        Row: {
+          created_at: string | null
+          id: string
+          payload: Json | null
+          scheduled_for: string | null
+          status: string | null
+          task_type: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          payload?: Json | null
+          scheduled_for?: string | null
+          status?: string | null
+          task_type: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          payload?: Json | null
+          scheduled_for?: string | null
+          status?: string | null
+          task_type?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       social_account_credentials: {
         Row: {
           access_token_encrypted: string
