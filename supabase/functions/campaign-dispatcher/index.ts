@@ -105,6 +105,7 @@ serve(async (req) => {
             .from("publications")
             .update({ media_render_id: render.id })
             .eq("id", pub.id);
+          console.log(`[campaign-dispatcher] Pub ${pub.id} vinculada ao render READY ${render.id}.`);
         }
 
         // B. Marcar como 'publishing' para evitar concorrência
