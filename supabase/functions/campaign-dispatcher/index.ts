@@ -108,15 +108,28 @@ serve(async (req) => {
           console.log(`[campaign-dispatcher] Pub ${pub.id} vinculada ao render READY ${render.id}.`);
         }
 
-        // B. Marcar como 'publishing' para evitar concorrência
-        const { error: lockError } = await supabaseAdmin
+        // B. Marcar como 'publishing' usando claim atômico
+        const { data: claimedPub, error: lockError } = await supabaseAdmin
           .from("publications")
-          .update({ status: 'publishing', updated_at: new Date().toISOString() })
+          .update({ 
+            status: 'publishing', 
+            updated_at: new Date().toISOString(),
+            metadata: { ...pub.metadata, dispatcher_claim_at: new Date().toISOString() } 
+          })
           .eq("id", pub.id)
-          .in("status", ["agendado", "pending", "scheduled"]);
+          .in("status", ["agendado", "pending", "scheduled"])
+          .select()
+          .single();
 
-        if (lockError) {
-          console.warn(`[campaign-dispatcher] Falha ao adquirir lock para ${pub.id}:`, lockError.message);
+        if (lockError || !claimedPub) {
+          console.warn(`[campaign-dispatcher] Falha ao adquirir lock para ${pub.id} (Já em processamento por outro worker).`);
+          continue;
+        }
+
+        // C. Verificar idempotência se já existe post externo
+        if (pub.provider_post_id) {
+          console.log(`[campaign-dispatcher] Pub ${pub.id} já possui ID externo. Marcando como pronto.`);
+          await supabaseAdmin.from("publications").update({ status: 'ready' }).eq("id", pub.id);
           continue;
         }
 
