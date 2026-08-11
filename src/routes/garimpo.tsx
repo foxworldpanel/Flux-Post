@@ -864,59 +864,46 @@ export default function GarimpoPage() {
                         </div>
                      </div>
 
-                     <div className="bg-purple-500/5 p-4 rounded-2xl border border-purple-500/10 flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className={cn(
-                            "p-2 rounded-full",
-                            selectedCandidate.status === 'aprovado' ? "bg-emerald-500/10" : 
-                            selectedCandidate.status === 'descartado' ? "bg-rose-500/10" : "bg-amber-500/10"
-                          )}>
-                            {getStatusIcon(selectedCandidate.status)}
-                          </div>
-                          <div>
-                            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-tight">Status da Descoberta</p>
-                            <p className="text-white font-medium capitalize">{selectedCandidate.status}</p>
-                          </div>
+                     <div className="space-y-4 pt-4">
+                        <div className="flex flex-col gap-2">
+                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Fonte Oficial</label>
+                          <a 
+                            href={selectedCandidate.original_url || `https://www.pexels.com/video/${selectedCandidate.external_id}/`}
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="text-purple-400 hover:text-purple-300 text-sm flex items-center gap-2 group w-fit"
+                          >
+                            Ver no Pexels
+                            <Eye className="w-4 h-4 transition-transform group-hover:scale-110" />
+                          </a>
                         </div>
-                        <Badge className="bg-white/5 text-white/40 border-none font-mono text-[9px]">ID: {selectedCandidate.external_id || selectedCandidate.id}</Badge>
-                     </div>
 
-                     <div className="pt-6 flex gap-4">
-                        {selectedCandidate.status === 'pendente' || selectedCandidate.id === 'new' ? (
-                           <>
-                             <Button 
-                               className="flex-[2] bg-purple-600 hover:bg-purple-700 h-12 text-sm font-bold shadow-lg shadow-purple-900/20" 
-                               onClick={() => handleApprove(selectedCandidate.metadata || selectedCandidate, selectedCandidate.id !== 'new' ? selectedCandidate.id : undefined)}
-                               disabled={importingId === (selectedCandidate.external_id || selectedCandidate.id)}
-                             >
-                               {importingId === (selectedCandidate.external_id || selectedCandidate.id) ? (
-                                 <Loader2 className="w-5 h-5 animate-spin" />
-                               ) : (
-                                 <>
-                                   <CheckCircle2 className="w-4 h-4 mr-2" />
-                                   APROVAR E IMPORTAR
-                                 </>
-                               )}
-                             </Button>
-                             {selectedCandidate.id !== 'new' && (
-                               <Button 
-                                 variant="destructive" 
-                                 className="flex-1 h-12 text-sm font-bold bg-rose-500/10 text-rose-500 hover:bg-rose-500/20 border-rose-500/20"
-                                 onClick={() => {
-                                   contentService.discardCandidate(selectedCandidate.id);
-                                   setSelectedCandidate(null);
-                                   fetchData();
-                                 }}
-                               >
-                                 DESCARTAR
-                               </Button>
-                             )}
-                           </>
+                        <div className="flex flex-col gap-2">
+                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">ID Pexels</label>
+                          <code className="bg-white/5 px-3 py-2 rounded-lg text-xs text-slate-400 border border-white/5 font-mono">
+                            {selectedCandidate.external_id}
+                          </code>
+                        </div>
+                     </div>
+                     
+                     <div className="pt-8 flex flex-col gap-4">
+                        {importedExternalIds.has(selectedCandidate.external_id) ? (
+                          <Button className="w-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 py-8 text-lg font-bold cursor-default hover:bg-emerald-500/10" disabled>
+                            ✓ JÁ ESTÁ NA BIBLIOTECA
+                          </Button>
                         ) : (
-                           <Button variant="outline" className="w-full h-12 border-white/10 hover:bg-white/5" onClick={() => setSelectedCandidate(null)}>FECHAR VISUALIZAÇÃO</Button>
+                          <Button 
+                            className="w-full bg-purple-600 hover:bg-purple-700 py-8 text-lg font-bold shadow-2xl shadow-purple-600/20"
+                            disabled={importingId === selectedCandidate.id || importingId === selectedCandidate.external_id}
+                            onClick={() => handleApprove(selectedCandidate.metadata || selectedCandidate, selectedCandidate.id === 'new' ? undefined : selectedCandidate.id)}
+                          >
+                            {importingId ? <Loader2 className="w-6 h-6 animate-spin" /> : (selectedCandidate.id === 'new' ? "IMPORTAR AGORA" : "APROVAR E IMPORTAR")}
+                          </Button>
                         )}
+                        <p className="text-[10px] text-slate-500 text-center uppercase tracking-widest font-bold">
+                          Vídeo fornecido por <a href="https://www.pexels.com" target="_blank" rel="noopener noreferrer" className="text-white hover:underline">Pexels</a>
+                        </p>
                      </div>
-
                   </div>
                </div>
              )}
