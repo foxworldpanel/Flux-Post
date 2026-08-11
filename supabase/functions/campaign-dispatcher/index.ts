@@ -86,9 +86,9 @@ serve(async (req) => {
           
           const { data: render } = await supabaseAdmin
             .from("media_renders")
-            .select("status, storage_path")
+            .select("id, status, storage_path") // ID é essencial para o update posterior
             .eq("source_content_id", pub.content_id)
-            .eq("music_id", pub.music_track_id)
+            .eq("music_track_id", pub.music_track_id)
             .eq("status", "ready")
             .maybeSingle();
 
@@ -105,6 +105,7 @@ serve(async (req) => {
             .from("publications")
             .update({ media_render_id: render.id })
             .eq("id", pub.id);
+          console.log(`[campaign-dispatcher] Pub ${pub.id} vinculada ao render READY ${render.id}.`);
         }
 
         // B. Marcar como 'publishing' para evitar concorrência

@@ -75,7 +75,6 @@ export const socialService = {
   },
 
   async connectAccount(accountId: string) {
-    // Para reconexão, usamos o fluxo de reparo ou reiniciamos
     const { data, error } = await supabase.functions.invoke('postpeer-connect', {
       body: { accountId }
     });
@@ -105,7 +104,7 @@ export const socialService = {
 
   async createPublication(payload: {
     content_id: string;
-    account_id: string;
+    social_account_id: string;
     platform: string;
     caption: string;
     scheduled_for?: string;
