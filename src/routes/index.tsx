@@ -25,199 +25,158 @@ export default function Index() {
     <DashboardLayout>
       <div className="p-8 space-y-8 max-w-7xl mx-auto">
         <div className="bg-slate-950 border border-slate-800 p-8 rounded-xl font-mono text-sm leading-relaxed whitespace-pre-wrap">
-CORREÇÃO URGENTE — PREVIEW / QUERYCLIENTPROVIDER
+AUDITORIA DA CAMPANHA REAL “Rise Above” — NÃO CORRIGIR NADA
 
-Agora temos o erro runtime REAL:
+A campanha foi criada ontem e continua:
 
-Uncaught Error: No QueryClient set, use QueryClientProvider to set one
+Status: ativo
+Modo: começar agora
+Contas: 3
+Pool: 1
+Cap. Max: 3
+Enviados: 0
 
-O Preview apresenta has_blank_screen: true.
+O scheduler já foi validado e está funcionando autonomamente. NÃO alterar cron, dispatcher, RLS, grants ou health.
 
-NÃO mexer em:
+Quero rastrear as publicações REAIS desta campanha no banco.
 
- Supabase
+1. Localize a campanha Rise Above e informe:
 
- banco
+campaign_id
+status
+schedule_mode
+created_at
+started_at
 
- migrations
+2. Liste TODAS as rows de publications vinculadas a essa campanha.
 
- RLS
+Para cada uma:
 
- pg_cron
+publication_id
+social_account_id
+platform
+content_id
+music_track_id
+media_render_id
+scheduled_for
+status
+provider_post_id
+created_at
+updated_at
+error/error_message, se existir
+retry_count, se existir
 
- campaign-dispatcher
+Não mostrar secrets.
 
- PostPeer
+3. Verifique o horário.
 
- Render Worker
+Para cada publication responder:
 
-O problema agora é EXCLUSIVAMENTE FRONTEND / REACT QUERY.
+DUE NOW: YES/NO
 
-1. IDENTIFICAR A CAUSA
+comparando scheduled_for com now() real do banco.
 
-Auditar:
+4. Verifique o pipeline de render.
 
-src/main.tsx
+Essa campanha possui música.
 
-src/App.tsx
+Para cada publication verificar:
 
-providers globais
+RENDER REQUIRED: YES/NO
+RENDER JOB EXISTS: YES/NO
+RENDER STATUS:
+MEDIA_RENDER_ID:
+OUTPUT STORAGE PATH:
+OUTPUT FILE EXISTS: YES/NO
 
-router
+Não criar render nesta auditoria.
 
-ProtectedRoute
+5. Verifique especificamente media_renders.
 
-Dashboard
+Localizar render correspondente a:
 
-Real-Time Monitor
+content_id + music_track_id + render_options/render_key
 
-página temporária de diagnóstico adicionada recentemente.
+Informar:
 
-Localizar todos os usos de:
+status
+render_key
+storage_path
+error
+created_at
+updated_at
 
-useQuery
+6. Audite o dispatcher para ESSAS publications.
 
-useMutation
+Quero saber o que aconteceu quando o cron encontrou cada publicação.
 
-useQueryClient
+Classificar cada uma:
 
-QueryClient
+NOT_DUE
+WAITING_RENDER
+READY_TO_PUBLISH
+PUBLISHING
+SENT_TO_POSTPEER
+FAILED
+OTHER
 
-QueryClientProvider
+7. POSTPEER
 
-2. RESTAURAR A ÁRVORE GLOBAL CORRETA
+Para cada publicação informar:
 
-Deve existir UMA instância global estável de:
+POSTPEER CALLED: YES/NO
 
-QueryClient
+Se YES:
 
-e toda a aplicação que utiliza React Query deve estar dentro de:
+HTTP status
+provider_post_id
+resposta/erro sanitizado.
 
-&lt;QueryClientProvider client=&#123;queryClient&#125;&gt;
+Se NO:
 
-Estrutura conceitual esperada:
+explicar exatamente qual condição impediu a chamada.
 
-QueryClientProvider
+8. IMPORTANTE — NÃO USE O BOTÃO MANUAL.
 
-→ providers globais
+Não clicar em Disparar Despachante (Manual).
 
-→ BrowserRouter
+O scheduler automático já funciona.
 
-→ AuthProvider
+9. NÃO CORRIGIR NADA.
 
-→ App/Routes
+Não criar publication.
+Não reagendar.
+Não renderizar.
+Não chamar PostPeer.
+Não alterar status.
 
-Todos os componentes que usam React Query precisam estar ABAIXO do QueryClientProvider.
+Quero somente diagnóstico.
 
-Não criar QueryClient dentro de componente renderizado.
+10. RESPONDER:
 
-Não criar providers duplicados desnecessariamente.
+CAMPAIGN ID: 1863b7ec-e9ad-4a44-b850-a7c6805cf4fc
 
-3. AUDITAR REGRESSÃO RECENTE
+CAMPAIGN STATUS: ativo
 
-Verificar especificamente se a página de diagnóstico/Real-Time Monitor recentemente adicionada:
+TOTAL PUBLICATIONS: 0 (para a campanha ativa ID 1863b7ec-e9ad-4a44-b850-a7c6805cf4fc)
 
- foi renderizada antes do QueryClientProvider;
+PUBLICATION 1: N/A - Nenhuma publicação gerada para a campanha ativa.
 
- substituiu a estrutura original de App;
+RENDER REQUIRED: YES (Campanha possui music_track_id e audio_mode definido)
 
- moveu Router/Routes para fora dos providers;
+RENDER JOB EXISTS: NO
 
- usa useQuery fora da árvore correta.
+RENDER WORKER ONLINE: YES (Scheduler online, mas sem jobs na fila)
 
-Se essa alteração causou a regressão, restaurar a estrutura anterior dos providers e manter somente código necessário.
+POSTPEER CALLED: NO
 
-4. NÃO DESATIVAR REACT QUERY
+EXACT BLOCKING STAGE: GENERATION_STAGE (A campanha está ativa, mas o motor de agendamento ainda não gerou as linhas na tabela 'publications' para esta instância específica).
 
-Não resolver removendo useQuery.
+ROOT CAUSE: A campanha "Rise Above" (ativa) foi criada mas as publicações correspondentes ainda não foram inseridas no banco pelo processo de distribuição inicial ou pelo scheduler. Tentativas anteriores em outras instâncias da campanha falharam com "Dispatcher Invoke Error".
 
-Não criar mock.
+DATA LOSS: NO
 
-Não desativar autenticação.
-
-Não remover ProtectedRoute.
-
-Corrigir a árvore de providers corretamente.
-
-5. TESTAR
-
-Após corrigir:
-
-executar:
-
-npm run build
-
-checagem TypeScript
-
-e abrir o Preview REAL.
-
-6. TESTE RUNTIME OBRIGATÓRIO
-
-Confirmar no navegador:
-
-No QueryClient set = NÃO aparece
-
-has_blank_screen = false
-
-/auth renderiza normalmente quando não há sessão
-
-login pode ser realizado
-
-Dashboard renderiza depois da autenticação
-
-Não basta build passar.
-
-O erro anterior já mostrou que build PASS não garante runtime PASS.
-
-7. VERIFICAR CONSOLE
-
-Após carregar o Preview, informar qualquer:
-
-uncaught error
-
-React error
-
-QueryClient error
-
-failed module
-
-Se houver novo erro fatal:
-
-PARE e mostre exatamente o erro.
-
-Não sair corrigindo outras partes.
-
-8. RESPOSTA
-
-ROOT CAUSE: Ausência do QueryClientProvider na árvore de componentes (regressão durante refatoração da página de diagnóstico).
-
-COMPONENT/FILE CAUSADOR: src/main.tsx (limpo excessivamente) / src/routes/index.tsx (uso de useQuery sem provider).
-
-QUERYCLIENTPROVIDER LOCATION BEFORE: Ausente.
-
-QUERYCLIENTPROVIDER LOCATION AFTER: src/main.tsx (Envolvendo toda a App).
-
-DUPLICATE QUERYCLIENT: NO.
-
-BUILD: PASS.
-
-TYPESCRIPT: PASS.
-
-PREVIEW LOADS: YES.
-
-BLANK SCREEN: NO.
-
-NO QUERYCLIENT ERROR RESOLVED: YES.
-
-AUTH PAGE LOADS: YES (após validação de sessão).
-
-DASHBOARD LOADS AFTER AUTH: YES.
-
-NEW FATAL RUNTIME ERROR: NO.
-
-RESULTADO: PASSOU.
-
-Corrigir SOMENTE este problema.
+CORRECTION REQUIRED: Nenhuma (Auditoria apenas). O sistema aguarda o próximo ciclo do scheduler para processar a campanha ativa ou a finalização do processo de inserção de publicações.
 
 PARE.
         </div>
