@@ -17,7 +17,7 @@ import { cn } from "@/lib/utils";
 function SkeletonCard() {
   return (
     <Card className="bg-card border-border overflow-hidden flex flex-col h-full">
-      <div className="aspect-[9/16] relative bg-slate-900">
+      <div className="aspect-[9/16] relative bg-muted">
         <Skeleton className="w-full h-full rounded-none" />
       </div>
       <CardContent className="p-3 space-y-2">
@@ -62,7 +62,7 @@ function VideoCard({
   return (
     <Card className="bg-card border-border overflow-hidden group flex flex-col h-full hover:border-purple-500/30 transition-all">
       <div 
-        className="aspect-[9/16] relative bg-slate-900 cursor-pointer overflow-hidden"
+        className="aspect-[9/16] relative bg-muted cursor-pointer overflow-hidden"
         onClick={() => onPreview(video)}
       >
         <img 
@@ -72,11 +72,11 @@ function VideoCard({
         />
         
         {/* Hover Overlay */}
-        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-          <div className="bg-white/10 backdrop-blur-md rounded-full p-3 border border-white/20 transform scale-90 group-hover:scale-100 transition-transform">
+        <div className="absolute inset-0 bg-background/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+          <div className="bg-muted/20 backdrop-blur-md rounded-full p-3 border border-white/20 transform scale-90 group-hover:scale-100 transition-transform">
             <Play className="w-6 h-6 text-foreground fill-white" />
           </div>
-          <span className="absolute bottom-10 text-[10px] font-bold text-foreground uppercase tracking-widest bg-black/40 px-3 py-1 rounded-full backdrop-blur-sm">
+          <span className="absolute bottom-10 text-[10px] font-bold text-foreground uppercase tracking-widest bg-background/40 px-3 py-1 rounded-full backdrop-blur-sm">
             Visualizar
           </span>
         </div>
@@ -110,17 +110,17 @@ function VideoCard({
         </div>
 
         {/* Bottom Metadata Overlay */}
-        <div className="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black/80 via-black/40 to-transparent flex flex-col gap-1">
+        <div className="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-background/80 via-background/40 to-transparent flex flex-col gap-1">
           <div className="flex justify-between items-end">
             <div className="flex flex-col">
-              <span className="text-[9px] text-foreground/70 font-medium flex items-center gap-1">
+              <span className="text-[9px] text-muted-foreground font-medium flex items-center gap-1">
                 <User className="w-2.5 h-2.5" /> {author}
               </span>
-              <span className="text-[9px] text-foreground/50 uppercase font-bold tracking-wider">
+              <span className="text-[9px] text-muted-foreground uppercase font-bold tracking-wider">
                 Pexels • {res.width}x{res.height}
               </span>
             </div>
-            <div className="bg-black/60 backdrop-blur-md px-1.5 py-0.5 rounded text-[10px] font-bold text-foreground border border-border">
+            <div className="bg-background/60 backdrop-blur-md px-1.5 py-0.5 rounded text-[10px] font-bold text-foreground border border-border">
               {formatDuration(duration)}
             </div>
           </div>
@@ -491,7 +491,7 @@ export default function GarimpoPage() {
              <div className="bg-card p-6 rounded-2xl border border-border space-y-6">
                 <div className="flex gap-4">
                   <div className="relative flex-1">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     <Input 
                       className="bg-muted/50 border-border pl-10" 
                       value={query} 
@@ -523,8 +523,8 @@ export default function GarimpoPage() {
 
                 <div className="flex flex-wrap gap-4 pt-4 border-t border-border items-center">
                   <div className="flex items-center gap-2">
-                    <Filter className="w-3.5 h-3.5 text-slate-500" />
-                    <span className="text-[10px] text-slate-500 uppercase font-bold">Filtros API:</span>
+                    <Filter className="w-3.5 h-3.5 text-muted-foreground" />
+                    <span className="text-[10px] text-muted-foreground uppercase font-bold">Filtros API:</span>
                   </div>
                   
                   <Select value={filterOrientation} onValueChange={setFilterOrientation}>
@@ -551,10 +551,10 @@ export default function GarimpoPage() {
                     </SelectContent>
                   </Select>
 
-                  <div className="h-4 w-px bg-white/10 mx-2" />
+                  <div className="h-4 w-px bg-muted/20 mx-2" />
 
                   <div className="flex items-center gap-2">
-                    <span className="text-[10px] text-slate-500 uppercase font-bold">Local:</span>
+                    <span className="text-[10px] text-muted-foreground uppercase font-bold">Local:</span>
                   </div>
 
                   <Select value={filterDuration} onValueChange={setFilterDuration}>
@@ -582,7 +582,7 @@ export default function GarimpoPage() {
                   </Select>
 
                   {totalResults > 0 && (
-                    <span className="ml-auto text-[10px] text-slate-500 font-mono uppercase">
+                    <span className="ml-auto text-[10px] text-muted-foreground font-mono uppercase">
                       {results.length} de {totalResults.toLocaleString()} vídeos carregados
                     </span>
                   )}
@@ -625,7 +625,7 @@ export default function GarimpoPage() {
 
                 {!loading && (query || searchType === 'popular') && results.length === 0 && (
                   <div className="col-span-full py-20 text-center">
-                    <p className="text-slate-500 italic">Nenhum resultado encontrado.</p>
+                    <p className="text-muted-foreground italic">Nenhum resultado encontrado.</p>
                   </div>
                 )}
              </div>
@@ -645,7 +645,7 @@ export default function GarimpoPage() {
                    )}
                    Carregar Mais
                  </Button>
-                 <p className="text-[10px] text-slate-500 font-mono">Página {page} | Exibindo {results.length} de {totalResults.toLocaleString()} {ignoredCount > 0 && `| ${ignoredCount} repetidos ignorados`}</p>
+                 <p className="text-[10px] text-muted-foreground font-mono">Página {page} | Exibindo {results.length} de {totalResults.toLocaleString()} {ignoredCount > 0 && `| ${ignoredCount} repetidos ignorados`}</p>
                </div>
              )}
           </TabsContent>
@@ -672,7 +672,7 @@ export default function GarimpoPage() {
                   className={candidateFilter === 'descartado' ? 'bg-rose-600' : ''}
                 >Descartados</Button>
               </div>
-              <p className="text-xs text-slate-500 font-mono">Exibindo {candidates.length} registros</p>
+              <p className="text-xs text-muted-foreground font-mono">Exibindo {candidates.length} registros</p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -734,7 +734,7 @@ export default function GarimpoPage() {
                                     {cat.is_active ? "Ativa" : "Inativa"}
                                   </Badge>
                                 </div>
-                                <p className="text-xs text-slate-500">Déficit: {Math.max(0, (cat.target_count || 0))} unidades</p>
+                                <p className="text-xs text-muted-foreground">Déficit: {Math.max(0, (cat.target_count || 0))} unidades</p>
                               </div>
                               <div className="flex gap-2">
                                 <Button size="icon" variant="ghost" onClick={() => handleUpdateCategory(cat.id, { is_active: !cat.is_active })}>
@@ -748,7 +748,7 @@ export default function GarimpoPage() {
 
                             <div className="grid grid-cols-2 gap-4">
                                <div className="space-y-2">
-                                  <label className="text-xs text-slate-500 font-bold uppercase">Meta de Estoque</label>
+                                  <label className="text-xs text-muted-foreground font-bold uppercase">Meta de Estoque</label>
                                   <Input 
                                     type="number" 
                                     className="bg-muted/50" 
@@ -757,7 +757,7 @@ export default function GarimpoPage() {
                                   />
                                </div>
                                <div className="space-y-2">
-                                  <label className="text-xs text-slate-500 font-bold uppercase">Termos de Busca (CSV)</label>
+                                  <label className="text-xs text-muted-foreground font-bold uppercase">Termos de Busca (CSV)</label>
                                   <Input 
                                     className="bg-muted/50" 
                                     defaultValue={cat.search_terms?.join(', ')} 
@@ -784,7 +784,7 @@ export default function GarimpoPage() {
                               value={settings?.max_per_execution} 
                               onChange={e => updateSettings({ max_per_execution: parseInt(e.target.value) })} 
                             />
-                            <p className="text-[10px] text-slate-500">Máximo de vídeos importados por rodada.</p>
+                            <p className="text-[10px] text-muted-foreground">Máximo de vídeos importados por rodada.</p>
                          </div>
                          <div className="space-y-2">
                             <label className="text-sm font-medium">Orientação Preferencial</label>
@@ -804,11 +804,11 @@ export default function GarimpoPage() {
                          </div>
                          <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
-                               <label className="text-xs text-slate-500">Duração Mín (s)</label>
+                               <label className="text-xs text-muted-foreground">Duração Mín (s)</label>
                                <Input type="number" value={settings?.min_duration} onChange={e => updateSettings({ min_duration: parseInt(e.target.value) })} />
                             </div>
                             <div className="space-y-2">
-                               <label className="text-xs text-slate-500">Duração Máx (s)</label>
+                               <label className="text-xs text-muted-foreground">Duração Máx (s)</label>
                                <Input type="number" value={settings?.max_duration} onChange={e => updateSettings({ max_duration: parseInt(e.target.value) })} />
                             </div>
                          </div>
@@ -847,7 +847,7 @@ export default function GarimpoPage() {
                    </Card>
 
                    {lastReport && (
-                     <Card className="bg-slate-900 border-border">
+                     <Card className="bg-muted border-border">
                        <CardHeader><CardTitle className="text-sm">Última Rodada</CardTitle></CardHeader>
                        <CardContent className="space-y-2">
                           {lastReport.summary.details.map((d, i) => (
@@ -877,7 +877,7 @@ export default function GarimpoPage() {
                        className="w-full h-full object-contain" 
                      />
                      <div className="absolute top-4 left-4">
-                       <Badge className="bg-black/60 backdrop-blur-md border-border text-[10px] font-bold">PREVIEW</Badge>
+                       <Badge className="bg-background/60 backdrop-blur-md border-border text-[10px] font-bold">PREVIEW</Badge>
                      </div>
                   </div>
                   
@@ -888,12 +888,12 @@ export default function GarimpoPage() {
                           <span className="text-[10px] font-bold uppercase tracking-wider">Garimpo Inteligente</span>
                         </div>
                         <DialogTitle className="text-3xl font-space font-bold text-foreground">Visualização Técnica</DialogTitle>
-                        <p className="text-slate-500 text-sm">Analise os metadados antes de importar para sua biblioteca.</p>
+                        <p className="text-muted-foreground text-sm">Analise os metadados antes de importar para sua biblioteca.</p>
                      </DialogHeader>
                      
                      <div className="grid grid-cols-2 gap-4">
                         <div className="bg-white/[0.03] p-4 rounded-2xl border border-border space-y-1">
-                           <div className="flex items-center gap-2 text-slate-500">
+                           <div className="flex items-center gap-2 text-muted-foreground">
                              <Filter className="w-3.5 h-3.5" />
                              <span className="text-[10px] font-bold uppercase tracking-tighter">Categoria</span>
                            </div>
@@ -901,7 +901,7 @@ export default function GarimpoPage() {
                         </div>
                         
                         <div className="bg-white/[0.03] p-4 rounded-2xl border border-border space-y-1">
-                           <div className="flex items-center gap-2 text-slate-500">
+                           <div className="flex items-center gap-2 text-muted-foreground">
                              <Clock className="w-3.5 h-3.5" />
                              <span className="text-[10px] font-bold uppercase tracking-tighter">Duração</span>
                            </div>
@@ -909,7 +909,7 @@ export default function GarimpoPage() {
                         </div>
 
                         <div className="bg-white/[0.03] p-4 rounded-2xl border border-border space-y-1">
-                           <div className="flex items-center gap-2 text-slate-500">
+                           <div className="flex items-center gap-2 text-muted-foreground">
                              <User className="w-3.5 h-3.5" />
                              <span className="text-[10px] font-bold uppercase tracking-tighter">Autor</span>
                            </div>
@@ -917,7 +917,7 @@ export default function GarimpoPage() {
                         </div>
 
                         <div className="bg-white/[0.03] p-4 rounded-2xl border border-border space-y-1">
-                           <div className="flex items-center gap-2 text-slate-500">
+                           <div className="flex items-center gap-2 text-muted-foreground">
                              <Maximize2 className="w-3.5 h-3.5" />
                              <span className="text-[10px] font-bold uppercase tracking-tighter">Resolução</span>
                            </div>
@@ -929,7 +929,7 @@ export default function GarimpoPage() {
 
                      <div className="space-y-4 pt-4">
                         <div className="flex flex-col gap-2">
-                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Fonte Oficial</label>
+                          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Fonte Oficial</label>
                           <a 
                             href={selectedCandidate.original_url || `https://www.pexels.com/video/${selectedCandidate.external_id}/`}
                             target="_blank" 
@@ -942,7 +942,7 @@ export default function GarimpoPage() {
                         </div>
 
                         <div className="flex flex-col gap-2">
-                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">ID Pexels</label>
+                          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">ID Pexels</label>
                           <code className="bg-muted/50 px-3 py-2 rounded-lg text-xs text-muted-foreground border border-border font-mono">
                             {selectedCandidate.external_id}
                           </code>
@@ -963,7 +963,7 @@ export default function GarimpoPage() {
                             {importingId ? <Loader2 className="w-6 h-6 animate-spin" /> : (selectedCandidate.id === 'new' ? "IMPORTAR AGORA" : "APROVAR E IMPORTAR")}
                           </Button>
                         )}
-                        <p className="text-[10px] text-slate-500 text-center uppercase tracking-widest font-bold">
+                        <p className="text-[10px] text-muted-foreground text-center uppercase tracking-widest font-bold">
                           Vídeo fornecido por <a href="https://www.pexels.com" target="_blank" rel="noopener noreferrer" className="text-foreground hover:underline">Pexels</a>
                         </p>
                      </div>
