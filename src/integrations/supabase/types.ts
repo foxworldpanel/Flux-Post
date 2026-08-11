@@ -1048,6 +1048,27 @@ export type Database = {
           },
         ]
       }
+      server_cron_state: {
+        Row: {
+          id: string
+          last_run: string | null
+          next_run: string | null
+          status: string | null
+        }
+        Insert: {
+          id: string
+          last_run?: string | null
+          next_run?: string | null
+          status?: string | null
+        }
+        Update: {
+          id?: string
+          last_run?: string | null
+          next_run?: string | null
+          status?: string | null
+        }
+        Relationships: []
+      }
       server_tasks: {
         Row: {
           created_at: string | null
