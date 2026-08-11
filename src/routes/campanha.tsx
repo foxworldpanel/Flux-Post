@@ -1615,13 +1615,16 @@ export default function CampanhaPage() {
                       variant="outline"
                       className="w-full border-[#7C3AED]/20 text-[#7C3AED] text-xs h-9 hover:bg-[#7C3AED]/10 flex gap-2"
                       onClick={async () => {
-                        toast.loading("Disparando despachante...");
+                        const loadingToast = toast.loading("Disparando despachante...");
                         try {
                           const { data, error } = await supabase.functions.invoke('campaign-dispatcher');
+                          toast.dismiss(loadingToast);
                           if (error) throw error;
                           toast.success("Dispatcher executado com sucesso!");
                           console.log("Dispatcher results:", data);
+                          fetchData();
                         } catch (err: any) {
+                          toast.dismiss(loadingToast);
                           toast.error("Erro ao disparar dispatcher: " + err.message);
                         }
                       }}
