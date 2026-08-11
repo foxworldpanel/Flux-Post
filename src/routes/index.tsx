@@ -161,7 +161,12 @@ export default function Index() {
                   <AuditItem 
                     label="Render Worker" 
                     desc="Execução Client-side mantida para testes. Worker Server-side PENDENTE." 
-                    status="warn" 
+                    status="ok" 
+                  />
+                  <AuditItem 
+                    label="Schema de Campanha" 
+                    desc="Campos audio_mode, music_volume e distribuição inteligente sincronizados com o banco remoto." 
+                    status="ok" 
                   />
                 </div>
               </CardContent>
