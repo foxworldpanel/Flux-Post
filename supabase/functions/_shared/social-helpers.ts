@@ -17,21 +17,38 @@ export interface PostPeerIntegration {
   updatedAt: string;
 }
 
-export interface PostPeerPostRequest {
+export interface PostPeerMediaItem {
+  url: string;
+  type: 'VIDEO' | 'IMAGE';
+}
+
+export interface PostPeerPlatformResult {
+  platform: string;
+  accountId: string;
+  status: string;
+  postId?: string;
+  postUrl?: string;
+  error?: string;
+}
+
+export interface PostPeerCreatePostRequest {
   platforms: {
     platform: string;
-    accountId: string; // Isso deve ser o Integration ID
+    accountId: string; // Integration ID
   }[];
-  content: {
-    caption: string;
-  };
-  mediaItems: {
-    url: string;
-    type: 'VIDEO' | 'IMAGE';
-  }[];
+  content: string;
+  mediaItems: PostPeerMediaItem[];
   publishNow?: boolean;
   scheduledFor?: string; // ISO String
   timezone?: string; // e.g. "America/Sao_Paulo"
+}
+
+export interface PostPeerCreatePostResponse {
+  id: string;
+  status: string;
+  platforms: PostPeerPlatformResult[];
+  publishedAt?: string;
+  scheduledAt?: string;
 }
 
 export class PostPeerClient {
@@ -71,7 +88,7 @@ export class PostPeerClient {
     return res.json();
   }
 
-  async createPost(payload: PostPeerPostRequest): Promise<any> {
+  async createPost(payload: PostPeerCreatePostRequest): Promise<PostPeerCreatePostResponse> {
     const res = await fetch(`${this.baseUrl}/posts`, {
       method: 'POST',
       headers: {
@@ -84,7 +101,7 @@ export class PostPeerClient {
     return res.json();
   }
 
-  async getPost(postId: string): Promise<any> {
+  async getPost(postId: string): Promise<PostPeerCreatePostResponse> {
     const res = await fetch(`${this.baseUrl}/posts/${postId}`, {
       headers: { 'x-access-key': this.apiKey }
     });

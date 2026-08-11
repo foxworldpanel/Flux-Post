@@ -112,20 +112,10 @@ export default function ProcessarPage() {
         throw uploadError;
       }
 
-      const { data: publicUrlData } = supabase.storage
-        .from('videos')
-        .getPublicUrl(fileName);
+      // Fluxo legado removido conforme auditoria.
+      // O media_renders já é persistido pelo renderService.requestRender().
       
-      const publicUrl = publicUrlData.publicUrl;
-      console.log('URL pública do vídeo processado:', publicUrl);
-
-      const { error: dbError } = await supabase.from("videos_processados").insert({
-        video_id: selectedVideo,
-        music_track_id: selectedMusic,
-        storage_path: publicUrl,
-      });
-
-      if (dbError) throw dbError;
+      toast.success("Vídeo processado e disponível na Central de Renders!");
 
       toast.success("Vídeo salvo na biblioteca!");
     } catch (error: any) {

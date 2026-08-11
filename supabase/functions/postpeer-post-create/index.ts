@@ -96,9 +96,7 @@ serve(async (req) => {
         platform: pub.platform,
         accountId: pub.social_accounts.provider_connection_id // IMPORTANTE: Integration ID
       }],
-      content: {
-        caption: pub.caption || ""
-      },
+      content: pub.caption || "", // Alterado de { caption: ... } para string conforme contrato V1
       mediaItems: [{
         url: signedUrlData.signedUrl,
         type: "VIDEO" as const
@@ -127,6 +125,10 @@ serve(async (req) => {
     if (response.platforms?.[0]?.error) {
       updatePayload.status = 'failed';
       updatePayload.last_error = response.platforms[0].error;
+    }
+
+    if (response.platforms?.[0]?.postId) {
+      console.log("[postpeer-post-create] Platform Post ID:", response.platforms[0].postId);
     }
 
     await supabaseAdmin

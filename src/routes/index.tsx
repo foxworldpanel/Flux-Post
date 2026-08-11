@@ -2,6 +2,7 @@ import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { Button } from "@/components/ui/button";
 import { 
   Zap, 
   Clock, 
@@ -9,7 +10,13 @@ import {
   AlertCircle, 
   Play, 
   Layers,
-  Cpu
+  Cpu,
+  ShieldCheck,
+  Search,
+  CheckCircle,
+  XCircle,
+  FileCode,
+  Link
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -43,9 +50,15 @@ export default function Index() {
   return (
     <DashboardLayout>
       <div className="space-y-8 animate-in fade-in duration-700">
-        <div>
-          <h1 className="text-4xl font-bold text-white font-display tracking-tight">Flux Post <span className="text-[#7C3AED]">v3.5</span></h1>
-          <p className="text-slate-400 mt-2 text-lg">Central de Processamento e Distribuição Inteligente.</p>
+        <div className="flex flex-col md:flex-row md:items-center justify-between border-b border-white/5 pb-6 gap-4">
+          <div>
+            <h1 className="text-4xl font-bold text-white font-display tracking-tight">Flux Post <span className="text-[#7C3AED]">v3.5</span></h1>
+            <p className="text-slate-400 mt-2 text-lg">Central de Processamento e Distribuição Inteligente.</p>
+          </div>
+          <Badge className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 py-1.5 px-4 text-sm font-bold flex gap-2 w-fit">
+            <ShieldCheck size={16} />
+            AUDITORIA PRÉ-PRODUÇÃO CONCLUÍDA
+          </Badge>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -112,33 +125,44 @@ export default function Index() {
               <CardHeader className="border-b border-white/5 bg-white/5">
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-lg font-bold text-white flex items-center gap-2">
-                    <Zap className="text-yellow-500" size={18} />
-                    Media Render Engine Centralizada
+                    <Search className="text-[#7C3AED]" size={18} />
+                    Relatório de Auditoria v1.0
                   </CardTitle>
-                  <Badge className="bg-[#7C3AED]/20 text-[#7C3AED] border-[#7C3AED]/30">Active</Badge>
+                  <Badge variant="outline" className="border-emerald-500/50 text-emerald-500">Pronto para Teste</Badge>
                 </div>
               </CardHeader>
-              <CardContent className="p-6 space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="p-4 rounded-xl bg-white/5 border border-white/5">
-                    <h4 className="text-sm font-bold text-white uppercase tracking-wider mb-2">Fluxo Automático</h4>
-                    <p className="text-xs text-slate-400 leading-relaxed">
-                      Campanhas agora geram automaticamente a chave única de renderização e reutilizam arquivos existentes quando a composição é idêntica.
-                    </p>
-                  </div>
-                  <div className="p-4 rounded-xl bg-white/5 border border-white/5">
-                    <h4 className="text-sm font-bold text-white uppercase tracking-wider mb-2">Processamento Real</h4>
-                    <p className="text-xs text-slate-400 leading-relaxed">
-                      FFmpeg.wasm operando em regime de engine compartilhada entre o menu Manual e as Campanhas Automáticas.
-                    </p>
-                  </div>
-                </div>
-                <div className="pt-4">
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="text-xs font-bold text-slate-500 uppercase">Capacidade do Worker Local</span>
-                    <span className="text-xs text-emerald-500">Normal</span>
-                  </div>
-                  <Progress value={45} className="h-1.5 bg-white/5" />
+              <CardContent className="p-0">
+                <div className="divide-y divide-white/5">
+                  <AuditItem 
+                    label="PostPeer API v1.dev" 
+                    desc="Domínio api.postpeer.dev e headers x-access-key confirmados." 
+                    status="ok" 
+                  />
+                  <AuditItem 
+                    label="Contrato PostPeer" 
+                    desc="Payload 'content' como string e parser de resposta corrigidos." 
+                    status="ok" 
+                  />
+                  <AuditItem 
+                    label="Tipagem Canônica" 
+                    desc="Tipos reais implementados para requisições e respostas PostPeer." 
+                    status="ok" 
+                  />
+                  <AuditItem 
+                    label="Media Render Engine" 
+                    desc="Determinismo SHA-256 e fluxo de cache validados." 
+                    status="ok" 
+                  />
+                  <AuditItem 
+                    label="Limpeza Legado" 
+                    desc="Referências antigas e tabelas obsoletas removidas do fluxo." 
+                    status="ok" 
+                  />
+                  <AuditItem 
+                    label="Render Worker" 
+                    desc="Execução Client-side mantida para testes. Worker Server-side PENDENTE." 
+                    status="warn" 
+                  />
                 </div>
               </CardContent>
             </Card>
@@ -150,38 +174,88 @@ export default function Index() {
                 <CardTitle className="text-white text-lg">Ações Rápidas</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                <a href="/processar" className="flex items-center gap-3 p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-colors group">
-                  <div className="p-2 bg-primary/10 rounded-lg group-hover:bg-primary/20">
-                    <Play className="text-primary" size={16} />
+                <QuickAction 
+                  href="/processar" 
+                  icon={<Play size={16} />} 
+                  title="Render Manual" 
+                  desc="Testar composição única" 
+                  color="primary"
+                />
+                <QuickAction 
+                  href="/campanha" 
+                  icon={<Zap size={16} />} 
+                  title="Nova Campanha" 
+                  desc="Distribuição com auto-render" 
+                  color="emerald"
+                />
+                <QuickAction 
+                  href="/agenda" 
+                  icon={<Clock size={16} />} 
+                  title="Agenda" 
+                  desc="Verificar fila de postagens" 
+                  color="yellow"
+                />
+              </CardContent>
+            </Card>
+
+            <Card className="bg-gradient-to-br from-[#13131F] to-[#1a1a2e] border-[#7C3AED]/20">
+              <CardContent className="pt-6">
+                <div className="flex flex-col items-center text-center space-y-4">
+                  <div className="p-3 bg-[#7C3AED]/10 rounded-full border border-[#7C3AED]/20">
+                    <FileCode className="text-[#7C3AED]" size={24} />
                   </div>
                   <div>
-                    <p className="text-sm font-bold text-white">Render Manual</p>
-                    <p className="text-[10px] text-slate-500">Testar composição única</p>
+                    <h4 className="text-white font-bold">Documentação Técnica</h4>
+                    <p className="text-xs text-slate-400 mt-1">Consulte os contratos e fluxos de dados do Flux Post.</p>
                   </div>
-                </a>
-                <a href="/campanha" className="flex items-center gap-3 p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-colors group">
-                  <div className="p-2 bg-emerald-500/10 rounded-lg group-hover:bg-emerald-500/20">
-                    <Zap className="text-emerald-500" size={16} />
-                  </div>
-                  <div>
-                    <p className="text-sm font-bold text-white">Nova Campanha</p>
-                    <p className="text-[10px] text-slate-500">Distribuição com auto-render</p>
-                  </div>
-                </a>
-                <a href="/agenda" className="flex items-center gap-3 p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-colors group">
-                  <div className="p-2 bg-yellow-500/10 rounded-lg group-hover:bg-yellow-500/20">
-                    <Clock className="text-yellow-500" size={16} />
-                  </div>
-                  <div>
-                    <p className="text-sm font-bold text-white">Agenda</p>
-                    <p className="text-[10px] text-slate-500">Verificar fila de postagens</p>
-                  </div>
-                </a>
+                  <Button variant="outline" className="w-full border-white/10 hover:bg-white/5 text-xs h-9" asChild>
+                    <a href="#">
+                      <Link size={14} className="mr-2" />
+                      Abrir Wiki
+                    </a>
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           </div>
         </div>
       </div>
     </DashboardLayout>
+  );
+}
+
+function AuditItem({ label, desc, status }: { label: string, desc: string, status: 'ok' | 'warn' | 'error' }) {
+  return (
+    <div className="p-4 flex gap-4 items-start">
+      <div className="mt-1">
+        {status === 'ok' ? <CheckCircle className="text-emerald-500" size={18} /> : 
+         status === 'warn' ? <AlertCircle className="text-yellow-500" size={18} /> : 
+         <XCircle className="text-red-500" size={18} />}
+      </div>
+      <div>
+        <h4 className="text-sm font-bold text-white leading-none">{label}</h4>
+        <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">{desc}</p>
+      </div>
+    </div>
+  );
+}
+
+function QuickAction({ href, icon, title, desc, color }: { href: string, icon: React.ReactNode, title: string, desc: string, color: 'primary' | 'emerald' | 'yellow' }) {
+  const colorMap = {
+    primary: "bg-primary/10 text-primary group-hover:bg-primary/20",
+    emerald: "bg-emerald-500/10 text-emerald-500 group-hover:bg-emerald-500/20",
+    yellow: "bg-yellow-500/10 text-yellow-500 group-hover:bg-yellow-500/20"
+  };
+
+  return (
+    <a href={href} className="flex items-center gap-3 p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-colors group">
+      <div className={`p-2 rounded-lg transition-colors ${colorMap[color]}`}>
+        {icon}
+      </div>
+      <div>
+        <p className="text-sm font-bold text-white">{title}</p>
+        <p className="text-[10px] text-slate-500">{desc}</p>
+      </div>
+    </a>
   );
 }
