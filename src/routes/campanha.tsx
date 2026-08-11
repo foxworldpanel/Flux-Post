@@ -50,6 +50,7 @@ import { ptBR } from "date-fns/locale";
 import { artistService } from "@/services/artists";
 import { contentService } from "@/services/content";
 import { socialService, type SocialAccount } from "@/services/social";
+import { storageService } from "@/services/storage";
 
 type MusicTrack = {
   id: string;
@@ -296,20 +297,34 @@ export default function CampanhaPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Usuário não autenticado");
 
-      // 1. Upload file
-      const fileExt = newMusicData.file.name.split('.').pop();
-      const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
-      const filePath = `music/${user.id}/${fileName}`;
+      // 1. Generate safe storage path
+      const extension = storageService.getFileExtension(newMusicData.file.name);
+      
+      if (!storageService.isSupportedExtension(extension, ['mp3', 'wav', 'm4a'])) {
+        throw new Error("Formato de áudio não suportado (apenas MP3, WAV, M4A).");
+      }
+
+      const filePath = storageService.generateSafePath({
+        userId: user.id,
+        assetType: 'music',
+        extension,
+        artistId: formData.artist_id
+      });
+
+      console.log('Iniciando upload seguro para o bucket musicas (campanha):', filePath);
 
       const { error: uploadError } = await supabase.storage
         .from('musicas')
-        .upload(filePath, newMusicData.file);
+        .upload(filePath, newMusicData.file, {
+          cacheControl: '3600',
+          upsert: true,
+          contentType: newMusicData.file.type
+        });
 
-      if (uploadError) throw uploadError;
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('musicas')
-        .getPublicUrl(filePath);
+      if (uploadError) {
+        console.error('Erro upload storage:', uploadError);
+        throw new Error("Não foi possível enviar o arquivo de áudio.");
+      }
 
       // 2. Insert into DB
       const { data: music, error: dbError } = await supabase
@@ -317,13 +332,17 @@ export default function CampanhaPage() {
         .insert({
           nome: newMusicData.nome,
           artist_id: formData.artist_id,
-          storage_path: publicUrl,
+          storage_path: filePath,
           user_id: user.id
         })
         .select()
         .single();
 
-      if (dbError) throw dbError;
+      if (dbError) {
+        // Rollback Storage
+        await storageService.cleanup('musicas', filePath);
+        throw dbError;
+      }
 
       // 3. Update local state and select it
       setMusicas(prev => [music as any, ...prev]);
@@ -332,7 +351,8 @@ export default function CampanhaPage() {
       setNewMusicData({ nome: "", file: null, uploading: false });
       toast.success("Música adicionada e selecionada!");
     } catch (error: any) {
-      toast.error("Erro ao adicionar música: " + error.message);
+      console.error("[UPLOAD ERROR CAMPANHA]", error);
+      toast.error(error.message || "Erro ao adicionar música.");
     } finally {
       setNewMusicData(prev => ({ ...prev, uploading: false }));
     }
