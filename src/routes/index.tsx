@@ -93,7 +93,7 @@ QueryClient
 
 e toda a aplicação que utiliza React Query deve estar dentro de:
 
-&lt;QueryClientProvider client={queryClient}&gt;
+&lt;QueryClientProvider client={&#123;queryClient&#125;}&gt;
 
 Estrutura conceitual esperada:
 
