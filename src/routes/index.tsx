@@ -28,37 +28,59 @@ export default function Index() {
     failedRenders: 0,
     processingRenders: 0
   });
+  const [cronState, setCronState] = useState<any>(null);
 
   useEffect(() => {
     async function fetchStats() {
-      const { data } = await supabase
+      const { data: renderData } = await supabase
         .from('media_renders')
         .select('status');
       
-      if (data) {
+      if (renderData) {
         setStats({
-          totalRenders: data.length,
-          readyRenders: data.filter(r => r.status === 'ready').length,
-          failedRenders: data.filter(r => r.status === 'failed').length,
-          processingRenders: data.filter(r => r.status === 'processing' || r.status === 'queued').length
+          totalRenders: renderData.length,
+          readyRenders: renderData.filter(r => r.status === 'ready').length,
+          failedRenders: renderData.filter(r => r.status === 'failed').length,
+          processingRenders: renderData.filter(r => r.status === 'processing' || r.status === 'queued').length
         });
+      }
+
+      const { data: cronData } = await supabase
+        .from('server_cron_state')
+        .select('*')
+        .maybeSingle();
+      
+      if (cronData) {
+        setCronState(cronData);
       }
     }
     fetchStats();
   }, []);
+
+  const isDispatcherOnline = useMemo(() => {
+    if (!cronState?.last_success_at) return false;
+    const lastRun = new Date(cronState.last_success_at);
+    const diff = (new Date().getTime() - lastRun.getTime()) / 1000 / 60;
+    return diff < 5; // Considera offline se não rodou nos últimos 5 minutos
+  }, [cronState]);
 
   return (
     <DashboardLayout>
       <div className="space-y-8 animate-in fade-in duration-700">
         <div className="flex flex-col md:flex-row md:items-center justify-between border-b border-border pb-6 gap-4">
           <div>
-            <h1 className="text-4xl font-bold text-foreground font-display tracking-tight">Flux Post <span className="text-[#7C3AED]">v3.6</span></h1>
-            <p className="text-muted-foreground mt-2 text-lg">Central de Processamento e Distribuição Inteligente <span className="text-emerald-500 font-semibold">(Motor Server-Side v1)</span>.</p>
+            <h1 className="text-4xl font-bold text-foreground font-display tracking-tight">Flux Post <span className="text-[#7C3AED]">v3.7</span></h1>
+            <p className="text-muted-foreground mt-2 text-lg">Central de Processamento e Distribuição Inteligente <span className="text-[#7C3AED] font-semibold">(Motor Híbrido v2)</span>.</p>
           </div>
-          <Badge className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 py-1.5 px-4 text-sm font-bold flex gap-2 w-fit">
-            <ShieldCheck size={16} />
-            AUDITORIA PRÉ-PRODUÇÃO CONCLUÍDA
-          </Badge>
+          <div className="flex flex-col items-end gap-2">
+            <Badge className={`${isDispatcherOnline ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : 'bg-red-500/10 text-red-500 border-red-500/20'} py-1.5 px-4 text-sm font-bold flex gap-2 w-fit`}>
+              {isDispatcherOnline ? <ShieldCheck size={16} /> : <AlertCircle size={16} />}
+              MOTOR: {isDispatcherOnline ? 'ONLINE' : 'OFFLINE (SCHEDULER PENDENTE)'}
+            </Badge>
+            <p className="text-[10px] text-muted-foreground">
+              Last Sync: {cronState?.last_success_at ? format(new Date(cronState.last_success_at), "HH:mm:ss") : 'N/A'}
+            </p>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -193,13 +215,13 @@ export default function Index() {
                   />
                   <AuditItem 
                     label="Executor Server-Side" 
-                    desc="ATENÇÃO: Sem pg_cron nativo. O Flux Post agora emula o cron via acionamentos estratégicos da interface e Watchdog server-side." 
-                    status="warn" 
+                    desc="PENDENTE: Scheduler real (Cron) não disponível via Edge Functions/Lovable. O motor depende de um gatilho externo ou abertura da UI (Fallback)." 
+                    status="error" 
                   />
                   <AuditItem 
                     label="Render Worker" 
-                    desc="PENDENTE: FFmpeg server-side em Edge Functions exige infra externa. Atualmente o cache de render_key gerencia o estoque." 
-                    status="warn" 
+                    desc="PENDENTE: FFmpeg server-side indisponível. Requer Render Worker externo para automação completa com áudio." 
+                    status="error" 
                   />
                 </div>
               </CardContent>
