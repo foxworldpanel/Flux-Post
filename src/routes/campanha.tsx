@@ -31,6 +31,7 @@ import {
   Calendar,
   Clock,
   RotateCcw,
+  Layers,
   Play,
   Pause,
   Square,
