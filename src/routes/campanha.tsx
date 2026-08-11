@@ -128,62 +128,95 @@ export default function CampanhaPage() {
     audio_mode: 'music_plus_original' as 'only_music' | 'music_plus_original' | 'only_original',
     music_volume: 80,
     original_audio_volume: 20,
-    music_start_ms: 0
+    music_start_ms: 0,
+    // Novos campos da Fase 3.6
+    start_mode: "period" as "period" | "now",
+    daily_start_time: "09:00",
+    daily_end_time: "21:00",
+    batch_interval_minutes: 60,
+    destination_interval_seconds: 60,
   });
 
 
   // Calculate Scheduling Preview
   const schedulingPreview = useMemo(() => {
-    if (!formData.data_inicio || !formData.data_fim || !selectedAccountIds.length || !selectedContentIds.length) {
+    if (!selectedAccountIds.length || !selectedContentIds.length) {
       return [];
     }
 
     const preview: any[] = [];
-    const startDate = new Date(formData.data_inicio + "T00:00:00");
-
-    const endDate = new Date(formData.data_fim + "T23:59:59");
-    const [startH, startM] = formData.hora_inicio.split(":").map(Number);
-    const [endH, endM] = formData.hora_fim.split(":").map(Number);
-    const postsPerDay = formData.posts_por_dia;
+    const isNow = formData.start_mode === "now";
     
-    let currentDay = startOfDay(startDate);
-    let videoIndex = 0;
+    // Timezone handling - for preview we use local browser time for simplicity but should ideally use tz
+    const now = new Date();
+    const startDate = isNow ? now : new Date(formData.data_inicio + "T" + formData.daily_start_time);
+    const endDate = new Date(formData.data_fim + "T" + formData.daily_end_time);
 
-    while (isBefore(currentDay, endDate) || currentDay.getTime() === startOfDay(endDate).getTime()) {
-      for (let p = 0; p < postsPerDay; p++) {
-        const totalMinutes = (endH * 60 + endM) - (startH * 60 + startM);
-        const interval = totalMinutes > 0 ? totalMinutes / Math.max(1, postsPerDay) : 0;
-        const postTime = addMinutes(setMinutes(setHours(currentDay, startH), startM), interval * p);
+    if (isNow) {
+      // MODO: COMEÇAR AGORA
+      // 1 lote = 1 conteúdo distribuído entre todas as contas
+      // Vamos simular os lotes baseados no intervalo entre conteúdos
+      for (let batchIdx = 0; batchIdx < selectedContentIds.length; batchIdx++) {
+        const batchStartTime = addMinutes(now, batchIdx * formData.batch_interval_minutes);
         
-        if (isBefore(postTime, startDate) || isAfter(postTime, endDate)) continue;
-
         selectedAccountIds.forEach((accountId, accIdx) => {
           const account = socialAccounts.find(a => a.id === accountId);
+          // O tempo de cada destino dentro do lote
+          const scheduledTime = addMinutes(batchStartTime, (accIdx * formData.destination_interval_seconds) / 60);
           
-          let effectiveVideoIdx;
-          if (formData.distribution_mode === 'all') {
-            // MODO A: Todos recebem o mesmo conteúdo
-            effectiveVideoIdx = videoIndex % selectedContentIds.length;
-          } else {
-            // MODO B: Distribuição Inteligente (Randomizada com variação)
-            // Usamos uma lógica determinística baseada na data e índice da conta para simular pool
-            const seed = postTime.getTime() + accIdx;
-            effectiveVideoIdx = Math.floor(Math.abs(Math.sin(seed) * selectedContentIds.length));
-          }
-
           preview.push({
-            date: postTime,
+            date: scheduledTime,
             accountId,
             accountName: account?.account_name || "Conta",
-            videoIndex: effectiveVideoIdx,
-            platform: account?.platform || "tiktok"
+            videoIndex: batchIdx % selectedContentIds.length,
+            platform: account?.platform || "tiktok",
+            isNow: batchIdx === 0 && accIdx === 0
           });
         });
-        videoIndex++;
       }
-      currentDay = addDays(currentDay, 1);
-    }
+    } else {
+      // MODO: PROGRAMAR PERÍODO
+      const [startH, startM] = formData.daily_start_time.split(":").map(Number);
+      const [endH, endM] = formData.daily_end_time.split(":").map(Number);
+      const postsPerDay = formData.posts_por_dia;
+      
+      let currentDay = startOfDay(startDate);
+      let videoIndex = 0;
 
+      while (isBefore(currentDay, endDate) || currentDay.getTime() === startOfDay(endDate).getTime()) {
+        const totalMinutes = (endH * 60 + endM) - (startH * 60 + startM);
+        const interval = totalMinutes > 0 ? totalMinutes / Math.max(1, postsPerDay) : 0;
+
+        for (let p = 0; p < postsPerDay; p++) {
+          const batchTime = addMinutes(setMinutes(setHours(currentDay, startH), startM), interval * p);
+          
+          if (isBefore(batchTime, startDate) || isAfter(batchTime, endDate)) continue;
+
+          selectedAccountIds.forEach((accountId, accIdx) => {
+            const account = socialAccounts.find(a => a.id === accountId);
+            const scheduledTime = addMinutes(batchTime, (accIdx * formData.destination_interval_seconds) / 60);
+
+            let effectiveVideoIdx;
+            if (formData.distribution_mode === 'all') {
+              effectiveVideoIdx = videoIndex % selectedContentIds.length;
+            } else {
+              const seed = batchTime.getTime() + accIdx;
+              effectiveVideoIdx = Math.floor(Math.abs(Math.sin(seed) * selectedContentIds.length));
+            }
+
+            preview.push({
+              date: scheduledTime,
+              accountId,
+              accountName: account?.account_name || "Conta",
+              videoIndex: effectiveVideoIdx,
+              platform: account?.platform || "tiktok"
+            });
+          });
+          videoIndex++;
+        }
+        currentDay = addDays(currentDay, 1);
+      }
+    }
 
     return preview.sort((a, b) => a.date.getTime() - b.date.getTime());
   }, [formData, selectedAccountIds, selectedContentIds, socialAccounts]);
@@ -380,9 +413,6 @@ export default function CampanhaPage() {
       if (!user) throw new Error("Usuário não autenticado");
 
       // 1. Create campaign
-      const startHour = parseInt(formData.hora_inicio.split(":")[0]);
-      const endHour = parseInt(formData.hora_fim.split(":")[0]);
-
       const { data: newCamp, error: campError } = await supabase
         .from("campanhas")
         .insert({
@@ -390,11 +420,11 @@ export default function CampanhaPage() {
           artist_id: formData.artist_id,
           music_track_id: formData.music_track_id,
           posts_por_dia: formData.posts_por_dia,
-          hora_inicio: startHour,
-          hora_fim: endHour,
+          hora_inicio: parseInt(formData.daily_start_time.split(":")[0]), // Reutilizando para legado
+          hora_fim: parseInt(formData.daily_end_time.split(":")[0]), // Reutilizando para legado
           intervalo_min: formData.intervalo_min,
           intervalo_max: formData.intervalo_max,
-          data_inicio: formData.data_inicio,
+          data_inicio: formData.start_mode === 'now' ? format(new Date(), "yyyy-MM-dd") : formData.data_inicio,
           data_fim: formData.data_fim,
           status: "ativo",
           user_id: user.id,
@@ -405,7 +435,14 @@ export default function CampanhaPage() {
           audio_mode: formData.audio_mode,
           music_volume: formData.music_volume,
           original_audio_volume: formData.original_audio_volume,
-          music_start_ms: formData.music_start_ms
+          music_start_ms: formData.music_start_ms,
+          // Novos campos
+          start_mode: formData.start_mode,
+          daily_start_time: formData.daily_start_time,
+          daily_end_time: formData.daily_end_time,
+          batch_interval_minutes: formData.batch_interval_minutes,
+          destination_interval_seconds: formData.destination_interval_seconds,
+          timezone: formData.timezone
         })
         .select()
         .single();
