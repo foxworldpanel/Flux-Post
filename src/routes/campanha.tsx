@@ -1381,11 +1381,20 @@ export default function CampanhaPage() {
               </CardHeader>
               <CardContent className="space-y-8">
                 <div className="space-y-4">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Progresso da Campanha</span>
                   {(() => {
                     const isNow = campanhaAtiva.start_mode === "now";
-                    if (isNow) return null;
+                    if (isNow) return (
+                      <div className="bg-primary/5 border border-primary/20 p-4 rounded-xl flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <Zap className="text-primary" size={20} />
+                          <div>
+                            <p className="text-sm font-bold text-foreground">Campanha em Tempo Real</p>
+                            <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">Modo Começar Agora Ativo</p>
+                          </div>
+                        </div>
+                        <Badge className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20">EXECUTANDO</Badge>
+                      </div>
+                    );
 
                     const total =
                       differenceInDays(
