@@ -124,6 +124,7 @@ export default function CampanhaPage() {
     distribution_mode: "intelligent" as "all" | "intelligent",
     distribution_variation: "medium" as "low" | "medium" | "high",
     cooldown_days: 30,
+    repeat_policy: "never" as "never" | "cooldown",
     distribution_interval_minutes: 5,
     editorial_language: "pt-BR",
     editorial_style: "engaging",
