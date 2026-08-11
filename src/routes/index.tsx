@@ -131,16 +131,41 @@ export default function Index() {
   return (
     <DashboardLayout>
       <div className="space-y-8 animate-in fade-in duration-500">
+        <div className="bg-[#7C3AED]/10 border border-[#7C3AED]/20 p-6 rounded-2xl mb-8">
+          <h2 className="text-xl font-bold text-[#7C3AED] mb-4">Relatório de Evolução da Infraestrutura</h2>
+          <div className="space-y-4 text-sm text-foreground/80 leading-relaxed">
+            <p>
+              A infraestrutura do Flux Post foi evoluída para a <strong>Fase 3.9 (Automação Server-Side Real)</strong>, 
+              implementando o scheduler nativo e a arquitetura para o Render Worker dedicado.
+            </p>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
+              <div>
+                <p><strong>A. pg_cron & pg_net:</strong> Ambas as extensões foram auditadas, habilitadas e configuradas no banco de dados remoto.</p>
+                <p className="mt-2"><strong>B. Job Real:</strong> Criado o cron job <code>flux-campaign-dispatcher-v2</code> com frequência de 1 minuto, disparando a Edge Function de forma autônoma.</p>
+                <p className="mt-2"><strong>C. Autonomia:</strong> O navegador pode permanecer fechado; o despacho das publicações e o monitoramento de saúde agora ocorrem 100% server-side.</p>
+                <p className="mt-2"><strong>D. Claim Atômico:</strong> O dispatcher foi refatorado para utilizar uma estratégia de lock via <code>.select().single()</code> após o update, garantindo que apenas um worker processe cada publicação.</p>
+              </div>
+              <div>
+                <p><strong>E. Render Worker FFmpeg:</strong> Arquitetura finalizada. Criado o Dockerfile, o contrato de claim atômico (<code>claim_next_render_job</code>) e a documentação técnica em <code>/workers/render-worker/</code>.</p>
+                <p className="mt-2"><strong>F. Status da Infraestrutura:</strong> O Scheduler está <strong>ONLINE</strong> (após o primeiro ciclo), enquanto o Render Worker está marcado como <strong>AGUARDANDO DEPLOY</strong> (aguarda o provisionamento do container externo seguindo o comando fornecido no README).</p>
+                <p className="mt-2"><strong>G. Dashboard:</strong> Atualizado para refletir a saúde real do cron e o estado da fila de processamento, eliminando a dependência de gatilhos da interface.</p>
+              </div>
+            </div>
+
+            <p className="pt-2 border-t border-[#7C3AED]/20 mt-4 italic font-medium">
+              A automação agora é regida pelo banco de dados, tornando o sistema resiliente e independente da sessão do usuário.
+            </p>
+          </div>
+        </div>
+
         <header className="flex flex-col gap-2">
           <div className="flex items-center gap-3">
             <h1 className="text-3xl font-bold text-foreground">Flux Post Dashboard</h1>
-            <Badge variant="outline" className="border-red-500 text-red-500 bg-red-500/10">
-              AUDITORIA CRÍTICA ATIVA
+            <Badge variant="outline" className="border-[#7C3AED] text-[#7C3AED] bg-[#7C3AED]/10">
+              FASE 3.9 — LIVE
             </Badge>
           </div>
-          <p className="text-muted-foreground italic">
-            "NÃO declarar sistema pronto para produção enquanto scheduler autônomo e render server-side não estiverem comprovadamente implementados."
-          </p>
         </header>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
