@@ -25,136 +25,179 @@ export default function Index() {
     <DashboardLayout>
       <div className="p-8 space-y-8 max-w-7xl mx-auto">
         <div className="bg-slate-950 border border-slate-800 p-8 rounded-xl font-mono text-sm leading-relaxed whitespace-pre-wrap">
-VALIDAÇÃO DO HANDOFF DISPATCHER → RENDER QUEUE
+CORREÇÃO REAL — DISPATCHER → MEDIA_RENDER QUEUE
 
-A nova campanha está correta:
+Auditoria externa confirmou no HEAD atual do GitHub que o campaign-dispatcher NÃO possui criação automática de render jobs.
 
-campaign_id = fa6b3d03-9499-488e-a333-6b7e2262b24a
+NÃO mexer em:
+Campaign Generation Engine
+pg_cron
+scheduler
+RLS
+grants
+autenticação
+PostPeer
+frontend
 
-EXPECTED PUBLICATIONS = 3
+O código REAL atual faz:
+publication com music_track_id
+→ procura media_render status=ready
+→ se não encontrar:
+results.push({ status: 'waiting_render' })
+→ continue
 
-ACTUAL PUBLICATIONS = 3
+Isso significa que NENHUM media_render é criado.
 
-Campaign Generation Engine está APROVADO.
+CORRIGIR SOMENTE O HANDOFF DISPATCHER → MEDIA_RENDERS.
 
-NÃO alterar src/routes/campanha.tsx.
+Para publication DUE que necessita render:
+Calcular render_key determinística usando no mínimo:
+content_id
+music_track_id
+render_options
 
-NÃO alterar scheduler/pg_cron.
+A serialização precisa ser estável para que as mesmas opções sempre produzam a mesma key.
+Procurar media_render existente pela render_key.
 
-NÃO usar dispatcher manual.
+Se READY:
+CACHE HIT
+→ vincular media_render_id à publication
+→ continuar pipeline para PostPeer.
 
-NÃO alterar RLS/grants.
+Se PENDING/QUEUED/PROCESSING:
+→ não criar outro
+→ publication permanece aguardando esse mesmo render.
 
-NÃO chamar PostPeer.
+Se não existir:
+→ criar exatamente UMA row em media_renders.
 
-Agora audite SOMENTE o handoff:
+Usar o schema REMOTO REAL de media_renders.
+Antes do INSERT, listar internamente as colunas existentes e montar payload compatível.
+NÃO inventar coluna.
+Usar music_track_id, já confirmado como canônico.
+Usar o bucket canônico:
+rendered
 
-publication → campaign-dispatcher v6 → media_renders
+O status inicial precisa ser exatamente o status que claim_next_render_job / Render Worker reconhece.
+Auditar o contrato real antes de escolher entre:
+pending
+queued
+Não criar um novo status.
 
-As três publications possuem music_track_id, portanto precisam de render.
+IDEMPOTÊNCIA
+As três publications atuais:
+69c662fa-b38f-4d58-a01c-33780af158fd
+e0a5ee1b-699a-4d29-97ca-c4d55b0c4f68
+f7970c38-c913-4687-90a6-48dcbcfd2efc
 
-Para cada publication informar:
+possuem o mesmo:
+content_id:
+d8a37a07-83fb-4a17-8e3d-7eb59e380c4d
+music_track_id:
+19e4e8fa-1ff2-486c-85b9-ed8b0f38124e
 
-PUBLICATION ID: 69c662fa-b38f-4d58-a01c-33780af158fd
-scheduled_for: 23:31:03
-now(): 23:35:51
-DUE: YES
-status: agendado
-
-PUBLICATION ID: e0a5ee1b-699a-4d29-97ca-c4d55b0c4f68
-scheduled_for: 23:33:03
-now(): 23:35:51
-DUE: YES
-status: agendado
-
-PUBLICATION ID: f7970c38-c913-4687-90a6-48dcbcfd2efc
-scheduled_for: 23:35:03
-now(): 23:35:51
-DUE: YES
-status: agendado
-
-Para cada publication que já estiver DUE, verificar:
-
-DISPATCHER RUN AFTER scheduled_for: YES (last_success_at: 23:42:47)
-
-PUBLICATION CLAIMED: NO (Status ainda 'agendado')
-
-STATUS AFTER CLAIM: agendado
-
-RENDER REQUIRED: YES
-
-RENDER_KEY GENERATED: PENDING
-
-RENDER_KEY: NULL
-
-CACHE LOOKUP EXECUTED: PENDING
-
-CACHE HIT: PENDING
-
-MEDIA_RENDER INSERT ATTEMPTED: NO
-
-MEDIA_RENDER INSERT ERROR: NULL
-
-MEDIA_RENDER ROW EXISTS: NO
-
-MEDIA_RENDER ID: NULL
-
-MEDIA_RENDER STATUS: NULL
-
-Verificar diretamente a tabela media_renders pelo:
-
-content_id = d8a37a07-83fb-4a17-8e3d-7eb59e380c4d
-
-e
-
-music_track_id = 19e4e8fa-1ff2-486c-85b9-ed8b0f38124e
-
-IMPORTANTE:
-
-Como as 3 publications usam exatamente o mesmo conteúdo + música + opções de render, deve existir UM ÚNICO render job compartilhado, não 3 renders idênticos.
-
-Esperado:
-
+Portanto devem produzir:
 3 publications
-→ 1 deterministic render_key
+→ 1 render_key
 → 1 media_render
-→ posteriormente 3 publications reutilizam o mesmo media_render_id.
+NUNCA 3 renders idênticos.
 
-Se media_render NÃO existir mesmo após execução automática do dispatcher posterior ao scheduled_for, descobrir o erro exato.
+Adicionar proteção real de concorrência no banco para render_key UNIQUE se ainda não existir.
+Não depender apenas de SELECT → INSERT porque dois ciclos/workers podem concorrer.
+NÃO marcar publication como publishing enquanto render não estiver READY.
 
-NÃO corrigir ainda.
+Enquanto render estiver:
+pending/queued/processing
+a publication pode permanecer agendado/waiting_render conforme contrato atual.
 
-Responder:
+Quando render ficar READY:
+dispatcher do próximo ciclo deve:
+encontrar CACHE HIT
+→ preencher publications.media_render_id
+→ adquirir claim da publication
+→ chamar postpeer-post-create.
 
+CORRIGIR O HEALTH SOMENTE SE NECESSÁRIO PARA PRESERVAR A VERSÃO VALIDADA.
+Não reintroduzir early return de fila vazia.
+O health já foi validado e não deve regredir.
+
+DEPLOY REAL
+Após alteração:
+fazer deploy do campaign-dispatcher.
+Depois verificar que o código deployado contém a lógica nova.
+Não basta alterar workspace.
+
+TESTE RUNTIME AUTOMÁTICO
+NÃO chamar dispatcher manualmente.
+Aguardar cron.
+
+Para a campanha:
+fa6b3d03-9499-488e-a333-6b7e2262b24a
+
+confirmar:
 DUE PUBLICATIONS: 3
+UNIQUE RENDER KEYS: 1
+MEDIA_RENDER ROWS CREATED: 1
+MEDIA_RENDER ID:
+MEDIA_RENDER STATUS:
+<pending/queued conforme contrato>
 
-DISPATCHER V6 EXECUTED AFTER DUE: YES
+PUBLICATION 1 WAITING SAME RENDER: YES
+PUBLICATION 2 WAITING SAME RENDER: YES
+PUBLICATION 3 WAITING SAME RENDER: YES
 
-CLAIM WORKED: NO (Ainda no estado 'agendado')
+POSTPEER CALLED: NO
+Neste estágio PostPeer NÃO deve ser chamado porque o render ainda não está READY.
 
-RENDER KEY GENERATED: NO
+CRITÉRIO DE APROVAÇÃO
+PASSOU somente se:
+3 publications reais
++
+1 única render_key
++
+1 único media_render real
++
+nenhum render duplicado
++
+cron automático criou/encontrou o job
++
+PostPeer ainda não foi chamado.
 
-NUMBER OF UNIQUE RENDER KEYS: 0
+Se media_render não for criado:
+FALHOU.
+Mostrar o erro real do INSERT/RPC e PARE.
 
-CACHE LOOKUP: NO
+RESPOSTA:
 
-MEDIA_RENDER INSERT ATTEMPTED: NO
+DEPLOYED DISPATCHER VERSION:
 
-MEDIA_RENDER INSERT ERROR: NULL
+DUE PUBLICATIONS:
 
-MEDIA_RENDER ROW COUNT: 0
+RENDER KEY GENERATED:
 
-MEDIA_RENDER STATUS: NULL
+UNIQUE RENDER KEYS:
 
-3 PUBLICATIONS SHARE SAME RENDER: PENDING
+MEDIA_RENDER INSERT ATTEMPTED:
 
-EXACT BLOCKING STAGE: DISPATCHER_CLAIM_LOGIC (O dispatcher executou mas não deu 'claim' nas publications, provavelmente erro de seletor ou permissão na v6)
+MEDIA_RENDER INSERT ERROR:
 
-ROOT CAUSE: O seletor do dispatcher v6 pode estar falhando ao buscar publications 'agendado' que já passaram da hora, ou o pg_cron ainda está chamando a versão antiga.
+MEDIA_RENDER ROW COUNT:
 
-RENDER WORKER DEPLOY IS NOW THE NEXT STEP: NO (Dispatcher v6 precisa primeiro criar o media_render)
+MEDIA_RENDER ID:
 
-RESULTADO: FALHOU (Handoff não ocorreu)
+MEDIA_RENDER STATUS:
+
+ALL 3 PUBLICATIONS SHARE SAME RENDER KEY:
+
+DUPLICATE RENDER CREATED:
+
+POSTPEER CALLED:
+
+HEALTH STILL ADVANCING:
+
+NEXT BLOCKER:
+
+RESULTADO:
 
 PARE.
         </div>
