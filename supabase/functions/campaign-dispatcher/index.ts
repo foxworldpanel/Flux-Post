@@ -6,7 +6,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const DISPATCHER_BUILD = "v7-render-handoff";
+const DISPATCHER_BUILD = "v8-fix-ambiguous-join";
 
 serve(async (req) => {
   const startedAt = new Date().toISOString();
@@ -33,7 +33,7 @@ serve(async (req) => {
     console.log(`[campaign-dispatcher][${executionId}] Iniciando ciclo ${DISPATCHER_BUILD}...`);
 
     // 1. Health Update
-    const { error: healthError } = await supabaseAdmin
+    await supabaseAdmin
       .from("server_cron_state")
       .upsert({ 
         id: '00000000-0000-0000-0000-000000000001',
@@ -43,22 +43,10 @@ serve(async (req) => {
         last_error: null
       }, { onConflict: 'id' });
 
-    if (healthError) {
-      console.error("[campaign-dispatcher] Erro ao atualizar health:", healthError);
-    }
-
-    // 2. Buscar publicações elegíveis
+    // 2. Buscar publicações elegíveis (Removendo join ambíguo para simplificar auditoria)
     const { data: publications, error: fetchError } = await supabaseAdmin
       .from("publications")
-      .select(`
-        *,
-        social_accounts (
-          id,
-          platform,
-          provider_connection_id,
-          username
-        )
-      `)
+      .select(`*`)
       .in("status", ["agendado", "pending", "scheduled", "waiting_render"])
       .lte("scheduled_for", startedAt)
       .order("scheduled_for", { ascending: true })
@@ -72,9 +60,7 @@ serve(async (req) => {
     for (const pub of (publications || [])) {
       console.log(`[campaign-dispatcher] Processando publicação ${pub.id} (status: ${pub.status})...`);
       
-      // Lógica de Render
       if (pub.music_track_id) {
-        // Calcular render_key determinística
         const renderOptions = pub.render_options || {};
         const renderKey = renderOptions.render_key || 
           `${pub.content_id}_${pub.music_track_id}_${renderOptions.musicStartMs || 0}_${renderOptions.audioMode || 'default'}`;
@@ -93,11 +79,7 @@ serve(async (req) => {
           continue;
         }
 
-        // Se o render já está pronto, faz o handoff para publicação
         if (existingRender?.status === "ready") {
-          console.log(`[campaign-dispatcher] Cache hit (READY) para render: ${existingRender.id}`);
-          
-          // Claim atômico para transição para publicação
           const { data: claimedPub } = await supabaseAdmin
             .from("publications")
             .update({ 
@@ -121,9 +103,7 @@ serve(async (req) => {
           }
         }
 
-        // Se o render está em processamento, apenas vincula e mantém em waiting_render
         if (existingRender && ["queued", "processing", "pending"].includes(existingRender.status)) {
-          console.log(`[campaign-dispatcher] Render em andamento: ${existingRender.id} (${existingRender.status})`);
           if (pub.media_render_id !== existingRender.id || pub.status !== 'waiting_render') {
              await supabaseAdmin
               .from("publications")
@@ -138,7 +118,6 @@ serve(async (req) => {
           continue;
         }
 
-        // Se não existe render, tenta criar UM (concorrência tratada pela constraint UNIQUE no banco)
         if (!existingRender) {
           console.log(`[campaign-dispatcher] Criando novo job de render para key ${renderKey}`);
           const { data: newRender, error: insertError } = await supabaseAdmin
@@ -158,7 +137,6 @@ serve(async (req) => {
             .single();
 
           if (insertError) {
-            // Se falhou por conflito de render_key (concorrência), busca o que o concorrente criou
             if (insertError.code === "23505") {
                const { data: racedRender } = await supabaseAdmin
                 .from("media_renders")
@@ -191,7 +169,6 @@ serve(async (req) => {
           }
         }
       } else {
-        // Publicações sem música: Claim direto para pronto para publicar
         const { data: claimedPub } = await supabaseAdmin
           .from("publications")
           .update({ 
@@ -223,8 +200,6 @@ serve(async (req) => {
 
     return new Response(JSON.stringify({ 
       build: DISPATCHER_BUILD,
-      execution_id: executionId,
-      queue_size: publications?.length || 0,
       processed_count: processedCount,
       results
     }), {
