@@ -178,8 +178,8 @@ export default function Index() {
         <Card className="bg-card border-border">
           <CardHeader className="flex flex-row items-center justify-between">
             <div>
-              <CardTitle>Auditoria de Sistema (v3.8)</CardTitle>
-              <CardDescription>Zero Schema Drift & Contract Check</CardDescription>
+              <CardTitle>Auditoria de Sistema (v3.9)</CardTitle>
+              <CardDescription>Zero Schema Drift & Native Scheduler</CardDescription>
             </div>
             <div className="flex gap-2">
               <Button variant="outline" size="sm" onClick={runAudit} disabled={loading}>
