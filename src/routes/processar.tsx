@@ -155,26 +155,26 @@ export default function ProcessarPage() {
     <DashboardLayout>
       <div className="max-w-4xl mx-auto space-y-8">
         <div>
-          <h1 className="text-3xl font-bold text-white font-display">Processar Vídeo</h1>
-          <p className="text-slate-400">Combine seus vídeos com as melhores trilhas sonoras.</p>
+          <h1 className="text-3xl font-bold text-foreground font-display">Processar Vídeo</h1>
+          <p className="text-muted-foreground">Combine seus vídeos com as melhores trilhas sonoras.</p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <Card className="bg-[#13131F] border-white/5">
+          <Card className="bg-card border-border">
             <CardHeader>
-              <CardTitle className="text-white flex items-center gap-2">
+              <CardTitle className="text-foreground flex items-center gap-2">
                 <VideoIcon className="text-[#7C3AED]" size={20} />
                 Vídeo Original
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label className="text-slate-400">Escolha o vídeo</Label>
+                <Label className="text-muted-foreground">Escolha o vídeo</Label>
                 <Select value={selectedVideo} onValueChange={setSelectedVideo}>
-                  <SelectTrigger className="bg-[#0A0A0F] border-white/10 text-white">
+                  <SelectTrigger className="bg-[#0A0A0F] border-border text-foreground">
                     <SelectValue placeholder="Selecione um vídeo" />
                   </SelectTrigger>
-                  <SelectContent className="bg-[#13131F] border-white/10 text-white">
+                  <SelectContent className="bg-card border-border text-foreground">
                     {videos.map((v) => (
                       <SelectItem key={v.id} value={v.id}>{v.nome}</SelectItem>
                     ))}
@@ -184,21 +184,21 @@ export default function ProcessarPage() {
             </CardContent>
           </Card>
 
-          <Card className="bg-[#13131F] border-white/5">
+          <Card className="bg-card border-border">
             <CardHeader>
-              <CardTitle className="text-white flex items-center gap-2">
+              <CardTitle className="text-foreground flex items-center gap-2">
                 <Music className="text-[#7C3AED]" size={20} />
                 Trilha Sonora
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label className="text-slate-400">Escolha a música</Label>
+                <Label className="text-muted-foreground">Escolha a música</Label>
                 <Select value={selectedMusic} onValueChange={setSelectedMusic}>
-                  <SelectTrigger className="bg-[#0A0A0F] border-white/10 text-white">
+                  <SelectTrigger className="bg-[#0A0A0F] border-border text-foreground">
                     <SelectValue placeholder="Selecione uma música" />
                   </SelectTrigger>
-                  <SelectContent className="bg-[#13131F] border-white/10 text-white">
+                  <SelectContent className="bg-card border-border text-foreground">
                     {musics.map((m) => (
                       <SelectItem key={m.id} value={m.id}>{m.nome}</SelectItem>
                     ))}
@@ -212,7 +212,7 @@ export default function ProcessarPage() {
         <div className="flex flex-col items-center space-y-6">
           <Button
             size="lg"
-            className="bg-[#7C3AED] hover:bg-[#6D28D9] text-white w-full md:w-auto px-12 h-14 text-lg font-bold gap-2"
+            className="bg-[#7C3AED] hover:bg-[#6D28D9] text-foreground w-full md:w-auto px-12 h-14 text-lg font-bold gap-2"
             disabled={step !== "idle" && step !== "completed" || !selectedVideo || !selectedMusic}
             onClick={handleProcess}
           >
@@ -232,25 +232,25 @@ export default function ProcessarPage() {
           {step !== "idle" && (
             <div className="w-full space-y-3 animate-in fade-in duration-500">
               <div className="flex justify-between items-center text-sm">
-                <span className="text-slate-400 flex items-center gap-2">
+                <span className="text-muted-foreground flex items-center gap-2">
                   {step === "completed" ? <CheckCircle2 size={16} className="text-emerald-500" /> : <Loader2 size={16} className="animate-spin text-[#7C3AED]" />}
                   {getStepLabel()}
                 </span>
-                <span className="text-white font-medium">{progress}%</span>
+                <span className="text-foreground font-medium">{progress}%</span>
               </div>
-              <Progress value={progress} className="h-2 bg-white/5" />
+              <Progress value={progress} className="h-2 bg-muted/50" />
             </div>
           )}
         </div>
 
         {resultBlob && (
-          <Card className="bg-[#13131F] border-white/5 overflow-hidden animate-in fade-in slide-in-from-bottom-4">
-            <CardHeader className="flex flex-row items-center justify-between border-b border-white/5 pb-4">
-              <CardTitle className="text-white">Resultado</CardTitle>
+          <Card className="bg-card border-border overflow-hidden animate-in fade-in slide-in-from-bottom-4">
+            <CardHeader className="flex flex-row items-center justify-between border-b border-border pb-4">
+              <CardTitle className="text-foreground">Resultado</CardTitle>
               <Button
                 onClick={handleSave}
                 disabled={saving}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
+                className="bg-emerald-600 hover:bg-emerald-700 text-foreground gap-2"
               >
                 {saving ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
                 Salvar na biblioteca

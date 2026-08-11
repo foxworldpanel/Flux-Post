@@ -150,7 +150,7 @@ export default function ArtistasPage() {
       <div className="space-y-8">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-display font-bold text-white">Artistas</h1>
+            <h1 className="text-3xl font-display font-bold text-foreground">Artistas</h1>
             <p className="text-slate-500 mt-1">Gerencie os artistas e suas identidades</p>
           </div>
           <Button onClick={handleOpenCreate} className="bg-[#7C3AED] hover:bg-[#6D28D9]">
@@ -163,11 +163,11 @@ export default function ArtistasPage() {
             <Loader2 className="animate-spin text-purple-500" size={40} />
           </div>
         ) : artists.length === 0 ? (
-          <Card className="bg-[#13131F] border-white/5 border-dashed py-12">
+          <Card className="bg-card border-border border-dashed py-12">
             <CardContent className="flex flex-col items-center justify-center space-y-4">
               <User size={48} className="text-slate-700" />
               <div className="text-center">
-                <p className="text-lg font-medium text-white">Nenhum artista encontrado</p>
+                <p className="text-lg font-medium text-foreground">Nenhum artista encontrado</p>
                 <p className="text-slate-500">Cadastre seu primeiro artista para começar.</p>
               </div>
             </CardContent>
@@ -175,9 +175,9 @@ export default function ArtistasPage() {
         ) : (
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
             {artists.map((artist) => (
-              <Card key={artist.id} className="bg-[#13131F] border-white/5 text-white overflow-hidden group hover:border-purple-500/30 transition-all">
+              <Card key={artist.id} className="bg-card border-border text-foreground overflow-hidden group hover:border-purple-500/30 transition-all">
                 <div className="h-32 bg-gradient-to-br from-[#7C3AED]/20 to-[#4C1D95]/20 flex items-center justify-center relative">
-                  <User size={60} className="text-white/5" />
+                  <User size={60} className="text-foreground/5" />
                   <div className="absolute bottom-[-20px] left-6 flex items-center gap-4">
                     <div className="w-20 h-20 rounded-full border-4 border-[#13131F] bg-[#1E1E2E] flex items-center justify-center overflow-hidden">
                       {artist.photo_url ? (
@@ -209,7 +209,7 @@ export default function ArtistasPage() {
                       </label>
                       <div className="flex flex-wrap gap-1 mt-1">
                         {artist.priority_markets?.map((m: string, i: number) => (
-                          <Badge key={i} variant="outline" className="border-white/10 text-slate-400 text-[10px]">{m}</Badge>
+                          <Badge key={i} variant="outline" className="border-border text-muted-foreground text-[10px]">{m}</Badge>
                         )) || <span className="text-slate-500 text-xs italic">Nenhum</span>}
                       </div>
                     </div>
@@ -219,7 +219,7 @@ export default function ArtistasPage() {
                       </label>
                       <div className="flex flex-wrap gap-1 mt-1">
                         {artist.priority_hashtags?.map((h: string, i: number) => (
-                          <Badge key={i} variant="outline" className="border-white/10 text-slate-400 text-[10px]">#{h.replace('#', '')}</Badge>
+                          <Badge key={i} variant="outline" className="border-border text-muted-foreground text-[10px]">#{h.replace('#', '')}</Badge>
                         )) || <span className="text-slate-500 text-xs italic">Nenhuma</span>}
                       </div>
                     </div>
@@ -230,12 +230,12 @@ export default function ArtistasPage() {
                       <label className="text-xs font-semibold text-slate-500 uppercase flex items-center gap-2 mb-1">
                         <MessageSquare size={12} /> Identidade
                       </label>
-                      <p className="text-sm text-slate-400 leading-relaxed italic line-clamp-3">
+                      <p className="text-sm text-muted-foreground leading-relaxed italic line-clamp-3">
                         {artist.communication_identity ? `"${artist.communication_identity}"` : "Nenhuma identidade definida."}
                       </p>
                     </div>
                     <div className="pt-2">
-                      <Button onClick={() => handleOpenEdit(artist)} variant="outline" className="w-full border-white/10 hover:bg-white/5 text-slate-300">
+                      <Button onClick={() => handleOpenEdit(artist)} variant="outline" className="w-full border-border hover:bg-muted/50 text-slate-300">
                         Editar Perfil Completo
                       </Button>
                     </div>
@@ -247,7 +247,7 @@ export default function ArtistasPage() {
         )}
 
         <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-          <DialogContent className="bg-[#13131F] border-white/10 text-white max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="bg-card border-border text-foreground max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="text-xl font-bold font-display">
                 {editingArtist ? "Editar Artista" : "Novo Artista"}
@@ -261,7 +261,7 @@ export default function ArtistasPage() {
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     placeholder="Ex: Sourcee"
-                    className="bg-[#0A0A0F] border-white/10"
+                    className="bg-[#0A0A0F] border-border"
                   />
                   <p className="text-[10px] text-slate-500">O slug da URL será gerado automaticamente a partir do nome.</p>
                 </div>
@@ -274,16 +274,16 @@ export default function ArtistasPage() {
                     value={formData.genre}
                     onChange={(e) => setFormData({ ...formData, genre: e.target.value })}
                     placeholder="Ex: Eletrônico / Progressive"
-                    className="bg-[#0A0A0F] border-white/10"
+                    className="bg-[#0A0A0F] border-border"
                   />
                 </div>
                 <div className="space-y-2">
                   <Label>Status</Label>
                   <Select value={formData.status} onValueChange={(v) => setFormData({ ...formData, status: v })}>
-                    <SelectTrigger className="bg-[#0A0A0F] border-white/10">
+                    <SelectTrigger className="bg-[#0A0A0F] border-border">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent className="bg-[#13131F] border-white/10 text-white">
+                    <SelectContent className="bg-card border-border text-foreground">
                       <SelectItem value="active">Ativo</SelectItem>
                       <SelectItem value="inactive">Inativo</SelectItem>
                       <SelectItem value="archived">Arquivado</SelectItem>
@@ -300,7 +300,7 @@ export default function ArtistasPage() {
                     onChange={(e) => setNewMarket(e.target.value)}
                     onKeyPress={(e) => e.key === 'Enter' && addTag('priority_markets', newMarket, setNewMarket)}
                     placeholder="Adicionar mercado (ex: Brasil)"
-                    className="bg-[#0A0A0F] border-white/10"
+                    className="bg-[#0A0A0F] border-border"
                   />
                   <Button size="icon" variant="ghost" onClick={() => addTag('priority_markets', newMarket, setNewMarket)}>
                     <Plus size={16} />
@@ -321,7 +321,7 @@ export default function ArtistasPage() {
                   value={formData.communication_identity}
                   onChange={(e) => setFormData({ ...formData, communication_identity: e.target.value })}
                   placeholder="Descreva a personalidade do artista..."
-                  className="bg-[#0A0A0F] border-white/10 min-h-[80px]"
+                  className="bg-[#0A0A0F] border-border min-h-[80px]"
                 />
               </div>
 
@@ -334,7 +334,7 @@ export default function ArtistasPage() {
                       onChange={(e) => setNewHashtag(e.target.value)}
                       onKeyPress={(e) => e.key === 'Enter' && addTag('priority_hashtags', newHashtag, setNewHashtag)}
                       placeholder="Tag"
-                      className="bg-[#0A0A0F] border-white/10"
+                      className="bg-[#0A0A0F] border-border"
                     />
                     <Button size="icon" variant="ghost" onClick={() => addTag('priority_hashtags', newHashtag, setNewHashtag)}>
                       <Plus size={16} />
@@ -342,7 +342,7 @@ export default function ArtistasPage() {
                   </div>
                   <div className="flex flex-wrap gap-1">
                     {formData.priority_hashtags.map((h, i) => (
-                      <Badge key={i} variant="outline" className="text-slate-400 gap-1 pr-1">
+                      <Badge key={i} variant="outline" className="text-muted-foreground gap-1 pr-1">
                         #{h} <X size={12} className="cursor-pointer" onClick={() => removeTag('priority_hashtags', i)} />
                       </Badge>
                     ))}
@@ -356,7 +356,7 @@ export default function ArtistasPage() {
                       onChange={(e) => setNewBlockedHashtag(e.target.value)}
                       onKeyPress={(e) => e.key === 'Enter' && addTag('blocked_hashtags', newBlockedHashtag, setNewBlockedHashtag)}
                       placeholder="Tag"
-                      className="bg-[#0A0A0F] border-white/10"
+                      className="bg-[#0A0A0F] border-border"
                     />
                     <Button size="icon" variant="ghost" onClick={() => addTag('blocked_hashtags', newBlockedHashtag, setNewBlockedHashtag)}>
                       <Plus size={16} />
@@ -380,11 +380,11 @@ export default function ArtistasPage() {
                   value={formData.ai_briefing}
                   onChange={(e) => setFormData({ ...formData, ai_briefing: e.target.value })}
                   placeholder="Instruções para a IA gerar legendas..."
-                  className="bg-[#0A0A0F] border-white/10 min-h-[100px]"
+                  className="bg-[#0A0A0F] border-border min-h-[100px]"
                 />
               </div>
             </div>
-            <DialogFooter className="sticky bottom-0 bg-[#13131F] pt-4">
+            <DialogFooter className="sticky bottom-0 bg-card pt-4">
               <Button variant="ghost" onClick={() => setIsModalOpen(false)}>Cancelar</Button>
               <Button onClick={handleSave} disabled={saving} className="bg-[#7C3AED] hover:bg-[#6D28D9]">
                 {saving ? "Salvando..." : "Salvar Alterações"}

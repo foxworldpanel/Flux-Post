@@ -243,12 +243,12 @@ export default function MusicsPage() {
 
           <Dialog open={isModalOpen} onOpenChange={setIsSidebarOpen}>
             <DialogTrigger asChild>
-              <Button className="bg-[#7C3AED] hover:bg-[#6D28D9] text-white gap-2">
+              <Button className="bg-[#7C3AED] hover:bg-[#6D28D9] text-foreground gap-2">
                 <Plus size={18} />
                 Adicionar Música
               </Button>
             </DialogTrigger>
-            <DialogContent className="bg-[#13131F] border-white/10 text-white sm:max-w-[425px]">
+            <DialogContent className="bg-card border-border text-foreground sm:max-w-[425px]">
               <DialogHeader>
                 <DialogTitle className="text-xl font-bold font-display">Nova Música</DialogTitle>
               </DialogHeader>
@@ -260,7 +260,7 @@ export default function MusicsPage() {
                     type="file"
                     accept=".mp3,audio/mpeg"
                     onChange={handleFileChange}
-                    className="bg-[#0A0A0F] border-white/10"
+                    className="bg-[#0A0A0F] border-border"
                   />
                 </div>
                 <div className="space-y-2">
@@ -270,16 +270,16 @@ export default function MusicsPage() {
                     value={nome}
                     onChange={(e) => setNome(e.target.value)}
                     placeholder="Ex: Chill Vibe"
-                    className="bg-[#0A0A0F] border-white/10"
+                    className="bg-[#0A0A0F] border-border"
                   />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="artista">Artista Vinculado</Label>
                   <Select value={artistId} onValueChange={setArtistId}>
-                    <SelectTrigger className="bg-[#0A0A0F] border-white/10 w-full">
+                    <SelectTrigger className="bg-[#0A0A0F] border-border w-full">
                       <SelectValue placeholder="Selecione um artista" />
                     </SelectTrigger>
-                    <SelectContent className="bg-[#13131F] border-white/10 text-white">
+                    <SelectContent className="bg-card border-border text-foreground">
                       {artists.map((a) => (
                         <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
                       ))}
@@ -289,10 +289,10 @@ export default function MusicsPage() {
                 <div className="space-y-2">
                   <Label htmlFor="estilo">Estilo</Label>
                   <Select value={estilo} onValueChange={setEstilo}>
-                    <SelectTrigger className="bg-[#0A0A0F] border-white/10 w-full">
+                    <SelectTrigger className="bg-[#0A0A0F] border-border w-full">
                       <SelectValue placeholder="Selecione o estilo" />
                     </SelectTrigger>
-                    <SelectContent className="bg-[#13131F] border-white/10 text-white">
+                    <SelectContent className="bg-card border-border text-foreground">
                       <SelectItem value="lofi">Lofi</SelectItem>
                       <SelectItem value="trap">Trap</SelectItem>
                       <SelectItem value="pop">Pop</SelectItem>
@@ -307,7 +307,7 @@ export default function MusicsPage() {
                 <Button
                   onClick={handleSave}
                   disabled={uploading}
-                  className="bg-[#7C3AED] hover:bg-[#6D28D9] text-white w-full"
+                  className="bg-[#7C3AED] hover:bg-[#6D28D9] text-foreground w-full"
                 >
                   {uploading ? "Salvando..." : "Salvar Música"}
                 </Button>
@@ -319,17 +319,17 @@ export default function MusicsPage() {
         {loading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {[1, 2, 3].map((i) => (
-              <div key={i} className="h-48 rounded-xl bg-[#13131F] animate-pulse border border-white/5" />
+              <div key={i} className="h-48 rounded-xl bg-card animate-pulse border border-border" />
             ))}
           </div>
         ) : musics.length === 0 ? (
-          <Card className="bg-[#13131F] border-white/5 border-dashed py-12">
+          <Card className="bg-card border-border border-dashed py-12">
             <CardContent className="flex flex-col items-center justify-center space-y-4">
-              <div className="p-4 rounded-full bg-white/5">
+              <div className="p-4 rounded-full bg-muted/50">
                 <Music size={40} className="text-muted-foreground" />
               </div>
               <div className="text-center">
-                <p className="text-lg font-medium text-white">Nenhuma música encontrada</p>
+                <p className="text-lg font-medium text-foreground">Nenhuma música encontrada</p>
                 <p className="text-muted-foreground">Comece adicionando sua primeira trilha sonora.</p>
               </div>
             </CardContent>
@@ -337,7 +337,7 @@ export default function MusicsPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {musics.map((music) => (
-              <Card key={music.id} className="bg-[#13131F] border-white/5 hover:border-white/10 transition-all overflow-hidden group">
+              <Card key={music.id} className="bg-card border-border hover:border-border transition-all overflow-hidden group">
                 <CardHeader className="pb-2 relative">
                   <div className="absolute top-4 right-4 flex gap-2">
                     {music.campanha_ativa && (
@@ -346,17 +346,17 @@ export default function MusicsPage() {
                         Ativa
                       </Badge>
                     )}
-                    <Badge variant="secondary" className="bg-white/5 border-white/10 capitalize">
+                    <Badge variant="secondary" className="bg-muted/50 border-border capitalize">
                       {music.estilo}
                     </Badge>
                   </div>
                   <div className="w-12 h-12 rounded-lg bg-[#7C3AED]/20 flex items-center justify-center mb-2">
                     <Music className="text-[#7C3AED]" size={24} />
                   </div>
-                  <CardTitle className="text-white text-lg font-bold font-display line-clamp-1">
+                  <CardTitle className="text-foreground text-lg font-bold font-display line-clamp-1">
                     {music.nome}
                   </CardTitle>
-                  <p className="text-sm text-slate-400">{music.artists?.name || "Artista desconhecido"}</p>
+                  <p className="text-sm text-muted-foreground">{music.artists?.name || "Artista desconhecido"}</p>
                 </CardHeader>
                 <CardContent className="pt-0 space-y-4">
                   <div className="flex justify-between text-xs text-slate-500 font-medium">
@@ -364,10 +364,10 @@ export default function MusicsPage() {
                     <span>Usada {music.vezes_usada || 0} vezes</span>
                   </div>
                   
-                  <div className="flex gap-2 pt-2 border-t border-white/5">
+                  <div className="flex gap-2 pt-2 border-t border-border">
                     <Button 
                       variant="ghost" 
-                      className={`flex-1 gap-2 text-xs ${music.campanha_ativa ? 'text-emerald-500 hover:text-emerald-400' : 'text-slate-400 hover:text-white'} hover:bg-white/5`}
+                      className={`flex-1 gap-2 text-xs ${music.campanha_ativa ? 'text-emerald-500 hover:text-emerald-400' : 'text-muted-foreground hover:text-foreground'} hover:bg-muted/50`}
                       onClick={() => toggleCampanha(music.id, music.campanha_ativa)}
                     >
                       <Play size={14} />
@@ -376,7 +376,7 @@ export default function MusicsPage() {
                     <Button 
                       variant="ghost" 
                       size="icon" 
-                      className="text-slate-400 hover:text-red-500 hover:bg-red-500/10"
+                      className="text-muted-foreground hover:text-red-500 hover:bg-red-500/10"
                       onClick={() => handleDelete(music.id, music.storage_path)}
                     >
                       <Trash2 size={16} />

@@ -19,22 +19,22 @@ export default function AnalyticsPage() {
         <h1 className="text-3xl font-display font-bold text-[#0A0A0F]">Analytics</h1>
 
         {/* Global Filters */}
-        <div className="bg-[#13131F] p-4 rounded-xl border border-white/5 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 items-end">
+        <div className="bg-card p-4 rounded-xl border border-border grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 items-end">
           <div className="space-y-2">
-            <label className="text-sm text-slate-400">Período</label>
-            <Select><SelectTrigger className="bg-white/5 border-white/10"><SelectValue placeholder="Últimos 30 dias" /></SelectTrigger><SelectContent><SelectItem value="30d">30 dias</SelectItem></SelectContent></Select>
+            <label className="text-sm text-muted-foreground">Período</label>
+            <Select><SelectTrigger className="bg-muted/50 border-border"><SelectValue placeholder="Últimos 30 dias" /></SelectTrigger><SelectContent><SelectItem value="30d">30 dias</SelectItem></SelectContent></Select>
           </div>
           <div className="space-y-2">
-            <label className="text-sm text-slate-400">Artista</label>
-            <Select><SelectTrigger className="bg-white/5 border-white/10"><SelectValue placeholder="Todos" /></SelectTrigger><SelectContent><SelectItem value="all">Todos</SelectItem></SelectContent></Select>
+            <label className="text-sm text-muted-foreground">Artista</label>
+            <Select><SelectTrigger className="bg-muted/50 border-border"><SelectValue placeholder="Todos" /></SelectTrigger><SelectContent><SelectItem value="all">Todos</SelectItem></SelectContent></Select>
           </div>
           <div className="space-y-2">
-            <label className="text-sm text-slate-400">Campanha</label>
-            <Select><SelectTrigger className="bg-white/5 border-white/10"><SelectValue placeholder="Todas" /></SelectTrigger><SelectContent><SelectItem value="all">Todas</SelectItem></SelectContent></Select>
+            <label className="text-sm text-muted-foreground">Campanha</label>
+            <Select><SelectTrigger className="bg-muted/50 border-border"><SelectValue placeholder="Todas" /></SelectTrigger><SelectContent><SelectItem value="all">Todas</SelectItem></SelectContent></Select>
           </div>
           <div className="space-y-2">
-            <label className="text-sm text-slate-400">Plataforma</label>
-            <Select><SelectTrigger className="bg-white/5 border-white/10"><SelectValue placeholder="Todas" /></SelectTrigger><SelectContent><SelectItem value="all">Todas</SelectItem></SelectContent></Select>
+            <label className="text-sm text-muted-foreground">Plataforma</label>
+            <Select><SelectTrigger className="bg-muted/50 border-border"><SelectValue placeholder="Todas" /></SelectTrigger><SelectContent><SelectItem value="all">Todas</SelectItem></SelectContent></Select>
           </div>
         </div>
 
@@ -43,7 +43,7 @@ export default function AnalyticsPage() {
           {mainMetrics.map(metric => (
             <Card key={metric.label} className="bg-white border-slate-200">
               <CardContent className="pt-6">
-                <div className="flex items-center justify-between mb-2 text-slate-400">
+                <div className="flex items-center justify-between mb-2 text-muted-foreground">
                   <metric.icon size={16} />
                 </div>
                 <p className="text-2xl font-bold text-[#0A0A0F]">{metric.value}</p>
@@ -55,25 +55,25 @@ export default function AnalyticsPage() {
 
         {/* Charts Placeholders */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          <Card className="bg-[#13131F] border-white/5 min-h-[300px] flex flex-col items-center justify-center text-slate-500">
+          <Card className="bg-card border-border min-h-[300px] flex flex-col items-center justify-center text-slate-500">
             <p className="text-sm">Performance ao longo do tempo</p>
             <p className="text-xs mt-2 italic">Aguardando dados...</p>
           </Card>
-          <Card className="bg-[#13131F] border-white/5 min-h-[300px] flex flex-col items-center justify-center text-slate-500">
+          <Card className="bg-card border-border min-h-[300px] flex flex-col items-center justify-center text-slate-500">
             <p className="text-sm">Performance por plataforma</p>
             <p className="text-xs mt-2 italic">Aguardando dados...</p>
           </Card>
         </div>
 
         {/* Flux Intelligence */}
-        <Card className="bg-[#13131F] border-white/5 overflow-hidden">
-          <CardHeader className="bg-primary/5 border-b border-white/5">
-            <CardTitle className="text-lg font-bold text-white flex items-center gap-2">
+        <Card className="bg-card border-border overflow-hidden">
+          <CardHeader className="bg-primary/5 border-b border-border">
+            <CardTitle className="text-lg font-bold text-foreground flex items-center gap-2">
               <TrendingUp size={20} className="text-primary" />
               Flux Intelligence
             </CardTitle>
           </CardHeader>
-          <CardContent className="py-12 flex flex-col items-center justify-center text-slate-400 italic">
+          <CardContent className="py-12 flex flex-col items-center justify-center text-muted-foreground italic">
             <p>Aguardando dados suficientes para gerar recomendações.</p>
           </CardContent>
         </Card>
