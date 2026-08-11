@@ -1173,30 +1173,6 @@ export default function CampanhaPage() {
                       </div>
                     )}
                   </div>
-                                  {format(item.date, "dd/MM HH:mm", { locale: ptBR })}
-                                  <Badge variant="outline" className="text-[8px] h-3 px-1 border-white/5 text-slate-500 uppercase">
-                                    {item.platform}
-                                  </Badge>
-                                </td>
-                                <td className="px-4 py-3 text-white/70">
-                                  {item.accountName}
-                                </td>
-                                <td className="px-4 py-3 space-y-1">
-                                  <div className="text-[#7C3AED] font-bold">
-                                    Vídeo #{item.videoIndex + 1}
-                                  </div>
-                                  <div className="text-[9px] text-slate-500 italic truncate max-w-[200px]">
-                                    IA: {formData.editorial_language === 'pt-BR' ? 'Legenda criativa variada...' : 'Creative varying caption...'}
-                                  </div>
-                                </td>
-
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                  </div>
                 </div>
 
                 <div className="space-y-4 pt-4 border-t border-white/5">
