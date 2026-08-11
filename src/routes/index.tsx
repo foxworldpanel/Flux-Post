@@ -173,17 +173,17 @@ export default function Index() {
                   />
                    <AuditItem 
                     label="Reconciliação de Schema" 
-                    desc="Alinhamento completo entre código, banco remoto e PostgREST." 
+                    desc="social_account_id UUID + FK mapeada e ativa no banco remoto (kdbgfgnopqqnzmvxvtje)." 
                     status="ok" 
                   />
                   <AuditItem 
-                    label="Publicações: scheduled_for" 
-                    desc="Unificação do campo canônico de agendamento TIMESTAMPTZ (Database & API)." 
+                    label="Distribuição Multi-Conta" 
+                    desc="Payload real do Campaign Engine sincronizado com as colunas remotas." 
                     status="ok" 
                   />
                   <AuditItem 
-                    label="Começar Agora" 
-                    desc="Cálculo dinâmico de horários imediatos com intervalos entre destinos." 
+                    label="Lógica de Sobreposição" 
+                    desc="Verificação de janelas temporais e intervalos entre destinos validada." 
                     status="ok" 
                   />
                 </div>
