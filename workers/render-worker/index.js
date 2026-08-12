@@ -49,10 +49,12 @@ async function processJob(job) {
     const outputPath = path.join(workDir, 'output.mp4');
 
     const { data: videoData, error: vErr } = await supabase.storage.from('content-library').download(content.storage_path);
-    if (vErr) throw new Error(`Video download failed: ${vErr.message}`);
+    if (vErr) throw new Error(`Video download failed (Bucket: content-library, Path: ${content.storage_path}): ${vErr.message}`);
+    if (!videoData) throw new Error(`Video download returned null data (Bucket: content-library, Path: ${content.storage_path})`);
     
     const { data: musicData, error: mErr } = await supabase.storage.from('music-tracks').download(music.storage_path);
-    if (mErr) throw new Error(`Music download failed: ${mErr.message}`);
+    if (mErr) throw new Error(`Music download failed (Bucket: music-tracks, Path: ${music.storage_path}): ${mErr.message}`);
+    if (!musicData) throw new Error(`Music download returned null data (Bucket: music-tracks, Path: ${music.storage_path})`);
 
     await fs.writeFile(videoPath, Buffer.from(await videoData.arrayBuffer()));
     await fs.writeFile(musicPath, Buffer.from(await musicData.arrayBuffer()));
