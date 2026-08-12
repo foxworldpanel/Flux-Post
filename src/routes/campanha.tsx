@@ -724,9 +724,14 @@ export default function CampanhaPage() {
                         <SelectContent className="bg-card border-border text-foreground">
                           {musicas
                             .filter((m) => m.artist_id === formData.artist_id)
-                            .map((m) => (
-                              <SelectItem key={m.id} value={m.id}>
-                                {m.nome}
+                            .map((m: any) => (
+                              <SelectItem key={m.id} value={m.id} disabled={!m.is_available}>
+                                <div className="flex items-center justify-between w-full gap-2">
+                                  <span>{m.nome}</span>
+                                  {!m.is_available && (
+                                    <Badge variant="destructive" className="text-[10px] py-0 px-1">Arquivo Ausente</Badge>
+                                  )}
+                                </div>
                               </SelectItem>
                             ))}
                         </SelectContent>
