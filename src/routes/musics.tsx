@@ -20,7 +20,7 @@ import {
   DialogTrigger,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Music, Plus, Trash2, Play, CheckCircle2, User } from "lucide-react";
+import { Music, Plus, Trash2, Play, CheckCircle2, User, AlertTriangle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
@@ -39,6 +39,7 @@ interface MusicTrack {
   campanha_ativa: boolean | null;
   criado_em: string | null;
   artists?: { name: string };
+  is_available?: boolean; // Campo virtual para UI
 }
 
 export default function MusicsPage() {
@@ -64,7 +65,26 @@ export default function MusicsPage() {
       ]);
 
       if (musicsRes.error) throw musicsRes.error;
-      setMusics(musicsRes.data || []);
+      
+      const musicsData = musicsRes.data || [];
+      
+      // Validação de existência física no storage para a UI
+      const validatedMusics = await Promise.all(musicsData.map(async (music) => {
+        if (!music.storage_path) return { ...music, is_available: false };
+        
+        const { data: exists } = await supabase.storage
+          .from('musicas')
+          .list(music.storage_path.split('/').slice(0, -1).join('/'), {
+            search: music.storage_path.split('/').pop()
+          });
+          
+        return { 
+          ...music, 
+          is_available: exists && exists.length > 0 
+        };
+      }));
+
+      setMusics(validatedMusics);
       setArtists(artistsRes || []);
     } catch (error: any) {
       toast.error("Erro ao carregar dados: " + error.message);
@@ -340,12 +360,25 @@ export default function MusicsPage() {
               <Card key={music.id} className="bg-card border-border hover:border-border transition-all overflow-hidden group">
                 <CardHeader className="pb-2 relative">
                   <div className="absolute top-4 right-4 flex gap-2">
-                    {music.campanha_ativa && (
-                      <Badge variant="success" className="gap-1">
-                        <CheckCircle2 size={12} />
-                        Ativa
-                      </Badge>
-                    )}
+                    <div className="flex flex-col gap-1 items-end">
+                      {music.campanha_ativa && (
+                        <Badge variant="success" className="gap-1">
+                          <CheckCircle2 size={12} />
+                          Ativa
+                        </Badge>
+                      )}
+                      {!music.is_available ? (
+                        <Badge variant="destructive" className="gap-1">
+                          <AlertTriangle size={12} />
+                          Arquivo ausente
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-emerald-500 border-emerald-500/20 bg-emerald-500/5 gap-1">
+                          <CheckCircle2 size={12} />
+                          Disponível
+                        </Badge>
+                      )}
+                    </div>
                     <Badge variant="secondary" className="bg-muted/50 border-border capitalize">
                       {music.estilo}
                     </Badge>

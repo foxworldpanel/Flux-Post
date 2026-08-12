@@ -326,8 +326,19 @@ export default function CampanhaPage() {
       if (tracksRes.error) throw tracksRes.error;
       if (libraryRes.error) throw libraryRes.error;
 
+      // Validação de integridade das músicas no storage
+      const validatedTracks = await Promise.all((tracksRes.data || []).map(async (track) => {
+        if (!track.storage_path) return { ...track, is_available: false };
+        const { data: exists } = await supabase.storage
+          .from('musicas')
+          .list(track.storage_path.split('/').slice(0, -1).join('/'), {
+            search: track.storage_path.split('/').pop()
+          });
+        return { ...track, is_available: exists && exists.length > 0 };
+      }));
+
       setArtistas(artistsRes || []);
-      setMusicas(tracksRes.data || []);
+      setMusicas(validatedTracks as any);
       setBiblioteca(libraryRes.data || []);
       setSocialAccounts(accountsRes || []);
 
@@ -713,9 +724,14 @@ export default function CampanhaPage() {
                         <SelectContent className="bg-card border-border text-foreground">
                           {musicas
                             .filter((m) => m.artist_id === formData.artist_id)
-                            .map((m) => (
-                              <SelectItem key={m.id} value={m.id}>
-                                {m.nome}
+                            .map((m: any) => (
+                              <SelectItem key={m.id} value={m.id} disabled={!m.is_available}>
+                                <div className="flex items-center justify-between w-full gap-2">
+                                  <span>{m.nome}</span>
+                                  {!m.is_available && (
+                                    <Badge variant="destructive" className="text-[10px] py-0 px-1">Arquivo Ausente</Badge>
+                                  )}
+                                </div>
                               </SelectItem>
                             ))}
                         </SelectContent>
