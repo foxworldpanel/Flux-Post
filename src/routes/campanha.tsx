@@ -326,8 +326,19 @@ export default function CampanhaPage() {
       if (tracksRes.error) throw tracksRes.error;
       if (libraryRes.error) throw libraryRes.error;
 
+      // Validação de integridade das músicas no storage
+      const validatedTracks = await Promise.all((tracksRes.data || []).map(async (track) => {
+        if (!track.storage_path) return { ...track, is_available: false };
+        const { data: exists } = await supabase.storage
+          .from('musicas')
+          .list(track.storage_path.split('/').slice(0, -1).join('/'), {
+            search: track.storage_path.split('/').pop()
+          });
+        return { ...track, is_available: exists && exists.length > 0 };
+      }));
+
       setArtistas(artistsRes || []);
-      setMusicas(tracksRes.data || []);
+      setMusicas(validatedTracks as any);
       setBiblioteca(libraryRes.data || []);
       setSocialAccounts(accountsRes || []);
 
