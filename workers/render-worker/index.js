@@ -16,7 +16,7 @@ if (!supabaseUrl || !supabaseServiceKey) {
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 async function claimJob() {
-  const { data, error } = await supabase.rpc('claim_next_render_job');
+  const { data, error } = await supabase.rpc('claim_next_render_job', { lease_interval: '5 minutes' });
   if (error) {
     console.error('Error claiming job:', error);
     return null;
@@ -24,9 +24,17 @@ async function claimJob() {
   return data;
 }
 
+async function startHeartbeat(jobId) {
+  return setInterval(async () => {
+    const { error } = await supabase.rpc('heartbeat_render_job', { job_id: jobId });
+    if (error) console.error(`[${jobId}] Heartbeat failed:`, error.message);
+  }, 60000); // Heartbeat a cada 1 minuto
+}
+
 async function processJob(job) {
   const workDir = await fs.mkdtemp(path.join(tmpdir(), `render-${job.id}-`));
-  console.log(`[${job.id}] Starting process in ${workDir}`);
+  const heartbeat = startHeartbeat(job.id);
+  console.log(`[${job.id}] Starting process in ${workDir} (Attempt ${job.attempts})`);
 
   try {
     // 1. Get Content Metadata
@@ -40,8 +48,11 @@ async function processJob(job) {
     const musicPath = path.join(workDir, 'input_music.mp3');
     const outputPath = path.join(workDir, 'output.mp4');
 
-    const { data: videoData } = await supabase.storage.from('content-library').download(content.storage_path);
-    const { data: musicData } = await supabase.storage.from('music-tracks').download(music.storage_path);
+    const { data: videoData, error: vErr } = await supabase.storage.from('content-library').download(content.storage_path);
+    if (vErr) throw new Error(`Video download failed: ${vErr.message}`);
+    
+    const { data: musicData, error: mErr } = await supabase.storage.from('music-tracks').download(music.storage_path);
+    if (mErr) throw new Error(`Music download failed: ${mErr.message}`);
 
     await fs.writeFile(videoPath, Buffer.from(await videoData.arrayBuffer()));
     await fs.writeFile(musicPath, Buffer.from(await musicData.arrayBuffer()));
@@ -52,7 +63,8 @@ async function processJob(job) {
     const origVol = (job.original_audio_volume || 0) / 100;
 
     await new Promise((resolve, reject) => {
-      let command = ffmpeg(videoPath)
+      // ffmpeg command: amix=inputs=2:duration=first ensures video duration controls output
+      ffmpeg(videoPath)
         .input(musicPath)
         .inputOptions([`-ss ${musicStartSec}`])
         .complexFilter([
@@ -71,14 +83,17 @@ async function processJob(job) {
           '-shortest',
           '-movflags +faststart'
         ])
-        .on('start', (cmd) => console.log(`[${job.id}] FFmpeg: ${cmd}`))
+        .on('start', (cmd) => {
+           // Log partial command to avoid leaking signed URLs if they were passed (here they aren't, but safety first)
+           console.log(`[${job.id}] FFmpeg started`);
+        })
         .on('error', reject)
         .on('end', resolve)
         .save(outputPath);
     });
 
     // 4. Upload
-    const renderKey = job.render_key || `render_${job.id}`;
+    const renderKey = job.render_key || `render_${job.id}_${Date.now()}`;
     const storagePath = `${job.user_id}/${renderKey}.mp4`;
     const finalBuffer = await fs.readFile(outputPath);
 
@@ -100,23 +115,40 @@ async function processJob(job) {
 
   } catch (err) {
     console.error(`[${job.id}] Failed:`, err.message);
+    // Persist error but respect max_attempts (handled by RPC in next cycle if stuck, or here for immediate fail)
     await supabase.from('media_renders').update({
-      status: 'failed',
-      error_message: err.message
+      status: job.attempts >= job.max_attempts ? 'failed' : 'queued',
+      error_message: err.message,
+      last_heartbeat: null
     }).eq('id', job.id);
   } finally {
-    await fs.rm(workDir, { recursive: true, force: true });
+    clearInterval(heartbeat);
+    await fs.rm(workDir, { recursive: true, force: true }).catch(() => {});
   }
 }
 
 async function main() {
   console.log('Render Worker operational. Polling queue...');
+  
+  // Graceful shutdown
+  const shutdown = async (signal) => {
+    console.log(`Received ${signal}. Shutting down worker...`);
+    process.exit(0);
+  };
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
+
   while (true) {
-    const job = await claimJob();
-    if (job) {
-      await processJob(job);
-    } else {
-      await new Promise(r => setTimeout(r, 5000));
+    try {
+      const job = await claimJob();
+      if (job) {
+        await processJob(job);
+      } else {
+        await new Promise(r => setTimeout(r, 10000));
+      }
+    } catch (err) {
+      console.error('Main loop error:', err.message);
+      await new Promise(r => setTimeout(r, 30000));
     }
   }
 }

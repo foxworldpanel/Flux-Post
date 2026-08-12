@@ -548,6 +548,7 @@ export type Database = {
       }
       media_renders: {
         Row: {
+          attempts: number | null
           audio_mode: string | null
           completed_at: string | null
           created_at: string
@@ -555,6 +556,8 @@ export type Database = {
           error_message: string | null
           file_size: number | null
           id: string
+          last_heartbeat: string | null
+          max_attempts: number | null
           music_start_ms: number | null
           music_track_id: string | null
           music_volume: number | null
@@ -568,6 +571,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          attempts?: number | null
           audio_mode?: string | null
           completed_at?: string | null
           created_at?: string
@@ -575,6 +579,8 @@ export type Database = {
           error_message?: string | null
           file_size?: number | null
           id?: string
+          last_heartbeat?: string | null
+          max_attempts?: number | null
           music_start_ms?: number | null
           music_track_id?: string | null
           music_volume?: number | null
@@ -588,6 +594,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          attempts?: number | null
           audio_mode?: string | null
           completed_at?: string | null
           created_at?: string
@@ -595,6 +602,8 @@ export type Database = {
           error_message?: string | null
           file_size?: number | null
           id?: string
+          last_heartbeat?: string | null
+          max_attempts?: number | null
           music_start_ms?: number | null
           music_track_id?: string | null
           music_volume?: number | null
@@ -1443,40 +1452,77 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      claim_next_render_job: {
-        Args: never
-        Returns: {
-          audio_mode: string | null
-          completed_at: string | null
-          created_at: string
-          duration_seconds: number | null
-          error_message: string | null
-          file_size: number | null
-          id: string
-          music_start_ms: number | null
-          music_track_id: string | null
-          music_volume: number | null
-          original_audio_volume: number | null
-          output_profile: string | null
-          render_key: string
-          source_content_id: string | null
-          started_at: string | null
-          status: Database["public"]["Enums"]["render_status"]
-          storage_path: string | null
-          user_id: string
-        }
-        SetofOptions: {
-          from: "*"
-          to: "media_renders"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
+      claim_next_render_job:
+        | {
+            Args: never
+            Returns: {
+              attempts: number | null
+              audio_mode: string | null
+              completed_at: string | null
+              created_at: string
+              duration_seconds: number | null
+              error_message: string | null
+              file_size: number | null
+              id: string
+              last_heartbeat: string | null
+              max_attempts: number | null
+              music_start_ms: number | null
+              music_track_id: string | null
+              music_volume: number | null
+              original_audio_volume: number | null
+              output_profile: string | null
+              render_key: string
+              source_content_id: string | null
+              started_at: string | null
+              status: Database["public"]["Enums"]["render_status"]
+              storage_path: string | null
+              user_id: string
+            }
+            SetofOptions: {
+              from: "*"
+              to: "media_renders"
+              isOneToOne: true
+              isSetofReturn: false
+            }
+          }
+        | {
+            Args: { lease_interval?: string }
+            Returns: {
+              attempts: number | null
+              audio_mode: string | null
+              completed_at: string | null
+              created_at: string
+              duration_seconds: number | null
+              error_message: string | null
+              file_size: number | null
+              id: string
+              last_heartbeat: string | null
+              max_attempts: number | null
+              music_start_ms: number | null
+              music_track_id: string | null
+              music_volume: number | null
+              original_audio_volume: number | null
+              output_profile: string | null
+              render_key: string
+              source_content_id: string | null
+              started_at: string | null
+              status: Database["public"]["Enums"]["render_status"]
+              storage_path: string | null
+              user_id: string
+            }
+            SetofOptions: {
+              from: "*"
+              to: "media_renders"
+              isOneToOne: true
+              isSetofReturn: false
+            }
+          }
       dispatch_publications: { Args: never; Returns: Json }
       generate_unique_artist_slug: {
         Args: { p_exclude_id?: string; p_name: string; p_user_id: string }
         Returns: string
       }
+      heartbeat_render_job: { Args: { job_id: string }; Returns: undefined }
     }
     Enums: {
       render_status: "queued" | "processing" | "ready" | "failed" | "cancelled"
