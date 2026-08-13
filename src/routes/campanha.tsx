@@ -102,7 +102,7 @@ type Campanha = {
 type MediaRender = {
   id: string;
   source_content_id: string;
-  music_id: string;
+  music_track_id: string;
   status: 'queued' | 'processing' | 'ready' | 'failed';
   storage_path: string | null;
   error_message: string | null;
@@ -578,7 +578,7 @@ export default function CampanhaPage() {
         return {
           user_id: user.id,
           source_content_id: contentId,
-          music_id: formData.music_track_id,
+          music_track_id: formData.music_track_id,
           render_key,
           render_options: renderOptions,
           status: 'queued' as const,
@@ -618,7 +618,7 @@ export default function CampanhaPage() {
           .from('media_renders')
           .select('*')
           .in('source_content_id', selectedContentIds)
-          .eq('music_id', formData.music_track_id);
+          .eq('music_track_id', formData.music_track_id);
         
         setRenders((latestRenders as any) || []);
       }
@@ -2147,7 +2147,7 @@ export default function CampanhaPage() {
                         if (!render && campanhaAtiva) {
                            render = renders.find(r => 
                              r.source_content_id === item.id && 
-                             r.music_id === campanhaAtiva.music_track_id
+                             r.music_track_id === campanhaAtiva.music_track_id
                            );
                         }
                         

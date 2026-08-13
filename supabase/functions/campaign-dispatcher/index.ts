@@ -6,7 +6,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const DISPATCHER_BUILD = "v9-manual-debug";
+const DISPATCHER_BUILD = "v10-canonical-fix";
 
 serve(async (req) => {
   const startedAt = new Date().toISOString();
@@ -42,7 +42,7 @@ serve(async (req) => {
         last_error: null
       }, { onConflict: 'id' });
 
-    // 2. Buscar publicações elegíveis usando query simples
+    // 2. Buscar publicações elegíveis
     const { data: publications, error: fetchError } = await supabaseAdmin
       .from("publications")
       .select("*")
@@ -80,86 +80,75 @@ serve(async (req) => {
           const { data: claimedPub } = await supabaseAdmin
             .from("publications")
             .update({ 
-              status: 'ready_to_publish',
+              status: 'ready_to_post',
               media_render_id: existingRender.id
             })
-            .eq("id", pub.id)
-            .in("status", ["agendado", "pending", "scheduled", "waiting_render"])
+            .eq('id', pub.id)
             .select()
             .single();
 
           if (claimedPub) {
-            results.push({ id: pub.id, status: 'ready_to_publish', cache: true });
             processedCount++;
-            continue;
+            results.push({ id: pub.id, status: 'ready_to_post' });
           }
-        }
-
-        if (existingRender && ["queued", "processing", "pending"].includes(existingRender.status)) {
-           await supabaseAdmin
-            .from("publications")
-            .update({ 
-              media_render_id: existingRender.id, 
-              status: 'waiting_render' 
-            })
-            .eq("id", pub.id);
-          results.push({ id: pub.id, status: 'waiting_render', render_id: existingRender.id });
-          processedCount++;
-          continue;
-        }
-
-        if (!existingRender) {
-          // Se não existe render, o dispatcher cria um (fallback de segurança), mas agora usando todos os campos
-          const { data: newRender, error: insertError } = await supabaseAdmin
+        } else if (!existingRender) {
+          // Criar media_render se não existir (backfill)
+          const { data: newRender, error: renderError } = await supabaseAdmin
             .from("media_renders")
             .insert({
               user_id: pub.user_id,
-              render_key: renderKey,
               source_content_id: pub.content_id,
-              music_id: pub.music_track_id,
+              music_track_id: pub.music_track_id,
+              render_key: renderKey,
+              render_options: renderOptions,
               status: 'queued',
-              audio_mode: renderOptions.audioMode,
-              music_start_ms: renderOptions.musicStartMs,
-              music_volume: renderOptions.musicVolume,
-              original_audio_volume: renderOptions.originalAudioVolume
+              audio_mode: renderOptions.audioMode || 'music_plus_original',
+              music_start_ms: renderOptions.musicStartMs || 0,
+              music_volume: renderOptions.musicVolume || 80,
+              original_audio_volume: renderOptions.originalAudioVolume || 20
             })
             .select()
             .single();
 
-          if (!insertError && newRender) {
+          if (newRender) {
             await supabaseAdmin
               .from("publications")
-              .update({ media_render_id: newRender.id, status: 'waiting_render' })
-              .eq("id", pub.id);
-            results.push({ id: pub.id, status: 'waiting_render', render_id: newRender.id, created: true });
-            processedCount++;
-            continue;
+              .update({ status: 'waiting_render', media_render_id: newRender.id })
+              .eq('id', pub.id);
+            
+            results.push({ id: pub.id, status: 'waiting_render', render_id: newRender.id });
+          } else {
+            console.error(`[campaign-dispatcher] Erro ao criar render para ${pub.id}:`, renderError);
           }
+        } else {
+          // Render existe mas não está ready (queued/processing/failed)
+          await supabaseAdmin
+            .from("publications")
+            .update({ status: 'waiting_render', media_render_id: existingRender.id })
+            .eq('id', pub.id);
+          
+          results.push({ id: pub.id, status: 'waiting_render', render_id: existingRender.id });
         }
       }
     }
 
-    if (processedCount > 0) {
-      await supabaseAdmin
-        .from("server_cron_state")
-        .update({ processed_count: processedCount })
-        .eq("id", '00000000-0000-0000-0000-000000000001');
-    }
+    console.log(`[campaign-dispatcher][${executionId}] Ciclo finalizado. Processados: ${processedCount}/${publications?.length || 0}`);
 
     return new Response(JSON.stringify({ 
-      build: DISPATCHER_BUILD,
-      queue_size: publications?.length || 0,
-      processed_count: processedCount,
+      status: "ok", 
+      executionId, 
+      processed: processedCount, 
+      total: publications?.length || 0,
       results
-    }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-      status: 200,
+    }), { 
+      headers: { ...corsHeaders, "Content-Type": "application/json" } 
     });
 
   } catch (err: any) {
-    return new Response(JSON.stringify({ error: err.message }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    console.error(`[campaign-dispatcher][${executionId}] Fatal Error:`, err);
+    return new Response(JSON.stringify({ error: err.message }), { 
+      status: 500, 
+      headers: { ...corsHeaders, "Content-Type": "application/json" } 
     });
   }
 });
