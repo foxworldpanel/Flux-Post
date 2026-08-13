@@ -1789,7 +1789,14 @@ export default function CampanhaPage() {
                     {biblioteca
                       .filter((item) => selectedContentIds.includes(item.id))
                       .map((item) => {
-                        const render = renders.find(r => r.source_content_id === item.id || (r.render_key && pubsForThisContent.some(p => (p.render_options as any)?.render_key === r.render_key)));
+                        const pubsForThisContent = publications.filter(p => p.content_id === item.id);
+                        const render = renders.find(r => 
+                          r.source_content_id === item.id || 
+                          (r.render_key && pubsForThisContent.some((p: any) => 
+                            (p.render_options as any)?.render_key === r.render_key || 
+                            (p.metadata as any)?.render_key === r.render_key
+                          ))
+                        );
                         
                         return (
                           <div key={item.id} className="bg-muted/30 border border-border/50 rounded-xl overflow-hidden group">
