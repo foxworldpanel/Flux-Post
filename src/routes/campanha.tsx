@@ -50,25 +50,6 @@ import {
   ShieldCheck,
   Video,
   ExternalLink,
-  RefreshCw,
-  AlertCircle,
-  Eye,
-} from "lucide-react";
-import { format, addDays, differenceInDays, isBefore, isAfter, startOfDay, addMinutes, setHours, setMinutes } from "date-fns";
-import { ptBR } from "date-fns/locale";
-import { artistService } from "@/services/artists";
-import { contentService } from "@/services/content";
-import { socialService, type SocialAccount } from "@/services/social";
-import { storageService } from "@/services/storage";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-
-type MusicTrack = {
-  id: string;
-  nome: string;
-  artista: string;
-  artist_id: string;
-  storage_path: string | null;
-};
 
 type Artist = {
   id: string;
