@@ -300,15 +300,18 @@ export default function CampanhaPage() {
       if (!user) return;
 
       // 1. Check for active campaign
-      const { data: campanhas, error: campError } = await supabase
+      const { data: allCamps, error: allErr } = await supabase
         .from("campanhas")
-        .select("*, music_tracks(id, nome, artista, storage_path, artist_id), artists(id, name)")
-        .eq("status", "ativo")
-        .maybeSingle();
+        .select("*, music_tracks(id, nome, artista, storage_path, artist_id), artists(id, name)");
+      
+      console.log("[AUDIT] TODAS AS CAMPANHAS ACESSÍVEIS:", allCamps);
 
-      if (campError) throw campError;
+      const campanhas = (allCamps || []).sort((a, b) => {
+        return new Date(b.data_inicio).getTime() - new Date(a.data_inicio).getTime();
+      })[0];
 
       if (campanhas) {
+        console.log("[AUDIT] CAMPANHA SELECIONADA PARA UI:", campanhas);
         setCampanhaAtiva(campanhas as any);
 
         // Fetch publications
@@ -398,7 +401,11 @@ export default function CampanhaPage() {
 
       // Extract render_key from render_options (standard) or metadata (fallback)
       const renderKeys = (pubs || [])
-        .map(p => (p.render_options as any)?.render_key || (p.metadata as any)?.render_key)
+        .map(p => {
+           const ro = p.render_options as any;
+           const md = p.metadata as any;
+           return ro?.render_key || md?.render_key;
+        })
         .filter(Boolean);
       
       if (renderKeys.length === 0) return;
@@ -1790,13 +1797,23 @@ export default function CampanhaPage() {
                       .filter((item) => selectedContentIds.includes(item.id))
                       .map((item) => {
                         const pubsForThisContent = publications.filter(p => p.content_id === item.id);
-                        const render = renders.find(r => 
+                        
+                        // Busca o render priorizando o vínculo via render_key das publicações
+                        let render = renders.find(r => 
                           r.source_content_id === item.id || 
-                          (r.render_key && pubsForThisContent.some((p: any) => 
-                            (p.render_options as any)?.render_key === r.render_key || 
-                            (p.metadata as any)?.render_key === r.render_key
-                          ))
+                          (r.render_key && pubsForThisContent.some((p: any) => {
+                            const pRenderKey = (p.render_options as any)?.render_key || (p.metadata as any)?.render_key;
+                            return pRenderKey === r.render_key;
+                          }))
                         );
+
+                        // Fallback agressivo: se não achou por render_key, tenta achar qualquer render que coincida com a música e conteúdo
+                        if (!render && campanhaAtiva) {
+                           render = renders.find(r => 
+                             r.source_content_id === item.id && 
+                             r.music_track_id === campanhaAtiva.music_track_id
+                           );
+                        }
                         
                         return (
                           <div key={item.id} className="bg-muted/30 border border-border/50 rounded-xl overflow-hidden group">
