@@ -63,8 +63,12 @@ serve(async (req) => {
     for (const pub of (publications || [])) {
       if (pub.music_track_id) {
         const renderOptions = pub.render_options || {};
-        const renderKey = renderOptions.render_key || 
-          `${pub.content_id}_${pub.music_track_id}_${renderOptions.musicStartMs || 0}_${renderOptions.audioMode || 'default'}`;
+        const renderKey = renderOptions.render_key; 
+        
+        if (!renderKey) {
+          console.error(`[campaign-dispatcher][${executionId}] Publicação ${pub.id} sem render_key!`);
+          continue;
+        }
 
         const { data: existingRender } = await supabaseAdmin
           .from("media_renders")
@@ -105,6 +109,7 @@ serve(async (req) => {
         }
 
         if (!existingRender) {
+          // Se não existe render, o dispatcher cria um (fallback de segurança), mas agora usando todos os campos
           const { data: newRender, error: insertError } = await supabaseAdmin
             .from("media_renders")
             .insert({
@@ -112,7 +117,11 @@ serve(async (req) => {
               render_key: renderKey,
               source_content_id: pub.content_id,
               music_track_id: pub.music_track_id,
-              status: 'queued'
+              status: 'queued',
+              audio_mode: renderOptions.audioMode,
+              music_start_ms: renderOptions.musicStartMs,
+              music_volume: renderOptions.musicVolume,
+              original_audio_volume: renderOptions.originalAudioVolume
             })
             .select()
             .single();
