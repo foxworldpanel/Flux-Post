@@ -572,7 +572,7 @@ export default function CampanhaPage() {
         // Antes de enviar, verificamos se o render já existe e seu status
         const existing = renders.find(r => r.render_key === render_key);
         if (existing && (existing.status === 'ready' || existing.status === 'processing' || existing.status === 'queued')) {
-           return null; // Idempotência: não resetar se já estiver em bom estado
+           return null;
         }
 
         return {
@@ -581,15 +581,14 @@ export default function CampanhaPage() {
           music_track_id: formData.music_track_id,
           render_key,
           render_options: renderOptions,
-          status: 'queued',
+          status: 'queued' as const,
           attempts: 0,
-          // Mapear campos explícitos para o banco
           audio_mode: formData.audio_mode,
           music_start_ms: formData.music_start_ms,
           music_volume: formData.music_volume,
           original_audio_volume: formData.original_audio_volume
         };
-      }).filter(Boolean);
+      }).filter((job): job is NonNullable<typeof job> => job !== null);
 
       if (jobs.length === 0) {
         toast.success("Todos os vídeos selecionados já estão processados ou em fila.");
