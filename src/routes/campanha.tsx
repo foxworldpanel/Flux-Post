@@ -896,10 +896,26 @@ export default function CampanhaPage() {
     <DashboardLayout>
       <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in duration-500">
         <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold text-foreground">Campanha Ativa</h1>
+          <div className="flex flex-col gap-1">
+            <h1 className="text-3xl font-bold text-foreground">
+              {campanhaAtiva ? "Campanha Ativa" : "Preparar Campanha"}
+            </h1>
+            {!campanhaAtiva && (
+              <div className="flex items-center gap-2 mt-2">
+                {[1, 2, 3, 4, 5].map((i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${step >= i ? 'bg-[#7C3AED] text-white' : 'bg-muted text-muted-foreground border border-border'}`}>
+                      {i}
+                    </div>
+                    {i < 5 && <div className={`w-8 h-0.5 ${step > i ? 'bg-[#7C3AED]' : 'bg-muted'}`} />}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
           {campanhaAtiva && (
-            <Badge className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 px-3 py-1">
-              Campanha em andamento
+            <Badge className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 px-3 py-1 uppercase font-bold tracking-widest text-[10px]">
+              OPERACIONAL
             </Badge>
           )}
         </div>
