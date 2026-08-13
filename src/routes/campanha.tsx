@@ -1565,6 +1565,40 @@ export default function CampanhaPage() {
               </CardHeader>
               <CardContent className="space-y-8">
                 <div className="space-y-4">
+                  {/* Summary Header */}
+                  {renders.length > 0 && (
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                      <div className="bg-muted/30 border border-border/50 p-3 rounded-xl">
+                        <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest mb-1">Total</p>
+                        <p className="text-xl font-bold text-foreground">{renderStats.total}</p>
+                      </div>
+                      <div className="bg-muted/30 border border-border/50 p-3 rounded-xl">
+                        <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest mb-1 flex items-center gap-1">
+                          <Clock size={10} className="text-blue-400" /> Na Fila
+                        </p>
+                        <p className="text-xl font-bold text-foreground">{renderStats.queued}</p>
+                      </div>
+                      <div className="bg-muted/30 border border-border/50 p-3 rounded-xl">
+                        <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest mb-1 flex items-center gap-1">
+                          <Loader2 size={10} className="text-yellow-400 animate-spin" /> Renderizando
+                        </p>
+                        <p className="text-xl font-bold text-foreground">{renderStats.processing}</p>
+                      </div>
+                      <div className="bg-[#7C3AED]/5 border-[#7C3AED]/10 p-3 rounded-xl">
+                        <p className="text-[10px] text-[#7C3AED] uppercase font-bold tracking-widest mb-1 flex items-center gap-1">
+                          <CheckCircle2 size={10} /> Prontos
+                        </p>
+                        <p className="text-xl font-bold text-[#7C3AED]">{renderStats.ready}</p>
+                      </div>
+                      <div className="bg-red-500/5 border-red-500/10 p-3 rounded-xl">
+                        <p className="text-[10px] text-red-400 uppercase font-bold tracking-widest mb-1 flex items-center gap-1">
+                          <AlertCircle size={10} /> Falhas
+                        </p>
+                        <p className="text-xl font-bold text-red-400">{renderStats.failed}</p>
+                      </div>
+                    </div>
+                  )}
+
                   {(() => {
                     const isNow = campanhaAtiva.start_mode === "now";
                     if (isNow) return (
@@ -1824,6 +1858,65 @@ export default function CampanhaPage() {
           </div>
         )}
       </div>
+
+      {/* Preview Modal */}
+      <Dialog open={isPreviewOpen} onOpenChange={(open) => {
+        if (!open) {
+          setIsPreviewOpen(false);
+          setPreviewVideoUrl(null);
+        }
+      }}>
+        <DialogContent className="max-w-md bg-[#0A0A0F] border-slate-800 p-0 overflow-hidden">
+          <DialogHeader className="p-4 border-b border-slate-800/50">
+            <DialogTitle className="text-slate-200 flex items-center gap-2">
+              <Video size={18} className="text-[#7C3AED]" />
+              {previewTitle}
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="aspect-[9/16] bg-black relative flex items-center justify-center">
+            {isPreviewLoading ? (
+              <div className="flex flex-col items-center gap-3">
+                <Loader2 className="w-10 h-10 text-[#7C3AED] animate-spin" />
+                <p className="text-xs text-slate-400 font-mono">Gerando URL segura...</p>
+              </div>
+            ) : previewVideoUrl ? (
+              <video 
+                src={previewVideoUrl} 
+                className="w-full h-full object-contain"
+                controls
+                autoPlay
+              />
+            ) : (
+              <div className="flex flex-col items-center gap-3">
+                <AlertCircle className="w-10 h-10 text-red-500/50" />
+                <p className="text-xs text-slate-400 font-mono">Erro ao carregar vídeo.</p>
+              </div>
+            )}
+          </div>
+          
+          <div className="p-4 bg-slate-900/50 border-t border-slate-800/50 flex gap-3">
+            <Button 
+              className="flex-1 bg-[#7C3AED] hover:bg-[#6D28D9] text-white gap-2 h-10"
+              onClick={() => {
+                toast.success("Conteúdo aprovado para publicação!");
+                setIsPreviewOpen(false);
+              }}
+            >
+              <CheckCircle2 size={16} />
+              Aprovar Vídeo
+            </Button>
+            <Button 
+              variant="outline" 
+              className="border-slate-800 text-slate-400 hover:text-white gap-2 h-10"
+              onClick={() => setIsPreviewOpen(false)}
+            >
+              Fechar
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
     </DashboardLayout>
   );
 }
