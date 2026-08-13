@@ -565,6 +565,7 @@ export type Database = {
           original_audio_volume: number | null
           output_profile: string | null
           render_key: string
+          render_options: Json | null
           source_content_id: string | null
           started_at: string | null
           status: Database["public"]["Enums"]["render_status"]
@@ -589,6 +590,7 @@ export type Database = {
           original_audio_volume?: number | null
           output_profile?: string | null
           render_key: string
+          render_options?: Json | null
           source_content_id?: string | null
           started_at?: string | null
           status?: Database["public"]["Enums"]["render_status"]
@@ -613,6 +615,7 @@ export type Database = {
           original_audio_volume?: number | null
           output_profile?: string | null
           render_key?: string
+          render_options?: Json | null
           source_content_id?: string | null
           started_at?: string | null
           status?: Database["public"]["Enums"]["render_status"]
@@ -1476,6 +1479,7 @@ export type Database = {
               original_audio_volume: number | null
               output_profile: string | null
               render_key: string
+              render_options: Json | null
               source_content_id: string | null
               started_at: string | null
               status: Database["public"]["Enums"]["render_status"]
@@ -1509,6 +1513,7 @@ export type Database = {
               original_audio_volume: number | null
               output_profile: string | null
               render_key: string
+              render_options: Json | null
               source_content_id: string | null
               started_at: string | null
               status: Database["public"]["Enums"]["render_status"]
