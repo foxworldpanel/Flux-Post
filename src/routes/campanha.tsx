@@ -300,15 +300,22 @@ export default function CampanhaPage() {
       if (!user) return;
 
       // 1. Check for active campaign
+      console.log("[AUDIT] Buscando campanha ativa...");
       const { data: campanhas, error: campError } = await supabase
         .from("campanhas")
         .select("*, music_tracks(id, nome, artista, storage_path, artist_id), artists(id, name)")
-        .eq("status", "ativo")
+        .in("status", ["ativo", "pausado"])
+        .order("data_inicio", { ascending: false })
+        .limit(1)
         .maybeSingle();
 
-      if (campError) throw campError;
+      if (campError) {
+        console.error("[AUDIT] Erro ao buscar campanha:", campError);
+        throw campError;
+      }
 
       if (campanhas) {
+        console.log("[AUDIT] Campanha encontrada:", campanhas.id, "Status:", campanhas.status);
         setCampanhaAtiva(campanhas as any);
 
         // Fetch publications
