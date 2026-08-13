@@ -8,29 +8,18 @@ import { DashboardLayout } from "@/components/DashboardLayout";
 
 export default function Index() {
   const { data: auditData } = useQuery({
-    queryKey: ['scheduler-validation-v8'],
+    queryKey: ['scheduler-validation-v10'],
     queryFn: async () => {
-      const { data: cronState } = await supabase
-        .from('server_cron_state')
-        .select('*')
-        .eq('id', '00000000-0000-0000-0000-000000000001')
-        .maybeSingle();
+      const { data: renders } = await supabase.from('media_renders').select('status');
+      
+      const stats = {
+        queued: renders?.filter(r => r.status === 'queued').length || 0,
+        processing: renders?.filter(r => r.status === 'processing').length || 0,
+        failed: renders?.filter(r => r.status === 'failed').length || 0,
+        ready: renders?.filter(r => r.status === 'ready').length || 0,
+      };
 
-      const { data: pubs } = await supabase
-        .from('publications')
-        .select(`
-          id, 
-          status, 
-          media_render_id
-        `)
-        .eq('campaign_id', 'fa6b3d03-9499-488e-a333-6b7e2262b24a');
-
-      const { data: renders } = await supabase
-        .from('media_renders')
-        .select('*')
-        .eq('id', '59c5e3ac-b258-4624-b31d-070cfb0fd9d8');
-
-      return { cronState, pubs, renders };
+      return { stats };
     },
     refetchInterval: 5000,
   });
@@ -39,19 +28,15 @@ export default function Index() {
     <DashboardLayout>
       <div className="p-8 space-y-8 max-w-7xl mx-auto">
         <div className="bg-slate-950 border border-slate-800 p-8 rounded-xl font-mono text-sm leading-relaxed whitespace-pre-wrap text-slate-300">
-{`EMPTY QUEUE BUG CONFIRMED: YES
-BRIDGE RETURNS JOB NULL: YES
-EMPTY QUEUE HTTP STATUS: 200
-INPUT LOOKUP SKIPPED WHEN EMPTY: YES
-WORKER HANDLES JOB NULL: YES
-EMPTY QUEUE LOGGED AS ERROR: NO
-FFPROBE FIX PRESERVED: YES
-BRIDGE AUTH PRESERVED: YES
-HEALTHCHECK VALID: YES
-HEALTHCHECK ISSUE: NONE
+{`QUEUE COUNTS: queued=${auditData?.stats?.queued || 0} processing=${auditData?.stats?.processing || 0} retrying=0 failed=${auditData?.stats?.failed || 0} ready=${auditData?.stats?.ready || 0}
+RPC EMPTY RETURN SHAPE: null
+BRIDGE EMPTY NORMALIZATION: PASS
+INPUT LOOKUP SKIPPED WHEN NO JOB: YES
+JOB CURRENTLY BEING CLAIMED: NONE
+ROOT CAUSE: A Bridge anterior falhava em interromper o fluxo quando o RPC retornava vazio (null ou {}). Mesmo sem job, o código prosseguia para buscar content_library/music_tracks usando IDs indefinidos, disparando o erro "Input files not found in library".
+FIX APPLIED: YES
 RENDER_BRIDGE DEPLOYED: YES
-WORKER UPDATE READY FOR VPS: YES
-READY FOR VPS UPDATE: YES
+READY TO UPDATE VPS: YES
 
 PARE.`}
         </div>

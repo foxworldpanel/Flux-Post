@@ -34,8 +34,17 @@ serve(async (req) => {
           lease_interval: '5 minutes' 
         });
         
-        if (claimError) throw claimError;
-        if (!job) return new Response(JSON.stringify({ job: null }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        if (claimError) {
+          console.error('[render-bridge] claim_next_render_job RPC error:', claimError);
+          throw claimError;
+        }
+
+        // RPC returns null if no job found, but we normalize checks for security
+        if (!job || Object.keys(job).length === 0) {
+          return new Response(JSON.stringify({ job: null }), { 
+            headers: { ...corsHeaders, "Content-Type": "application/json" } 
+          });
+        }
 
         // Get content & music details
         const { data: content } = await supabase.from('content_library').select('*').eq('id', job.source_content_id).single();
