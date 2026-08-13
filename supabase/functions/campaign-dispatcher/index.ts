@@ -116,7 +116,7 @@ serve(async (req) => {
               user_id: pub.user_id,
               render_key: renderKey,
               source_content_id: pub.content_id,
-              music_track_id: pub.music_track_id,
+              music_id: pub.music_track_id,
               status: 'queued',
               audio_mode: renderOptions.audioMode,
               music_start_ms: renderOptions.musicStartMs,
