@@ -556,6 +556,7 @@ export type Database = {
           error_message: string | null
           file_size: number | null
           id: string
+          is_approved: boolean | null
           last_heartbeat: string | null
           max_attempts: number | null
           music_start_ms: number | null
@@ -579,6 +580,7 @@ export type Database = {
           error_message?: string | null
           file_size?: number | null
           id?: string
+          is_approved?: boolean | null
           last_heartbeat?: string | null
           max_attempts?: number | null
           music_start_ms?: number | null
@@ -602,6 +604,7 @@ export type Database = {
           error_message?: string | null
           file_size?: number | null
           id?: string
+          is_approved?: boolean | null
           last_heartbeat?: string | null
           max_attempts?: number | null
           music_start_ms?: number | null
@@ -1464,6 +1467,7 @@ export type Database = {
               error_message: string | null
               file_size: number | null
               id: string
+              is_approved: boolean | null
               last_heartbeat: string | null
               max_attempts: number | null
               music_start_ms: number | null
@@ -1496,6 +1500,7 @@ export type Database = {
               error_message: string | null
               file_size: number | null
               id: string
+              is_approved: boolean | null
               last_heartbeat: string | null
               max_attempts: number | null
               music_start_ms: number | null

@@ -133,6 +133,10 @@ export default function CampanhaPage() {
   const [previewTitle, setPreviewTitle] = useState("");
   const [publications, setPublications] = useState<any[]>([]);
   
+  // FASE 4.6 - Stepper State
+  const [step, setStep] = useState(1);
+  const [isProcessingBatch, setIsProcessingBatch] = useState(false);
+
   // Modal states for new music
   const [isMusicModalOpen, setIsMusicModalOpen] = useState(false);
   const [newMusicData, setNewMusicData] = useState({
@@ -507,6 +511,95 @@ export default function CampanhaPage() {
     }
   }
 
+  async function handleProcessBatch() {
+    if (!formData.music_track_id) {
+      toast.error("Selecione uma música primeiro.");
+      return;
+    }
+    if (selectedContentIds.length === 0) {
+      toast.error("Selecione vídeos para processar.");
+      return;
+    }
+
+    setIsProcessingBatch(true);
+    const loadingToast = toast.loading(`Criando jobs para ${selectedContentIds.length} vídeos...`);
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Usuário não autenticado");
+
+      const renderOptions = {
+        musicStartMs: formData.music_start_ms,
+        musicVolume: formData.music_volume,
+        originalAudioVolume: formData.original_audio_volume,
+        audioMode: formData.audio_mode
+      };
+
+      const jobs = selectedContentIds.map(contentId => {
+        const render_key = `${contentId}_${formData.music_track_id}_${formData.music_start_ms}`;
+        return {
+          user_id: user.id,
+          source_content_id: contentId,
+          music_track_id: formData.music_track_id,
+          render_key,
+          render_options: renderOptions,
+          status: 'queued',
+          attempts: 0
+        };
+      });
+
+      // Insert with upsert to respect render_key idempotency
+      const { error } = await supabase
+        .from('media_renders')
+        .upsert(jobs, { onConflict: 'render_key' });
+
+      if (error) throw error;
+
+      toast.success(`${selectedContentIds.length} vídeos enviados para a fila de renderização!`);
+      
+      // Trigger dispatcher to start processing immediately
+      supabase.functions.invoke('campaign-dispatcher');
+      
+      // Refresh renders list
+      if (campanhaAtiva) {
+        fetchRenders(campanhaAtiva.id);
+      } else {
+        // Se for uma campanha nova, buscamos todos os renders do usuário recentes
+        const { data: latestRenders } = await supabase
+          .from('media_renders')
+          .select('*')
+          .in('source_content_id', selectedContentIds)
+          .eq('music_track_id', formData.music_track_id);
+        
+        setRenders((latestRenders as any) || []);
+      }
+      
+      setStep(3); // Avança para etapa de acompanhamento
+    } catch (err: any) {
+      console.error("Erro ao processar lote:", err);
+      toast.error("Falha ao criar jobs: " + err.message);
+    } finally {
+      setIsProcessingBatch(false);
+      toast.dismiss(loadingToast);
+    }
+  }
+
+  async function handleToggleApproval(renderId: string, currentStatus: boolean) {
+    try {
+      const { error } = await supabase
+        .from('media_renders')
+        .update({ is_approved: !currentStatus })
+        .eq('id', renderId);
+      
+      if (error) throw error;
+      
+      setRenders(prev => prev.map(r => r.id === renderId ? { ...r, is_approved: !currentStatus } : r));
+      toast.success(!currentStatus ? "Vídeo aprovado!" : "Aprovação removida.");
+    } catch (err: any) {
+      toast.error("Erro ao atualizar aprovação: " + err.message);
+    }
+  }
+
   async function loadSignedUrl(id: string, path: string) {
     if (signedUrls[id] || loadingUrls[id]) return;
 
@@ -803,10 +896,26 @@ export default function CampanhaPage() {
     <DashboardLayout>
       <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in duration-500">
         <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold text-foreground">Campanha Ativa</h1>
+          <div className="flex flex-col gap-1">
+            <h1 className="text-3xl font-bold text-foreground">
+              {campanhaAtiva ? "Campanha Ativa" : "Preparar Campanha"}
+            </h1>
+            {!campanhaAtiva && (
+              <div className="flex items-center gap-2 mt-2">
+                {[1, 2, 3, 4, 5].map((i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${step >= i ? 'bg-[#7C3AED] text-white' : 'bg-muted text-muted-foreground border border-border'}`}>
+                      {i}
+                    </div>
+                    {i < 5 && <div className={`w-8 h-0.5 ${step > i ? 'bg-[#7C3AED]' : 'bg-muted'}`} />}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
           {campanhaAtiva && (
-            <Badge className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 px-3 py-1">
-              Campanha em andamento
+            <Badge className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 px-3 py-1 uppercase font-bold tracking-widest text-[10px]">
+              OPERACIONAL
             </Badge>
           )}
         </div>
@@ -1613,6 +1722,25 @@ export default function CampanhaPage() {
                         </p>
                         <p className="text-xl font-bold text-red-400">{renderStats.failed}</p>
                       </div>
+                    </div>
+                  )}
+
+                  {/* Botão de Ação de Processamento (FASE 4.6) */}
+                  {selectedContentIds.length > 0 && campanhaAtiva && (
+                    <div className="bg-gradient-to-r from-[#7C3AED]/10 to-[#7C3AED]/5 border border-[#7C3AED]/20 p-4 rounded-xl flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-bold text-foreground">Processamento de Conteúdo</p>
+                        <p className="text-xs text-muted-foreground">{selectedContentIds.length} vídeos selecionados prontos para renderizar</p>
+                      </div>
+                      <Button 
+                        onClick={async () => {
+                           // Adicionar lógica de processamento em lote aqui
+                           toast.info("Processamento em lote iniciado...");
+                        }}
+                        className="bg-[#7C3AED] hover:bg-[#6D28D9] text-white"
+                      >
+                        [ PROCESSAR {selectedContentIds.length} VÍDEOS ]
+                      </Button>
                     </div>
                   )}
 
