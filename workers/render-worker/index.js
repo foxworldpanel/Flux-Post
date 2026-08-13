@@ -30,9 +30,15 @@ const client = axios.create({
 async function claimJob() {
   try {
     const { data } = await client.post('', { action: 'claim' });
+    if (data && data.job === null) {
+      // Bridge explicitly returned no job available.
+      return null;
+    }
     return data;
   } catch (error) {
-    console.error('Error claiming job:', error.response?.data || error.message);
+    const errorData = error.response?.data;
+    // Log real errors (e.g., 401, 500), but stay quiet on 404/Empty if needed
+    console.error('Error claiming job:', errorData || error.message);
     return null;
   }
 }
