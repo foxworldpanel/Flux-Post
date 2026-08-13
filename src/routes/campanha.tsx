@@ -388,27 +388,47 @@ export default function CampanhaPage() {
 
   async function fetchRenders(campaignId: string) {
     try {
-      // Get all render keys for this campaign's publications to filter correctly
+      console.log("[AUDIT] Buscando publicações para a campanha:", campaignId);
       const { data: pubs, error: pubsErr } = await supabase
         .from('publications')
-        .select('metadata, render_options')
+        .select('render_options, metadata')
         .eq('campaign_id', campaignId);
       
-      if (pubsErr) throw pubsErr;
+      if (pubsErr) {
+        console.error("[AUDIT] Erro ao buscar publicações:", pubsErr);
+        throw pubsErr;
+      }
+
+      console.log("[AUDIT] Publicações encontradas:", pubs?.length);
 
       // Extract render_key from render_options (standard) or metadata (fallback)
       const renderKeys = (pubs || [])
-        .map(p => (p.render_options as any)?.render_key || (p.metadata as any)?.render_key)
+        .map(p => {
+          const ro = p.render_options as any;
+          const md = p.metadata as any;
+          return ro?.render_key || md?.render_key;
+        })
         .filter(Boolean);
       
-      if (renderKeys.length === 0) return;
+      console.log("[AUDIT] Render keys extraídas:", renderKeys);
 
+      if (renderKeys.length === 0) {
+        console.warn("[AUDIT] Nenhuma render_key encontrada nas publicações.");
+        return;
+      }
+
+      // IMPORTANTE: Removendo o filtro de user_id se necessário, RLS já deve cuidar disso
       const { data: rendersData, error } = await supabase
         .from('media_renders')
         .select('*')
         .in('render_key', renderKeys);
 
-      if (error) throw error;
+      if (error) {
+        console.error("[AUDIT] Erro ao buscar media_renders:", error);
+        throw error;
+      }
+
+      console.log("[AUDIT] Media renders encontrados no banco:", rendersData?.length);
       setRenders((rendersData as any) || []);
     } catch (err) {
       console.error("Erro ao buscar renders:", err);
