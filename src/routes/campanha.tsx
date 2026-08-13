@@ -133,6 +133,10 @@ export default function CampanhaPage() {
   const [previewTitle, setPreviewTitle] = useState("");
   const [publications, setPublications] = useState<any[]>([]);
   
+  // FASE 4.6 - Stepper State
+  const [step, setStep] = useState(1);
+  const [isProcessingBatch, setIsProcessingBatch] = useState(false);
+
   // Modal states for new music
   const [isMusicModalOpen, setIsMusicModalOpen] = useState(false);
   const [newMusicData, setNewMusicData] = useState({
