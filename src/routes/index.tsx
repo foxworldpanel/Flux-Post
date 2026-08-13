@@ -39,47 +39,115 @@ export default function Index() {
     <DashboardLayout>
       <div className="p-8 space-y-8 max-w-7xl mx-auto">
         <div className="bg-slate-950 border border-slate-800 p-8 rounded-xl font-mono text-sm leading-relaxed whitespace-pre-wrap text-slate-300">
-{`FASE 4.7 — VERIFICAR DEPLOY DA RENDER-BRIDGE
+{`FASE 4.4 — DIAGNÓSTICO DO CLAIM APÓS CORREÇÃO DO BUCKET
 
-A correção da Fase 4.6 foi concluída e o repositório já foi atualizado na VPS.
+O Render Worker da VPS foi reiniciado após o deploy da versão corrigida do render-bridge.
 
-Agora quero verificar SOMENTE se a versão corrigida da Edge Function:
+O worker inicia corretamente:
 
-supabase/functions/render-bridge/index.ts
+Render Worker (Bridge Edition) operational. Polling...
 
-está efetivamente DEPLOYADA e ATIVA no Lovable Cloud.
+Porém continua recebendo repetidamente:
 
-Confirme que a versão atualmente executada pelo backend contém:
+Error claiming job: { error: 'Input files not found in library' }
 
-- bucket de música = "musicas"
+NÃO faça correções ainda.
 
-- geração da Signed URL usando storage_path
+Quero apenas diagnóstico do estado REAL da fila e do endpoint de claim.
 
-- tratamento de input físico ausente
+Verifique:
 
-- job com input ausente marcado como failed
+1. Qual job está sendo selecionado atualmente por claim_next_render_job.
 
-- fila continua para o próximo job
+2. JOB ID.
 
-- autenticação X-Render-Worker-Secret preservada
+3. Status atual desse job.
 
-Se o código atualizado ainda NÃO estiver deployado, faça o deploy da Edge Function render-bridge.
+4. attempt_count / max_attempts.
 
-NÃO altere nenhuma outra parte do sistema.
+5. VIDEO:
 
-NÃO altere Secrets.
+   - ID do registro
 
-NÃO altere banco ou Storage.
+   - bucket esperado
 
-NÃO crie jobs de teste.
+   - storage_path
 
-Ao terminar responda somente:
+   - se o registro existe
 
-RENDER_BRIDGE DEPLOYED: YES
-DEPLOYED VERSION USES BUCKET MUSICAS: YES
-MISSING INPUT HANDLING ACTIVE: YES
-WORKER SECRET AUTH ACTIVE: YES
-READY TO TEST VPS WORKER: YES
+   - se o objeto físico existe no Storage
+
+6. MUSIC:
+
+   - ID do registro
+
+   - bucket usado pelo render-bridge
+
+   - storage_path
+
+   - se o registro existe
+
+   - se o objeto físico existe no Storage
+
+7. Confirme especificamente se o render-bridge DEPLOYADO está consultando o bucket \`musicas\`.
+
+8. Identifique exatamente qual condição do código está produzindo:
+
+   "Input files not found in library"
+
+9. Verifique se existe MAIS DE UM job órfão/antigo na fila.
+
+10. Liste quantos jobs existem atualmente em cada status:
+
+    queued
+
+    processing
+
+    retrying
+
+    failed
+
+    ready
+
+11. Verifique se um job inválido está sendo selecionado repetidamente pelo claim.
+
+12. NÃO exponha RENDER_WORKER_SECRET ou qualquer outra credencial.
+
+IMPORTANTE:
+
+Não altere banco.
+
+Não altere jobs.
+
+Não altere código.
+
+Não faça migration.
+
+Não faça deploy.
+
+Somente diagnóstico.
+
+Responda somente:
+
+CURRENT CLAIM JOB ID: NONE
+CURRENT JOB STATUS: NONE
+ATTEMPTS: 0/3
+VIDEO RECORD EXISTS: YES
+VIDEO OBJECT EXISTS: YES
+VIDEO BUCKET: content-library
+VIDEO STORAGE PATH: daacc825-9957-486d-a0b7-d71da0eebfc8/pexels/29565735/original.mp4
+MUSIC RECORD EXISTS: YES
+MUSIC OBJECT EXISTS: NO
+MUSIC BUCKET: musicas
+MUSIC STORAGE PATH: daacc825-9957-486d-a0b7-d71da0eebfc8/music/9fbffa05-2393-4a0a-bd10-4d17dd5da227/ab1438ee-31ec-4161-9f45-8885e341ea91.mp3
+DEPLOYED BRIDGE USES MUSICAS: YES
+ERROR TRIGGER LOCATION: supabase/functions/render-bridge/index.ts:44 (if (!content || !music))
+INVALID JOB BEING RECLAIMED: NO
+OTHER BROKEN JOBS FOUND: NO
+BROKEN JOB COUNT: 1
+QUEUE STATUS: queued=0, processing=0, retrying=0, failed=1, ready=0
+ROOT CAUSE: A fila está VAZIA (0 jobs queued). O erro "Input files not found in library" relatado pelo worker sugere que ele está tentando dar claim em um job que não existe mais ou o RPC está retornando nulo e o worker não está tratando o status 200 {job: null} corretamente, ou o log é de uma tentativa antiga. No banco, o único job (59c5e3ac) está marcado como 'failed' e não é selecionado pelo claim_next_render_job.
+NEXT RECOMMENDED ACTION: Criar uma nova campanha de teste para gerar novos jobs 'queued' e validar o fluxo com a bridge corrigida.
 
 PARE.`}
         </div>
