@@ -50,11 +50,11 @@ import {
   ShieldCheck,
   Video,
   ExternalLink,
+  RefreshCw,
+  AlertCircle,
+  Eye,
+} from "lucide-react";
 
-type Artist = {
-  id: string;
-  name: string;
-};
 
 type Campanha = {
   id: string;
