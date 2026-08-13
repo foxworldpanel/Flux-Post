@@ -114,6 +114,29 @@ type MediaRender = {
   is_approved?: boolean;
 };
 
+const RENDER_PIPELINE_VERSION = "v1";
+
+function generateRenderKey(params: {
+  contentId: string;
+  musicTrackId: string;
+  musicStartMs: number;
+  musicVolume: number;
+  originalAudioVolume: number;
+  audioMode: string;
+}) {
+  const parts = [
+    params.contentId,
+    params.musicTrackId,
+    params.musicStartMs.toString(),
+    params.musicVolume.toString(),
+    params.originalAudioVolume.toString(),
+    params.audioMode,
+    RENDER_PIPELINE_VERSION
+  ];
+  // Simple deterministic string. For a real hash we'd need a library, but this is canonical.
+  return parts.join("|");
+}
+
 export default function CampanhaPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -305,16 +328,16 @@ export default function CampanhaPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // 1. Check for active campaign
+      // 1. Check for active or paused campaign (operational)
       const { data: allCamps, error: allErr } = await supabase
         .from("campanhas")
-        .select("*, music_tracks(id, nome, artista, storage_path, artist_id), artists(id, name)");
+        .select("*, music_tracks(id, nome, artista, storage_path, artist_id), artists(id, name)")
+        .in("status", ["ativo", "pausado"])
+        .order("data_inicio", { ascending: false });
       
-      console.log("[AUDIT] TODAS AS CAMPANHAS ACESSÍVEIS:", allCamps);
+      console.log("[AUDIT] CAMPANHAS OPERACIONAIS ACESSÍVEIS:", allCamps);
 
-      const campanhas = (allCamps || []).sort((a, b) => {
-        return new Date(b.data_inicio).getTime() - new Date(a.data_inicio).getTime();
-      })[0];
+      const campanhas = allCamps?.[0];
 
       if (campanhas) {
         console.log("[AUDIT] CAMPANHA SELECIONADA PARA UI:", campanhas);
@@ -428,10 +451,9 @@ export default function CampanhaPage() {
     }
   }
 
-  // Realtime subscription for renders
+  // Realtime subscription for renders (works during preparation too)
   useEffect(() => {
-    if (!campanhaAtiva?.id) return;
-
+    // Escutar renders do usuário (RLS garante que sejam apenas os dele)
     const channel = supabase
       .channel('schema-db-changes')
       .on(
@@ -459,7 +481,7 @@ export default function CampanhaPage() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [campanhaAtiva?.id]);
+  }, []);
 
   const renderStats = useMemo(() => {
     return {
@@ -538,17 +560,42 @@ export default function CampanhaPage() {
       };
 
       const jobs = selectedContentIds.map(contentId => {
-        const render_key = `${contentId}_${formData.music_track_id}_${formData.music_start_ms}`;
+        const render_key = generateRenderKey({
+          contentId,
+          musicTrackId: formData.music_track_id,
+          musicStartMs: formData.music_start_ms,
+          musicVolume: formData.music_volume,
+          originalAudioVolume: formData.original_audio_volume,
+          audioMode: formData.audio_mode
+        });
+        
+        // Antes de enviar, verificamos se o render já existe e seu status
+        const existing = renders.find(r => r.render_key === render_key);
+        if (existing && (existing.status === 'ready' || existing.status === 'processing' || existing.status === 'queued')) {
+           return null;
+        }
+
         return {
           user_id: user.id,
           source_content_id: contentId,
           music_track_id: formData.music_track_id,
           render_key,
           render_options: renderOptions,
-          status: 'queued',
-          attempts: 0
+          status: 'queued' as const,
+          attempts: 0,
+          audio_mode: formData.audio_mode,
+          music_start_ms: formData.music_start_ms,
+          music_volume: formData.music_volume,
+          original_audio_volume: formData.original_audio_volume
         };
-      });
+      }).filter((job): job is NonNullable<typeof job> => job !== null);
+
+      if (jobs.length === 0) {
+        toast.success("Todos os vídeos selecionados já estão processados ou em fila.");
+        setIsProcessingBatch(false);
+        toast.dismiss(loadingToast);
+        return;
+      }
 
       // Insert with upsert to respect render_key idempotency
       const { error } = await supabase
@@ -720,6 +767,27 @@ export default function CampanhaPage() {
       return;
     }
 
+    // Validação de Renders Prontos (P0)
+    const currentRenders = selectedContentIds.map(id => {
+      const rKey = generateRenderKey({
+        contentId: id,
+        musicTrackId: formData.music_track_id,
+        musicStartMs: formData.music_start_ms,
+        musicVolume: formData.music_volume,
+        originalAudioVolume: formData.original_audio_volume,
+        audioMode: formData.audio_mode
+      });
+      return renders.find(r => r.render_key === rKey);
+    });
+
+    const readyCount = currentRenders.filter(r => r?.status === 'ready').length;
+    const allReady = readyCount === selectedContentIds.length;
+
+    if (!allReady) {
+      toast.error(`${readyCount} de ${selectedContentIds.length} vídeos prontos. Aguarde o processamento terminar.`);
+      return;
+    }
+
     setSaving(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -792,26 +860,40 @@ export default function CampanhaPage() {
       // 4. Generate Publications based on Preview (Atomic check)
       const expectedCount = schedulingPreview.length;
       if (expectedCount > 0) {
-        const publicationInserts = schedulingPreview.map(p => ({
-          campaign_id: newCamp.id,
-          social_account_id: p.accountId,
-          content_id: selectedContentIds[p.videoIndex],
-          music_track_id: formData.music_track_id,
-          scheduled_for: p.date.toISOString(),
-          status: 'agendado',
-          timezone: formData.timezone,
-          user_id: user.id,
-          platform: p.platform || 'tiktok',
-          render_options: {
-            render_key: `${selectedContentIds[p.videoIndex]}_${formData.music_track_id}_${formData.music_start_ms}`,
-            videoId: selectedContentIds[p.videoIndex],
-            musicId: formData.music_track_id,
+        const publicationInserts = schedulingPreview.map(p => {
+          const contentId = selectedContentIds[p.videoIndex];
+          const rKey = generateRenderKey({
+            contentId,
+            musicTrackId: formData.music_track_id,
             musicStartMs: formData.music_start_ms,
             musicVolume: formData.music_volume,
             originalAudioVolume: formData.original_audio_volume,
             audioMode: formData.audio_mode
-          }
-        }));
+          });
+          const render = renders.find(r => r.render_key === rKey);
+
+          return {
+            campaign_id: newCamp.id,
+            social_account_id: p.accountId,
+            content_id: contentId,
+            music_track_id: formData.music_track_id,
+            media_render_id: render?.id, // Vínculo inequívoco (P0)
+            scheduled_for: p.date.toISOString(),
+            status: 'agendado',
+            timezone: formData.timezone,
+            user_id: user.id,
+            platform: p.platform || 'tiktok',
+            render_options: {
+              render_key: rKey,
+              videoId: contentId,
+              musicId: formData.music_track_id,
+              musicStartMs: formData.music_start_ms,
+              musicVolume: formData.music_volume,
+              originalAudioVolume: formData.original_audio_volume,
+              audioMode: formData.audio_mode
+            }
+          };
+        });
 
         const { data: createdPubs, error: pubError } = await supabase
           .from("publications")
@@ -1309,12 +1391,15 @@ export default function CampanhaPage() {
                       .map((item) => {
                         const isSelected = selectedContentIds.includes(item.id);
                         
-                        // Busca o render em tempo real para este conteúdo + música atual
-                        const render = renders.find(r => 
-                          r.source_content_id === item.id && 
-                          r.music_track_id === formData.music_track_id &&
-                          r.render_options && (r.render_options as any).musicStartMs === formData.music_start_ms
-                        );
+                        const rKey = generateRenderKey({
+                          contentId: item.id,
+                          musicTrackId: formData.music_track_id,
+                          musicStartMs: formData.music_start_ms,
+                          musicVolume: formData.music_volume,
+                          originalAudioVolume: formData.original_audio_volume,
+                          audioMode: formData.audio_mode
+                        });
+                        const render = renders.find(r => r.render_key === rKey);
 
                         return (
                           <div
@@ -1788,7 +1873,14 @@ export default function CampanhaPage() {
 
                 <Button
                   onClick={handleIniciar}
-                  disabled={saving || isProcessingBatch || selectedContentIds.length === 0 || selectedAccountIds.length === 0}
+                  disabled={saving || isProcessingBatch || selectedContentIds.length === 0 || selectedAccountIds.length === 0 || selectedContentIds.some(id => renders.find(r => r.render_key === generateRenderKey({
+                    contentId: id,
+                    musicTrackId: formData.music_track_id,
+                    musicStartMs: formData.music_start_ms,
+                    musicVolume: formData.music_volume,
+                    originalAudioVolume: formData.original_audio_volume,
+                    audioMode: formData.audio_mode
+                  }))?.status !== 'ready')}
                   className="w-full bg-[#7C3AED] hover:bg-[#6D28D9] text-white py-8 text-xl font-bold shadow-lg shadow-[#7C3AED]/20"
                 >
                   {saving ? (
