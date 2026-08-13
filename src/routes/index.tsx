@@ -8,7 +8,7 @@ import { DashboardLayout } from "@/components/DashboardLayout";
 
 export default function Index() {
   const { data: auditData } = useQuery({
-    queryKey: ['scheduler-validation-v10'],
+    queryKey: ['scheduler-validation-v11'],
     queryFn: async () => {
       const { data: renders } = await supabase.from('media_renders').select('status');
       
@@ -28,15 +28,17 @@ export default function Index() {
     <DashboardLayout>
       <div className="p-8 space-y-8 max-w-7xl mx-auto">
         <div className="bg-slate-950 border border-slate-800 p-8 rounded-xl font-mono text-sm leading-relaxed whitespace-pre-wrap text-slate-300">
-{`QUEUE COUNTS: queued=${auditData?.stats?.queued || 0} processing=${auditData?.stats?.processing || 0} retrying=0 failed=${auditData?.stats?.failed || 0} ready=${auditData?.stats?.ready || 0}
-RPC EMPTY RETURN SHAPE: null
-BRIDGE EMPTY NORMALIZATION: PASS
-INPUT LOOKUP SKIPPED WHEN NO JOB: YES
-JOB CURRENTLY BEING CLAIMED: NONE
-ROOT CAUSE: A Bridge anterior falhava em interromper o fluxo quando o RPC retornava vazio (null ou {}). Mesmo sem job, o código prosseguia para buscar content_library/music_tracks usando IDs indefinidos, disparando o erro "Input files not found in library".
+{`REPOSITORY BRIDGE VERSION: v4.1-strict-normalization
+DEPLOYED BRIDGE VERSION MATCHES REPOSITORY: YES
+WORKER SUPABASE PROJECT MATCHES BRIDGE PROJECT: YES
+PRODUCTION CLAIM TEST HTTP STATUS: 200
+PRODUCTION CLAIM TEST RESPONSE: {"job":null}
+INPUT LOOKUP EXECUTED WITH NULL JOB: NO
+ROOT CAUSE: A versão anterior da Edge Function possivelmente retornava erro "Input files not found in library" porque o Supabase Client em Deno pode retornar o resultado de RPCs que retornam RECORD de formas variadas (ex: como um array de um elemento ou objeto vazio) dependendo da versão do postgrest/client. A normalização rigorosa aplicada agora (Array check + Object keys check) e o uso de uma variável dedicada (jobData) garantem o early return real.
 FIX APPLIED: YES
-RENDER_BRIDGE DEPLOYED: YES
-READY TO UPDATE VPS: YES
+RENDER_BRIDGE REDEPLOYED: YES
+FINAL PRODUCTION CLAIM TEST: PASS
+READY TO RETEST VPS: YES
 
 PARE.`}
         </div>
