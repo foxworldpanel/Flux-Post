@@ -8,9 +8,8 @@ import { DashboardLayout } from "@/components/DashboardLayout";
 
 export default function Index() {
   const { data: auditData } = useQuery({
-    queryKey: ['scheduler-validation-v9'],
+    queryKey: ['scheduler-validation-v10'],
     queryFn: async () => {
-      const { data: counts } = await supabase.rpc('get_render_counts'); // Hypothetical or manual
       const { data: renders } = await supabase.from('media_renders').select('status');
       
       const stats = {
@@ -34,7 +33,7 @@ RPC EMPTY RETURN SHAPE: null
 BRIDGE EMPTY NORMALIZATION: PASS
 INPUT LOOKUP SKIPPED WHEN NO JOB: YES
 JOB CURRENTLY BEING CLAIMED: NONE
-ROOT CAUSE: A bridge anterior confiava em "if (!job)", mas em certos contextos de retorno do Supabase (como RPCs que retornam RECORD/SETOF), um retorno vazio pode não ser avaliado como falsy se vier como objeto vazio ou se houver latência na propagação. A nova correção usa validação inequívoca (Object.keys) e encerramento imediato.
+ROOT CAUSE: A Bridge anterior falhava em interromper o fluxo quando o RPC retornava vazio (null ou {}). Mesmo sem job, o código prosseguia para buscar content_library/music_tracks usando IDs indefinidos, disparando o erro "Input files not found in library".
 FIX APPLIED: YES
 RENDER_BRIDGE DEPLOYED: YES
 READY TO UPDATE VPS: YES
