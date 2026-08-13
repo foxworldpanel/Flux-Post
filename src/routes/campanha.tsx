@@ -1810,13 +1810,23 @@ export default function CampanhaPage() {
                       .filter((item) => selectedContentIds.includes(item.id))
                       .map((item) => {
                         const pubsForThisContent = publications.filter(p => p.content_id === item.id);
-                        const render = renders.find(r => 
+                        
+                        // Busca o render priorizando o vínculo via render_key das publicações
+                        let render = renders.find(r => 
                           r.source_content_id === item.id || 
-                          (r.render_key && pubsForThisContent.some((p: any) => 
-                            (p.render_options as any)?.render_key === r.render_key || 
-                            (p.metadata as any)?.render_key === r.render_key
-                          ))
+                          (r.render_key && pubsForThisContent.some((p: any) => {
+                            const pRenderKey = (p.render_options as any)?.render_key || (p.metadata as any)?.render_key;
+                            return pRenderKey === r.render_key;
+                          }))
                         );
+
+                        // Fallback agressivo: se não achou por render_key, tenta achar qualquer render que coincida com a música e conteúdo
+                        if (!render && campanhaAtiva) {
+                           render = renders.find(r => 
+                             r.source_content_id === item.id && 
+                             r.music_track_id === campanhaAtiva.music_track_id
+                           );
+                        }
                         
                         return (
                           <div key={item.id} className="bg-muted/30 border border-border/50 rounded-xl overflow-hidden group">
