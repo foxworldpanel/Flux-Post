@@ -868,6 +868,45 @@ export default function CampanhaPage() {
     }
   }
 
+  async function handleDeleteCampaign() {
+    if (!campanhaAtiva) return;
+
+    if (!window.confirm("ATENÇÃO: Isso excluirá permanentemente a campanha e todas as suas publicações agendadas. Os vídeos da biblioteca e músicas NÃO serão excluídos. Deseja continuar?")) {
+      return;
+    }
+
+    setSaving(true);
+    try {
+      // 1. Desvincular música da campanha ativa
+      await supabase
+        .from("music_tracks")
+        .update({ campanha_ativa: false })
+        .eq("id", campanhaAtiva.music_track_id);
+
+      // 2. Excluir a campanha (Cascade cuidará das tabelas vinculadas)
+      const { error } = await supabase
+        .from("campanhas")
+        .delete()
+        .eq("id", campanhaAtiva.id);
+
+      if (error) throw error;
+
+      toast.success("Campanha excluída com sucesso!");
+      
+      // 3. Reset state
+      setCampanhaAtiva(null);
+      setSelectedContentIds([]);
+      setSelectedAccountIds([]);
+      setStep(1);
+      
+      fetchData();
+    } catch (error: any) {
+      toast.error("Erro ao excluir campanha: " + error.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
   const filteredMusics = useMemo(() => {
     if (!formData.artist_id) return [];
     return musicas.filter(m => m.artist_id === formData.artist_id);
@@ -1840,11 +1879,11 @@ export default function CampanhaPage() {
                   <Button
                     variant="outline"
                     className="flex-1 bg-red-500/10 border-red-500/20 text-red-500 hover:bg-red-500/20"
-                    onClick={() => handleUpdateStatus("encerrado")}
+                    onClick={() => handleDeleteCampaign()}
                     disabled={saving}
                   >
-                    <Square size={18} className="mr-2" />
-                    Encerrar
+                    <X size={18} className="mr-2" />
+                    Excluir Campanha
                   </Button>
                 </div>
               </CardContent>
