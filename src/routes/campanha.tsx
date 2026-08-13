@@ -999,26 +999,33 @@ export default function CampanhaPage() {
 
   return (
     <DashboardLayout>
-      <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in duration-500">
-        <div className="flex items-center justify-between">
+      <div className="max-w-7xl mx-auto space-y-12 animate-in fade-in duration-500 pb-20">
+        <div className="flex items-center justify-between border-b border-border/50 pb-6">
           <div className="flex flex-col gap-1">
-            <h1 className="text-3xl font-bold text-foreground">
-              {campanhaAtiva ? "Campanha Ativa" : "Preparar Campanha"}
+            <h1 className="text-4xl font-black text-foreground tracking-tight">
+              {campanhaAtiva ? campanhaAtiva.nome : "PREPARAR CAMPANHA"}
             </h1>
-            {!campanhaAtiva && (
-              <div className="flex items-center gap-2 mt-2">
-                <Badge variant="outline" className="bg-[#7C3AED]/10 text-[#7C3AED] border-[#7C3AED]/20 uppercase font-bold tracking-widest text-[10px]">
-                  Fase de Preparação
+            {!campanhaAtiva ? (
+              <div className="flex items-center gap-2 mt-1">
+                <Badge variant="outline" className="bg-[#7C3AED]/10 text-[#7C3AED] border-[#7C3AED]/20 uppercase font-bold tracking-widest text-[10px] px-2 py-0.5">
+                  Fase de Preparação & Automação
                 </Badge>
               </div>
+            ) : (
+              <p className="text-muted-foreground font-medium flex items-center gap-2">
+                <User size={14} className="text-primary" /> {campanhaAtiva.artists?.name} 
+                <span className="text-border">|</span>
+                <MusicIcon size={14} className="text-primary" /> {campanhaAtiva.music_tracks?.nome}
+              </p>
             )}
           </div>
           {campanhaAtiva && (
-            <Badge className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 px-3 py-1 uppercase font-bold tracking-widest text-[10px]">
+            <Badge className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 px-4 py-1.5 uppercase font-black tracking-widest text-[11px] shadow-sm">
               OPERACIONAL
             </Badge>
           )}
         </div>
+
 
         {!campanhaAtiva ? (
           <Card className="bg-card border-border">
