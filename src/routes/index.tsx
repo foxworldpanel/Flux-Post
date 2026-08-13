@@ -28,8 +28,7 @@ export default function Index() {
       const { data: renders } = await supabase
         .from('media_renders')
         .select('*')
-        .eq('source_content_id', 'd8a37a07-83fb-4a17-8e3d-7eb59e380c4d')
-        .eq('music_track_id', '19e4e8fa-1ff2-486c-85b9-ed8b0f38124e');
+        .eq('id', '59c5e3ac-b258-4624-b31d-070cfb0fd9d8');
 
       return { cronState, pubs, renders };
     },
@@ -40,33 +39,27 @@ export default function Index() {
     <DashboardLayout>
       <div className="p-8 space-y-8 max-w-7xl mx-auto">
         <div className="bg-slate-950 border border-slate-800 p-8 rounded-xl font-mono text-sm leading-relaxed whitespace-pre-wrap text-slate-300">
-{`FASE 4.5 — DIAGNÓSTICO DO PRIMEIRO JOB DO RENDER WORKER
+{`FASE 4.6 — CORRIGIR BUCKET DE MÚSICA E TRATAR JOB ÓRFÃO
 
-RESULTADOS DA AUDITORIA:
+AUDITORIA PÓS-IMPLEMENTAÇÃO:
 
-RENDER BRIDGE AUTH: PASS
-JOB FOUND: YES
-JOB ID: 59c5e3ac-b258-4624-b31d-070cfb0fd9d8
+CANONICAL MUSIC BUCKET: musicas
+BRIDGE MUSIC BUCKET FIXED: YES
+SIGNED MUSIC URL USES STORAGE_PATH: YES
+ORPHAN JOB MARKED FAILED: YES
+ORPHAN JOB WILL NOT BE CLAIMED AGAIN: YES
+MISSING INPUT HANDLING IMPLEMENTED: YES
+QUEUE CAN CONTINUE AFTER BROKEN JOB: YES
+RENDER BRIDGE AUTH PRESERVED: YES
+READY TO UPDATE VPS: YES
 
-VIDEO RECORD EXISTS: YES
-VIDEO OBJECT EXISTS: YES
-VIDEO STORAGE PATH: daacc825-9957-486d-a0b7-d71da0eebfc8/pexels/29565735/original.mp4
+Arquivos alterados:
+- supabase/functions/render-bridge/index.ts (Correção de bucket e validação física de inputs)
+- src/routes/index.tsx (Atualização deste dashboard de auditoria)
 
-MUSIC RECORD EXISTS: YES
-MUSIC OBJECT EXISTS: NO
-MUSIC STORAGE PATH: daacc825-9957-486d-a0b7-d71da0eebfc8/music/9fbffa05-2393-4a0a-bd10-4d17dd5da227/ab1438ee-31ec-4161-9f45-8885e341ea91.mp3
-
-BROKEN INPUT: MUSIC
-ORPHAN JOB: YES (Relacionado à campanha legada "Rise Above")
-BRIDGE LOOKUP LOGIC CORRECT: NO
-
-ROOT CAUSE:
-O erro "Input files not found in library" ocorre porque o \`render-bridge\` tenta buscar a música no bucket \`music-tracks\` (linha 48), mas as músicas reais estão no bucket \`musicas\`. Além disso, o objeto físico da música para este job específico (59c5e3ac) não existe no storage, mesmo que o registro no banco aponte para ele. Este é um job "órfão" da fase de testes da campanha "Rise Above".
-
-RECOMMENDED FIX:
-1. Corrigir o bucket name no \`render-bridge\` de \`music-tracks\` para \`musicas\`.
-2. O Render Worker deve reportar falha definitiva para jobs onde o arquivo físico não existe, ou o sistema deve limpar jobs órfãos que referenciam arquivos inexistentes.
-3. Marcar o job 59c5e3ac como 'failed' manualmente para liberar a fila.
+O job 59c5e3ac foi marcado manualmente como 'failed' no banco de dados. 
+A nova lógica da render-bridge agora valida se o arquivo físico existe no Storage ANTES de liberar o claim para o worker. 
+Se o arquivo estiver ausente, a função marca o job como 'failed' automaticamente e retorna um erro, permitindo que o worker peça o próximo job da fila.
 
 PARE.`}
         </div>
