@@ -102,7 +102,7 @@ type Campanha = {
 type MediaRender = {
   id: string;
   source_content_id: string;
-  music_id: string;
+  music_track_id: string;
   status: 'queued' | 'processing' | 'ready' | 'failed';
   storage_path: string | null;
   error_message: string | null;
