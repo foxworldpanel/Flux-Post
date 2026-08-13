@@ -43,9 +43,37 @@ serve(async (req) => {
 
         if (!content || !music) throw new Error("Input files not found in library");
 
-        // Generate short-lived signed URLs (1 hour)
+        // 1. Verify objects exist physically and generate short-lived signed URLs (1 hour)
+        const { data: videoFiles } = await supabase.storage.from('content-library').list(pathDir(content.storage_path), {
+          search: pathBase(content.storage_path)
+        });
+
+        const { data: musicFiles } = await supabase.storage.from('musicas').list(pathDir(music.storage_path), {
+          search: pathBase(music.storage_path)
+        });
+
+        const videoExists = videoFiles && videoFiles.length > 0;
+        const musicExists = musicFiles && musicFiles.length > 0;
+
+        if (!videoExists || !musicExists) {
+          const missing = !videoExists && !musicExists ? "Video and Music" : (!videoExists ? "Video" : "Music");
+          const errorMsg = `Physical input files not found in storage: ${missing}`;
+          
+          await supabase.from('media_renders').update({
+            status: 'failed',
+            error_message: errorMsg,
+            last_heartbeat: null
+          }).eq('id', job.id);
+
+          return new Response(JSON.stringify({ 
+            job: null,
+            error: errorMsg,
+            details: { video: videoExists, music: musicExists }
+          }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        }
+
         const { data: videoUrl } = await supabase.storage.from('content-library').createSignedUrl(content.storage_path, 3600);
-        const { data: musicUrl } = await supabase.storage.from('music-tracks').createSignedUrl(music.storage_path, 3600);
+        const { data: musicUrl } = await supabase.storage.from('musicas').createSignedUrl(music.storage_path, 3600);
 
         return new Response(JSON.stringify({ 
           job, 
