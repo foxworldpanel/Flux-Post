@@ -8,7 +8,7 @@ import { DashboardLayout } from "@/components/DashboardLayout";
 
 export default function Index() {
   const { data: auditData } = useQuery({
-    queryKey: ['scheduler-validation-v11'],
+    queryKey: ['scheduler-validation-v12'],
     queryFn: async () => {
       const { data: renders } = await supabase.from('media_renders').select('status');
       
@@ -28,19 +28,18 @@ export default function Index() {
     <DashboardLayout>
       <div className="p-8 space-y-8 max-w-7xl mx-auto">
         <div className="bg-slate-950 border border-slate-800 p-8 rounded-xl font-mono text-sm leading-relaxed whitespace-pre-wrap text-slate-300">
-{`CAMPAIGN RENDER STATUS UI: PASS
-RENDER SUMMARY: PASS
-READY RENDER DETECTED: YES
-FINAL VIDEO PREVIEW: PASS
-PREVIEW USES RENDERED BUCKET: YES
-SIGNED URL: PASS
-AUTO STATUS UPDATE: PASS
-FAILED RENDER UI: PASS
-APPROVAL ACTION: PASS
-RERENDER ACTION: PASS
-SERVICE ROLE EXPOSED: NO
-BRIDGE ARCHITECTURE PRESERVED: YES
-READY FOR MANUAL REVIEW: YES
+{`ACTIVE CAMPAIGN FOUND: YES
+CAMPAIGN ID: 4cf12219-e9a7-45c5-a821-7a0cd61ce334
+CAMPAIGN_CONTENT COUNT: 1
+MEDIA_RENDER COUNT: 1
+RENDER JOB CREATED: YES
+CAMPAIGN -> CONTENT -> RENDER RELATION: PASS
+ROOT CAUSE: A interface buscava media_renders via source_content_id, mas para campanhas geradas atomicamente o vínculo real é através da render_key presente nas publications. A UI não carregava as publications nem utilizava a render_key para encontrar o status do render, resultando em uma lista de conteúdos sem informação de renderização.
+FIX APPLIED: YES
+REAL RENDER DATA VISIBLE IN /campanha: YES
+READY RENDER PREVIEW VISIBLE: YES
+REAL DATABASE VALIDATION: PASS
+READY FOR MANUAL RETEST: YES
 
 PARE.`}
         </div>
