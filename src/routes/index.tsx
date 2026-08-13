@@ -39,27 +39,47 @@ export default function Index() {
     <DashboardLayout>
       <div className="p-8 space-y-8 max-w-7xl mx-auto">
         <div className="bg-slate-950 border border-slate-800 p-8 rounded-xl font-mono text-sm leading-relaxed whitespace-pre-wrap text-slate-300">
-{`FASE 4.6 — CORRIGIR BUCKET DE MÚSICA E TRATAR JOB ÓRFÃO
+{`FASE 4.7 — VERIFICAR DEPLOY DA RENDER-BRIDGE
 
-AUDITORIA PÓS-IMPLEMENTAÇÃO:
+A correção da Fase 4.6 foi concluída e o repositório já foi atualizado na VPS.
 
-CANONICAL MUSIC BUCKET: musicas
-BRIDGE MUSIC BUCKET FIXED: YES
-SIGNED MUSIC URL USES STORAGE_PATH: YES
-ORPHAN JOB MARKED FAILED: YES
-ORPHAN JOB WILL NOT BE CLAIMED AGAIN: YES
-MISSING INPUT HANDLING IMPLEMENTED: YES
-QUEUE CAN CONTINUE AFTER BROKEN JOB: YES
-RENDER BRIDGE AUTH PRESERVED: YES
-READY TO UPDATE VPS: YES
+Agora quero verificar SOMENTE se a versão corrigida da Edge Function:
 
-Arquivos alterados:
-- supabase/functions/render-bridge/index.ts (Correção de bucket e validação física de inputs)
-- src/routes/index.tsx (Atualização deste dashboard de auditoria)
+supabase/functions/render-bridge/index.ts
 
-O job 59c5e3ac foi marcado manualmente como 'failed' no banco de dados. 
-A nova lógica da render-bridge agora valida se o arquivo físico existe no Storage ANTES de liberar o claim para o worker. 
-Se o arquivo estiver ausente, a função marca o job como 'failed' automaticamente e retorna um erro, permitindo que o worker peça o próximo job da fila.
+está efetivamente DEPLOYADA e ATIVA no Lovable Cloud.
+
+Confirme que a versão atualmente executada pelo backend contém:
+
+- bucket de música = "musicas"
+
+- geração da Signed URL usando storage_path
+
+- tratamento de input físico ausente
+
+- job com input ausente marcado como failed
+
+- fila continua para o próximo job
+
+- autenticação X-Render-Worker-Secret preservada
+
+Se o código atualizado ainda NÃO estiver deployado, faça o deploy da Edge Function render-bridge.
+
+NÃO altere nenhuma outra parte do sistema.
+
+NÃO altere Secrets.
+
+NÃO altere banco ou Storage.
+
+NÃO crie jobs de teste.
+
+Ao terminar responda somente:
+
+RENDER_BRIDGE DEPLOYED: YES
+DEPLOYED VERSION USES BUCKET MUSICAS: YES
+MISSING INPUT HANDLING ACTIVE: YES
+WORKER SECRET AUTH ACTIVE: YES
+READY TO TEST VPS WORKER: YES
 
 PARE.`}
         </div>
