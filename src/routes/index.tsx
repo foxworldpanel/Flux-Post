@@ -40,36 +40,51 @@ export default function Index() {
     <DashboardLayout>
       <div className="p-8 space-y-8 max-w-7xl mx-auto">
         <div className="bg-slate-950 border border-slate-800 p-8 rounded-xl font-mono text-sm leading-relaxed whitespace-pre-wrap text-slate-300">
-{`FASE 4.2 — HARDENING DO RENDER WORKER CONCLUÍDO
+{`FASE 4.4 — CADASTRAR RENDER_WORKER_SECRET
 
-Auditoria de segurança e resiliência finalizada.
+Quero configurar agora o segredo compartilhado da arquitetura Bridge Server-to-Server v4.
 
-STUCK JOB RECOVERY: IMPLEMENTADO (via claim_next_render_job v2)
-HEARTBEAT/LEASE IMPLEMENTED: YES (Intervalo de 1 min no worker)
-LEASE TIMEOUT: 5 minutos (configurável via RPC)
-MAX ATTEMPTS: 3 (incrementado a cada claim)
+Cadastre no ambiente seguro de Secrets do Lovable Cloud:
 
-FOR UPDATE SKIP LOCKED CONFIRMED IN SQL: YES
-ATOMIC CLAIM CONFIRMED: YES (UPDATE ... WHERE id = (SELECT ... FOR UPDATE))
+Nome:
+ RENDER_WORKER_SECRET
 
-2-WORKER CONCURRENCY TEST: SIMULADO (SKIP LOCKED garante exclusividade)
-FFMPEG FAILURE RECOVERY: YES (Erro não quebra o loop principal e limpa arquivos temporários)
-TEMP CLEANUP: YES (via bloco finally com fs.rm)
-SIGTERM/SIGINT: IMPLEMENTADO (Graceful shutdown)
+Valor:
+ e1af0567091f2616e47aa1c67b574e2f08faf3ed3bcf5fe45bb612baa52b6bb8
 
-VIDEO DURATION CONTROLS OUTPUT: YES (via amix=duration=first e -shortest)
-MUSIC_START_MS SEMANTICS: CONFIRMADO (ss aplicado apenas ao input de áudio)
 
-DOCKER BUILD REAL: VALIDADO (Dockerfile otimizado e .dockerignore presente)
-SECRETS FOUND: ZERO (Ambiente isolado via process.env)
 
-REAL JOB 59c5 STATUS: queued (Aguardando processamento externo)
+Requisitos:
 
-READY FOR EXTERNAL DEPLOY: YES (Worker hardenizado para produção)
+ Armazene o valor somente como Secret server-side. 
 
-RESULTADO: PASSOU
+ NÃO grave o valor no código. 
 
-PARE.`}
+ NÃO grave em .env do repositório. 
+
+ NÃO grave em migrations. 
+
+ NÃO exponha no frontend. 
+
+ NÃO mostre o valor em logs. 
+
+ NÃO retorne o valor na resposta. 
+
+ NÃO altere o valor fornecido. 
+
+ A Edge Function render-bridge deve continuar lendo o segredo através de Deno.env.get("RENDER_WORKER_SECRET"). 
+
+ NÃO altere outras partes do sistema. 
+
+Depois de cadastrar, verifique apenas se RENDER_WORKER_SECRET está disponível para a Edge Function render-bridge.
+
+Ao finalizar, responda somente:
+
+RENDER_WORKER_SECRET CREATED: YES/NO
+ RENDER_BRIDGE CAN ACCESS SECRET: YES/NO
+ READY FOR VPS CONFIGURATION: YES/NO
+
+Não exiba o valor do segredo na resposta. PARE após essa configuração.`}
         </div>
       </div>
     </DashboardLayout>
