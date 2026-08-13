@@ -574,7 +574,8 @@ export default function CampanhaPage() {
         setRenders((latestRenders as any) || []);
       }
       
-      setStep(3); // Avança para etapa de acompanhamento
+      // Não avançamos o step (removido), o usuário permanece na mesma tela para acompanhar
+      toast.success("Monitorando progresso real na biblioteca.");
     } catch (err: any) {
       console.error("Erro ao processar lote:", err);
       toast.error("Falha ao criar jobs: " + err.message);
@@ -941,14 +942,9 @@ export default function CampanhaPage() {
             </h1>
             {!campanhaAtiva && (
               <div className="flex items-center gap-2 mt-2">
-                {[1, 2, 3, 4, 5].map((i) => (
-                  <div key={i} className="flex items-center gap-2">
-                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${step >= i ? 'bg-[#7C3AED] text-white' : 'bg-muted text-muted-foreground border border-border'}`}>
-                      {i}
-                    </div>
-                    {i < 5 && <div className={`w-8 h-0.5 ${step > i ? 'bg-[#7C3AED]' : 'bg-muted'}`} />}
-                  </div>
-                ))}
+                <Badge variant="outline" className="bg-[#7C3AED]/10 text-[#7C3AED] border-[#7C3AED]/20 uppercase font-bold tracking-widest text-[10px]">
+                  Fase de Preparação
+                </Badge>
               </div>
             )}
           </div>
@@ -1269,6 +1265,157 @@ export default function CampanhaPage() {
                           />
                         </div>
                       )}
+                    </div>
+                  )}
+                </div>
+
+                {/* 2 — ESCOLHER E PROCESSAR VÍDEOS */}
+                <div className="space-y-4 pt-4 border-t border-border">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-1">
+                      <Label className="text-foreground text-base font-semibold uppercase">
+                        2 — Escolher e Processar Vídeos
+                      </Label>
+                      <p className="text-muted-foreground text-xs">
+                        {selectedContentIds.length} selecionados para processamento
+                      </p>
+                    </div>
+                    <Select value={contentFilter} onValueChange={setContentFilter}>
+                      <SelectTrigger className="w-[150px] bg-muted/50 border-border text-foreground text-xs h-8">
+                        <div className="flex items-center gap-2">
+                          <Filter size={12} />
+                          <SelectValue placeholder="Filtrar" />
+                        </div>
+                      </SelectTrigger>
+                      <SelectContent className="bg-card border-border text-foreground">
+                        <SelectItem value="todos">Todos</SelectItem>
+                        <SelectItem value="raw">Raw</SelectItem>
+                        <SelectItem value="processed">Processados</SelectItem>
+                        <SelectItem value="artist">Do Artista</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar p-1">
+                    {biblioteca
+                      .filter((c) => c.status !== "arquivado" && c.status !== "descartado")
+                      .filter((c) => {
+                        if (contentFilter === "todos") return true;
+                        if (contentFilter === "artist") return c.artist_id === formData.artist_id;
+                        return c.category === contentFilter;
+                      })
+                      .map((item) => {
+                        const isSelected = selectedContentIds.includes(item.id);
+                        
+                        // Busca o render em tempo real para este conteúdo + música atual
+                        const render = renders.find(r => 
+                          r.source_content_id === item.id && 
+                          r.music_track_id === formData.music_track_id &&
+                          r.render_options && (r.render_options as any).musicStartMs === formData.music_start_ms
+                        );
+
+                        return (
+                          <div
+                            key={item.id}
+                            onClick={() => {
+                              if (isSelected) {
+                                setSelectedContentIds((prev) => prev.filter((id) => id !== item.id));
+                              } else {
+                                setSelectedContentIds((prev) => [...prev, item.id]);
+                              }
+                            }}
+                            className={`relative aspect-[9/16] rounded-lg overflow-hidden border-2 cursor-pointer transition-all group ${
+                              isSelected
+                                ? "border-[#7C3AED]"
+                                : "border-transparent hover:border-border"
+                            }`}
+                          >
+                            {loadingUrls[item.id] ? (
+                              <div className="w-full h-full flex items-center justify-center bg-muted/50">
+                                <Loader2 className="w-4 h-4 text-[#7C3AED] animate-spin" />
+                              </div>
+                            ) : signedUrls[item.id] ? (
+                              <video
+                                src={signedUrls[item.id]}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center bg-muted/50">
+                                <X className="w-4 h-4 text-red-500/50" />
+                              </div>
+                            )}
+
+                            {/* Overlay de Status de Renderização */}
+                            {render && (
+                              <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center gap-2 p-2 text-center">
+                                <Badge 
+                                  variant="outline" 
+                                  className={`text-[8px] h-4 px-1 font-bold border-none ${
+                                    render.status === 'ready' ? 'bg-emerald-500 text-white' :
+                                    render.status === 'processing' ? 'bg-yellow-500 text-black animate-pulse' :
+                                    render.status === 'failed' ? 'bg-red-500 text-white' :
+                                    'bg-blue-500 text-white'
+                                  }`}
+                                >
+                                  {render.status === 'ready' ? 'PRONTO' : 
+                                   render.status === 'processing' ? 'PROCESSANDO' :
+                                   render.status === 'failed' ? 'FALHOU' : 'NA FILA'}
+                                </Badge>
+                                
+                                {render.status === 'ready' && (
+                                  <Button 
+                                    size="sm" 
+                                    className="h-6 text-[8px] bg-white text-black hover:bg-white/90 gap-1 px-2"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handlePreviewRender(render, item.title);
+                                    }}
+                                  >
+                                    <Play size={8} fill="currentColor" /> PREVIEW
+                                  </Button>
+                                )}
+                              </div>
+                            )}
+
+                            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-2">
+                              <p className="text-[10px] text-white font-medium truncate">
+                                {item.title}
+                              </p>
+                              {item.duration_seconds && (
+                                <p className="text-[8px] text-white/70">{item.duration_seconds}s</p>
+                              )}
+                            </div>
+                            
+                            {isSelected && (
+                              <div className="absolute top-2 right-2 bg-[#7C3AED] rounded-full p-1 shadow-lg z-10">
+                                <Check size={12} className="text-white" />
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                  </div>
+
+                  {selectedContentIds.length > 0 && (
+                    <div className="flex items-center justify-between bg-muted/30 p-4 rounded-xl border border-border">
+                      <p className="text-sm font-medium text-foreground">
+                        {selectedContentIds.length} vídeos selecionados
+                      </p>
+                      <Button 
+                        onClick={(e) => {
+                          e.preventDefault();
+                          handleProcessBatch();
+                        }}
+                        disabled={isProcessingBatch || !formData.music_track_id}
+                        className="bg-[#7C3AED] hover:bg-[#6D28D9] text-white gap-2"
+                      >
+                        {isProcessingBatch ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <RefreshCw className="h-4 w-4" />
+                        )}
+                        PROCESSAR {selectedContentIds.length} VÍDEOS
+                      </Button>
                     </div>
                   )}
                 </div>
@@ -1612,104 +1759,50 @@ export default function CampanhaPage() {
                   </div>
                 </div>
 
-                <div className="space-y-4 pt-4 border-t border-border">
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-1">
-                      <Label className="text-foreground text-base font-semibold uppercase">
-                        Biblioteca de Conteúdos
-                      </Label>
-                      <p className="text-muted-foreground text-xs">
-                        {selectedContentIds.length} selecionados para rodízio
-                      </p>
-                    </div>
-                    <Select value={contentFilter} onValueChange={setContentFilter}>
-                      <SelectTrigger className="w-[150px] bg-muted/50 border-border text-foreground text-xs h-8">
-                        <div className="flex items-center gap-2">
-                          <Filter size={12} />
-                          <SelectValue placeholder="Filtrar" />
-                        </div>
-                      </SelectTrigger>
-                      <SelectContent className="bg-card border-border text-foreground">
-                        <SelectItem value="todos">Todos</SelectItem>
-                        <SelectItem value="raw">Raw</SelectItem>
-                        <SelectItem value="processed">Processados</SelectItem>
-                        <SelectItem value="artist">Do Artista</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
-                    {biblioteca
-                      .filter((c) => c.status !== "arquivado" && c.status !== "descartado")
-                      .filter((c) => {
-                        if (contentFilter === "todos") return true;
-                        if (contentFilter === "artist") return c.artist_id === formData.artist_id;
-                        return c.category === contentFilter;
-                      })
-                      .map((item) => {
-                        const isSelected = selectedContentIds.includes(item.id);
-                        return (
-                          <div
-                            key={item.id}
-                            onClick={() => {
-                              if (isSelected) {
-                                setSelectedContentIds((prev) => prev.filter((id) => id !== item.id));
-                              } else {
-                                setSelectedContentIds((prev) => [...prev, item.id]);
-                              }
-                            }}
-                            className={`relative aspect-[9/16] rounded-lg overflow-hidden border-2 cursor-pointer transition-all ${
-                              isSelected
-                                ? "border-[#7C3AED]"
-                                : "border-transparent hover:border-border"
-                            }`}
-                          >
-                            {loadingUrls[item.id] ? (
-                              <div className="w-full h-full flex items-center justify-center bg-muted/50">
-                                <Loader2 className="w-4 h-4 text-[#7C3AED] animate-spin" />
-                              </div>
-                            ) : signedUrls[item.id] ? (
-                              <video
-                                src={signedUrls[item.id]}
-                                className="w-full h-full object-cover"
-                              />
-                            ) : (
-                              <div className="w-full h-full flex items-center justify-center bg-muted/50">
-                                <X className="w-4 h-4 text-red-500/50" />
-                              </div>
-                            )}
-                            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-2">
-                              <p className="text-[10px] text-foreground font-medium truncate">
-                                {item.title}
-                              </p>
-                            </div>
-                            {isSelected && (
-                              <div className="absolute top-2 right-2 bg-[#7C3AED] rounded-full p-1 shadow-lg">
-                                <Check size={12} className="text-foreground" />
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    {biblioteca.length === 0 && (
-                      <div className="col-span-full py-8 text-center border border-dashed border-border rounded-xl">
-                        <p className="text-muted-foreground text-sm">
-                          Biblioteca vazia. Faça upload em Biblioteca primeiro.
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                </div>
               </div>
 
-              <Button
+              <div className="pt-8 border-t border-border space-y-4">
+                <div className="bg-muted/30 p-4 rounded-xl border border-border space-y-2">
+                  <h4 className="text-sm font-bold text-foreground uppercase tracking-widest">Resumo da Preparação</h4>
+                  <div className="grid grid-cols-2 gap-4 text-xs">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Música:</span>
+                      <span className="text-foreground font-medium">{musicas.find(m => m.id === formData.music_track_id)?.nome || "-"}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Vídeos Selecionados:</span>
+                      <span className="text-foreground font-medium">{selectedContentIds.length}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Contas de Destino:</span>
+                      <span className="text-foreground font-medium">{selectedAccountIds.length}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Posts Estimados:</span>
+                      <span className="text-foreground font-medium">{totalEstimatedPosts}</span>
+                    </div>
+                  </div>
+                </div>
 
-                onClick={handleIniciar}
-                disabled={saving}
-                className="w-full bg-[#7C3AED] hover:bg-[#6D28D9] text-foreground py-6 text-lg font-semibold"
-              >
-                {saving ? "Iniciando..." : "Iniciar Campanha"}
-              </Button>
+                <Button
+                  onClick={handleIniciar}
+                  disabled={saving || isProcessingBatch || selectedContentIds.length === 0 || selectedAccountIds.length === 0}
+                  className="w-full bg-[#7C3AED] hover:bg-[#6D28D9] text-white py-8 text-xl font-bold shadow-lg shadow-[#7C3AED]/20"
+                >
+                  {saving ? (
+                    <>
+                      <Loader2 className="mr-2 h-6 w-6 animate-spin" />
+                      Iniciando Campanha...
+                    </>
+                  ) : "INICIAR CAMPANHA"}
+                </Button>
+                
+                {(selectedContentIds.length === 0 || selectedAccountIds.length === 0) && (
+                  <p className="text-center text-[10px] text-red-400 font-bold uppercase tracking-widest">
+                    Selecione pelo menos um vídeo e uma conta para iniciar.
+                  </p>
+                )}
+              </div>
             </CardContent>
           </Card>
         ) : (
@@ -1764,24 +1857,6 @@ export default function CampanhaPage() {
                     </div>
                   )}
 
-                  {/* Botão de Ação de Processamento (FASE 4.6) */}
-                  {selectedContentIds.length > 0 && campanhaAtiva && (
-                    <div className="bg-gradient-to-r from-[#7C3AED]/10 to-[#7C3AED]/5 border border-[#7C3AED]/20 p-4 rounded-xl flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-bold text-foreground">Processamento de Conteúdo</p>
-                        <p className="text-xs text-muted-foreground">{selectedContentIds.length} vídeos selecionados prontos para renderizar</p>
-                      </div>
-                      <Button 
-                        onClick={async () => {
-                           // Adicionar lógica de processamento em lote aqui
-                           toast.info("Processamento em lote iniciado...");
-                        }}
-                        className="bg-[#7C3AED] hover:bg-[#6D28D9] text-white"
-                      >
-                        [ PROCESSAR {selectedContentIds.length} VÍDEOS ]
-                      </Button>
-                    </div>
-                  )}
 
                   {(() => {
                     const isNow = campanhaAtiva.start_mode === "now";
@@ -1959,7 +2034,7 @@ export default function CampanhaPage() {
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
+                  <div className="space-y-4 max-h-[800px] overflow-y-auto pr-2 custom-scrollbar">
                     {biblioteca
                       .filter((item) => selectedContentIds.includes(item.id))
                       .map((item) => {
