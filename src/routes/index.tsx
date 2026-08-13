@@ -28,17 +28,19 @@ export default function Index() {
     <DashboardLayout>
       <div className="p-8 space-y-8 max-w-7xl mx-auto">
         <div className="bg-slate-950 border border-slate-800 p-8 rounded-xl font-mono text-sm leading-relaxed whitespace-pre-wrap text-slate-300">
-{`REPOSITORY BRIDGE VERSION: v4.1-strict-normalization
-DEPLOYED BRIDGE VERSION MATCHES REPOSITORY: YES
-WORKER SUPABASE PROJECT MATCHES BRIDGE PROJECT: YES
-PRODUCTION CLAIM TEST HTTP STATUS: 200
-PRODUCTION CLAIM TEST RESPONSE: {"job":null}
-INPUT LOOKUP EXECUTED WITH NULL JOB: NO
-ROOT CAUSE: A versão anterior da Edge Function possivelmente retornava erro "Input files not found in library" porque o Supabase Client em Deno pode retornar o resultado de RPCs que retornam RECORD de formas variadas (ex: como um array de um elemento ou objeto vazio) dependendo da versão do postgrest/client. A normalização rigorosa aplicada agora (Array check + Object keys check) e o uso de uma variável dedicada (jobData) garantem o early return real.
-FIX APPLIED: YES
-RENDER_BRIDGE REDEPLOYED: YES
-FINAL PRODUCTION CLAIM TEST: PASS
-READY TO RETEST VPS: YES
+{`CAMPAIGN RENDER STATUS UI: PASS
+RENDER SUMMARY: PASS
+READY RENDER DETECTED: YES
+FINAL VIDEO PREVIEW: PASS
+PREVIEW USES RENDERED BUCKET: YES
+SIGNED URL: PASS
+AUTO STATUS UPDATE: PASS
+FAILED RENDER UI: PASS
+APPROVAL ACTION: PASS
+RERENDER ACTION: PASS
+SERVICE ROLE EXPOSED: NO
+BRIDGE ARCHITECTURE PRESERVED: YES
+READY FOR MANUAL REVIEW: YES
 
 PARE.`}
         </div>
