@@ -131,6 +131,7 @@ export default function CampanhaPage() {
   const [previewVideoUrl, setPreviewVideoUrl] = useState<string | null>(null);
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
   const [previewTitle, setPreviewTitle] = useState("");
+  const [publications, setPublications] = useState<any[]>([]);
   
   // Modal states for new music
   const [isMusicModalOpen, setIsMusicModalOpen] = useState(false);
