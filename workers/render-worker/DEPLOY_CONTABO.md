@@ -5,7 +5,7 @@ Este guia descreve como realizar o deploy do Render Worker em uma VPS Linux (Con
 ## Pré-requisitos
 - Uma VPS Contabo com Ubuntu ou Debian.
 - Acesso SSH à máquina.
-- As credenciais da sua instância do Lovable Cloud (Supabase URL e Service Role Key).
+- As credenciais da sua instância do Lovable Cloud (Supabase URL e Worker Secret).
 
 ## Passo a Passo
 
@@ -30,9 +30,12 @@ Este guia descreve como realizar o deploy do Render Worker em uma VPS Linux (Con
    ```
    Campos obrigatórios:
    - `SUPABASE_URL`
-   - `SUPABASE_SERVICE_ROLE_KEY`
+   - `RENDER_WORKER_SECRET`
 
-5. **Iniciar o Worker**:
+5. **Configurar o Segredo no Lovable Cloud**:
+   No painel do Lovable Cloud, adicione o segredo `RENDER_WORKER_SECRET` com o mesmo valor definido na VPS.
+
+6. **Iniciar o Worker**:
    ```bash
    ./start.sh
    ```
@@ -44,10 +47,10 @@ Este guia descreve como realizar o deploy do Render Worker em uma VPS Linux (Con
 - **Reiniciar**: `./start.sh` (ele fará o down/up automaticamente se necessário)
 
 ## Observações de Segurança
-- O worker realiza apenas **conexões de saída** para o Supabase e Storage. Nenhuma porta de entrada (80, 443, etc) é aberta no Docker.
-- A autenticação é feita via `service_role` para permitir downloads do bucket privado e execução de RPCs de claim.
-- Arquivos temporários são armazenados em `/tmp` dentro e fora do container, sendo limpos automaticamente após cada job.
+- O worker realiza apenas **conexões de saída** para o Supabase (Edge Functions). Nenhuma porta de entrada é aberta no Docker.
+- **Segurança v4**: A `SUPABASE_SERVICE_ROLE_KEY` nunca sai do ambiente do Lovable. A VPS usa um segredo exclusivo para se comunicar com o "Bridge" (Edge Function).
+- O acesso aos buckets privados é feito via **Signed URLs** de curta duração, garantindo que a VPS não tenha permissões administrativas permanentes sobre o Storage.
 
 ## Troubleshooting
-Se o worker não iniciar, verifique se as credenciais no `.env` estão corretas e se a VPS tem acesso à internet.
+Se o worker não iniciar, verifique se o `RENDER_WORKER_SECRET` é idêntico na VPS e no Lovable Cloud.
 Use `docker-compose ps` para verificar o status do container.
