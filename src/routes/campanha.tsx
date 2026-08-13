@@ -300,18 +300,18 @@ export default function CampanhaPage() {
       if (!user) return;
 
       // 1. Check for active campaign
-      const { data: campanhas, error: campError } = await supabase
+      const { data: allCamps, error: allErr } = await supabase
         .from("campanhas")
-        .select("*, music_tracks(id, nome, artista, storage_path, artist_id), artists(id, name)")
-        .order("data_inicio", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (campError) throw campError;
+        .select("*, music_tracks(id, nome, artista, storage_path, artist_id), artists(id, name)");
       
-      console.log("[AUDIT] Campanha bruta encontrada:", campanhas);
+      console.log("[AUDIT] TODAS AS CAMPANHAS ACESSÍVEIS:", allCamps);
+
+      const campanhas = (allCamps || []).sort((a, b) => {
+        return new Date(b.data_inicio).getTime() - new Date(a.data_inicio).getTime();
+      })[0];
 
       if (campanhas) {
+        console.log("[AUDIT] CAMPANHA SELECIONADA PARA UI:", campanhas);
         setCampanhaAtiva(campanhas as any);
 
         // Fetch publications
