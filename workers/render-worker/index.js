@@ -3,7 +3,11 @@ import ffmpeg from 'fluent-ffmpeg';
 import { promises as fs } from 'fs';
 import path from 'path';
 import { tmpdir } from 'os';
+import { exec } from 'child_process';
+import { promisify } from 'util';
 import 'dotenv/config';
+
+const execAsync = promisify(exec);
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const workerSecret = process.env.RENDER_WORKER_SECRET;
@@ -64,34 +68,63 @@ async function processJob(claimResult) {
     await fs.writeFile(musicPath, Buffer.from(mRes.data));
 
     // 2. FFmpeg Processing
-    console.log(`[${job.id}] Rendering...`);
+    console.log(`[${job.id}] Probing video for audio streams...`);
+    
+    let hasAudio = false;
+    try {
+      const { stdout } = await execAsync(
+        `ffprobe -v error -select_streams a -show_entries stream=index -of csv=p=0 "${videoPath}"`
+      );
+      hasAudio = stdout.trim().length > 0;
+      console.log(`[${job.id}] Video audio stream: ${hasAudio ? 'YES' : 'NO'}`);
+    } catch (probeErr) {
+      console.warn(`[${job.id}] ffprobe failed or no audio:`, probeErr.message);
+      hasAudio = false;
+    }
+
+    console.log(`[${job.id}] Rendering (${hasAudio ? 'original audio + music' : 'music only'})...`);
+    
     const musicStartSec = (job.music_start_ms || 0) / 1000;
     const musicVol = (job.music_volume || 100) / 100;
     const origVol = (job.original_audio_volume || 0) / 100;
 
     await new Promise((resolve, reject) => {
-      ffmpeg(videoPath)
+      const command = ffmpeg(videoPath)
         .input(musicPath)
-        .inputOptions([`-ss ${musicStartSec}`])
-        .complexFilter([
+        .inputOptions([`-ss ${musicStartSec}`]);
+
+      if (hasAudio) {
+        // Case: Video has audio, mix them
+        command.complexFilter([
           `[0:a]volume=${origVol}[a0];`,
           `[1:a]volume=${musicVol}[a1];`,
           `[a0][a1]amix=inputs=2:duration=first[aout]`
-        ])
-        .outputOptions([
-          '-map 0:v',
-          '-map [aout]',
-          '-c:v libx264',
-          '-preset fast',
-          '-crf 23',
-          '-pix_fmt yuv420p',
-          '-c:a aac',
-          '-shortest',
-          '-movflags +faststart'
-        ])
-        .on('error', reject)
-        .on('end', resolve)
-        .save(outputPath);
+        ]);
+        command.outputOptions(['-map [aout]']);
+      } else {
+        // Case: Video is silent, use music only
+        command.complexFilter([
+          `[1:a]volume=${musicVol}[aout]`
+        ]);
+        command.outputOptions(['-map [aout]']);
+      }
+
+      command.outputOptions([
+        '-map 0:v',
+        '-c:v libx264',
+        '-preset fast',
+        '-crf 23',
+        '-pix_fmt yuv420p',
+        '-c:a aac',
+        '-shortest',
+        '-movflags +faststart'
+      ])
+      .on('error', (err, stdout, stderr) => {
+        console.error(`[${job.id}] FFmpeg STDERR:`, stderr);
+        reject(new Error(`FFmpeg failed: ${err.message}`));
+      })
+      .on('end', resolve)
+      .save(outputPath);
     });
 
     // 3. Secure Upload via Signed Upload URL
