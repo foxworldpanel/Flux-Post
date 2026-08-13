@@ -110,6 +110,8 @@ type MediaRender = {
   created_at: string;
   completed_at: string | null;
   render_key: string;
+  render_options?: any;
+  is_approved?: boolean;
 };
 
 export default function CampanhaPage() {
