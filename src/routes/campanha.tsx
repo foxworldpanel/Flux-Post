@@ -390,47 +390,31 @@ export default function CampanhaPage() {
 
   async function fetchRenders(campaignId: string) {
     try {
-      console.log("[AUDIT] Buscando publicações para a campanha:", campaignId);
+      // Get all render keys for this campaign's publications to filter correctly
       const { data: pubs, error: pubsErr } = await supabase
         .from('publications')
-        .select('render_options, metadata')
+        .select('metadata, render_options')
         .eq('campaign_id', campaignId);
       
-      if (pubsErr) {
-        console.error("[AUDIT] Erro ao buscar publicações:", pubsErr);
-        throw pubsErr;
-      }
-
-      console.log("[AUDIT] Publicações encontradas:", pubs?.length);
+      if (pubsErr) throw pubsErr;
 
       // Extract render_key from render_options (standard) or metadata (fallback)
       const renderKeys = (pubs || [])
         .map(p => {
-          const ro = p.render_options as any;
-          const md = p.metadata as any;
-          return ro?.render_key || md?.render_key;
+           const ro = p.render_options as any;
+           const md = p.metadata as any;
+           return ro?.render_key || md?.render_key;
         })
         .filter(Boolean);
       
-      console.log("[AUDIT] Render keys extraídas:", renderKeys);
+      if (renderKeys.length === 0) return;
 
-      if (renderKeys.length === 0) {
-        console.warn("[AUDIT] Nenhuma render_key encontrada nas publicações.");
-        return;
-      }
-
-      // IMPORTANTE: Removendo o filtro de user_id se necessário, RLS já deve cuidar disso
       const { data: rendersData, error } = await supabase
         .from('media_renders')
         .select('*')
         .in('render_key', renderKeys);
 
-      if (error) {
-        console.error("[AUDIT] Erro ao buscar media_renders:", error);
-        throw error;
-      }
-
-      console.log("[AUDIT] Media renders encontrados no banco:", rendersData?.length);
+      if (error) throw error;
       setRenders((rendersData as any) || []);
     } catch (err) {
       console.error("Erro ao buscar renders:", err);
