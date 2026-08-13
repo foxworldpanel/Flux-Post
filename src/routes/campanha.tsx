@@ -109,6 +109,7 @@ type MediaRender = {
   attempts: number;
   created_at: string;
   completed_at: string | null;
+  render_key: string;
 };
 
 export default function CampanhaPage() {
