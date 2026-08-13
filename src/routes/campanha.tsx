@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -47,6 +48,11 @@ import {
   CheckCircle2,
   AlertTriangle,
   ShieldCheck,
+  Video,
+  ExternalLink,
+  RefreshCw,
+  AlertCircle,
+  Eye,
 } from "lucide-react";
 import { format, addDays, differenceInDays, isBefore, isAfter, startOfDay, addMinutes, setHours, setMinutes } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -54,6 +60,7 @@ import { artistService } from "@/services/artists";
 import { contentService } from "@/services/content";
 import { socialService, type SocialAccount } from "@/services/social";
 import { storageService } from "@/services/storage";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 type MusicTrack = {
   id: string;
@@ -92,6 +99,18 @@ type Campanha = {
   artists?: Artist;
 };
 
+type MediaRender = {
+  id: string;
+  source_content_id: string;
+  music_track_id: string;
+  status: 'queued' | 'processing' | 'ready' | 'failed';
+  storage_path: string | null;
+  error_message: string | null;
+  attempts: number;
+  created_at: string;
+  completed_at: string | null;
+};
+
 export default function CampanhaPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -106,6 +125,11 @@ export default function CampanhaPage() {
   const [signedUrls, setSignedUrls] = useState<Record<string, string>>({});
   const [loadingUrls, setLoadingUrls] = useState<Record<string, boolean>>({});
   const [totalPosts, setTotalPosts] = useState(0);
+  const [renders, setRenders] = useState<MediaRender[]>([]);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [previewVideoUrl, setPreviewVideoUrl] = useState<string | null>(null);
+  const [isPreviewLoading, setIsPreviewLoading] = useState(false);
+  const [previewTitle, setPreviewTitle] = useState("");
   
   // Modal states for new music
   const [isMusicModalOpen, setIsMusicModalOpen] = useState(false);
@@ -313,6 +337,9 @@ export default function CampanhaPage() {
         if (!accountsRelError && campaignAccounts) {
           setSelectedAccountIds(campaignAccounts.map(a => a.social_account_id));
         }
+        
+        // Fetch renders
+        fetchRenders(campanhas.id);
       }
 
       // Fetch data for new/existing campaign
@@ -352,6 +379,115 @@ export default function CampanhaPage() {
       toast.error("Erro ao carregar dados: " + error.message);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function fetchRenders(campaignId: string) {
+    try {
+      // Get all render keys for this campaign's publications to filter correctly
+      const { data: pubs } = await supabase
+        .from('publications')
+        .select('render_key')
+        .eq('campaign_id', campaignId);
+      
+      const renderKeys = (pubs || []).map(p => p.render_key).filter(Boolean);
+      
+      if (renderKeys.length === 0) return;
+
+      const { data: rendersData, error } = await supabase
+        .from('media_renders')
+        .select('*')
+        .in('render_key', renderKeys);
+
+      if (error) throw error;
+      setRenders((rendersData as any) || []);
+    } catch (err) {
+      console.error("Erro ao buscar renders:", err);
+    }
+  }
+
+  // Realtime subscription for renders
+  useEffect(() => {
+    if (!campanhaAtiva?.id) return;
+
+    const channel = supabase
+      .channel('schema-db-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'media_renders',
+          // We can't filter by campaign_id directly as it's not in media_renders
+          // but we filter by user_id which RLS already does
+        },
+        (payload) => {
+          console.log('Realtime render update:', payload);
+          if (payload.eventType === 'INSERT') {
+            setRenders(prev => [...prev, payload.new as MediaRender]);
+          } else if (payload.eventType === 'UPDATE') {
+            setRenders(prev => prev.map(r => r.id === payload.new.id ? (payload.new as MediaRender) : r));
+          } else if (payload.eventType === 'DELETE') {
+            setRenders(prev => prev.filter(r => r.id !== payload.old.id));
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [campanhaAtiva?.id]);
+
+  const renderStats = useMemo(() => {
+    return {
+      total: renders.length,
+      queued: renders.filter(r => r.status === 'queued').length,
+      processing: renders.filter(r => r.status === 'processing').length,
+      ready: renders.filter(r => r.status === 'ready').length,
+      failed: renders.filter(r => r.status === 'failed').length,
+    };
+  }, [renders]);
+
+  async function handlePreviewRender(render: MediaRender, title: string) {
+    if (!render.storage_path) return;
+    
+    setIsPreviewLoading(true);
+    setPreviewTitle(title);
+    setIsPreviewOpen(true);
+    
+    try {
+      const { data, error } = await supabase.storage
+        .from('rendered')
+        .createSignedUrl(render.storage_path, 3600);
+      
+      if (error) throw error;
+      setPreviewVideoUrl(data.signedUrl);
+    } catch (err: any) {
+      toast.error("Erro ao gerar preview: " + err.message);
+      setIsPreviewOpen(false);
+    } finally {
+      setIsPreviewLoading(false);
+    }
+  }
+
+  async function handleRerender(render: MediaRender) {
+    try {
+      const { error } = await supabase
+        .from('media_renders')
+        .update({ 
+          status: 'queued', 
+          attempts: 0, 
+          error_message: null,
+          started_at: null,
+          completed_at: null
+        })
+        .eq('id', render.id);
+
+      if (error) throw error;
+      toast.success("Renderização reiniciada!");
+    } catch (err: any) {
+      toast.error("Erro ao reiniciar: " + err.message);
     }
   }
 
@@ -1430,6 +1566,40 @@ export default function CampanhaPage() {
               </CardHeader>
               <CardContent className="space-y-8">
                 <div className="space-y-4">
+                  {/* Summary Header */}
+                  {renders.length > 0 && (
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                      <div className="bg-muted/30 border border-border/50 p-3 rounded-xl">
+                        <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest mb-1">Total</p>
+                        <p className="text-xl font-bold text-foreground">{renderStats.total}</p>
+                      </div>
+                      <div className="bg-muted/30 border border-border/50 p-3 rounded-xl">
+                        <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest mb-1 flex items-center gap-1">
+                          <Clock size={10} className="text-blue-400" /> Na Fila
+                        </p>
+                        <p className="text-xl font-bold text-foreground">{renderStats.queued}</p>
+                      </div>
+                      <div className="bg-muted/30 border border-border/50 p-3 rounded-xl">
+                        <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest mb-1 flex items-center gap-1">
+                          <Loader2 size={10} className="text-yellow-400 animate-spin" /> Renderizando
+                        </p>
+                        <p className="text-xl font-bold text-foreground">{renderStats.processing}</p>
+                      </div>
+                      <div className="bg-[#7C3AED]/5 border-[#7C3AED]/10 p-3 rounded-xl">
+                        <p className="text-[10px] text-[#7C3AED] uppercase font-bold tracking-widest mb-1 flex items-center gap-1">
+                          <CheckCircle2 size={10} /> Prontos
+                        </p>
+                        <p className="text-xl font-bold text-[#7C3AED]">{renderStats.ready}</p>
+                      </div>
+                      <div className="bg-red-500/5 border-red-500/10 p-3 rounded-xl">
+                        <p className="text-[10px] text-red-400 uppercase font-bold tracking-widest mb-1 flex items-center gap-1">
+                          <AlertCircle size={10} /> Falhas
+                        </p>
+                        <p className="text-xl font-bold text-red-400">{renderStats.failed}</p>
+                      </div>
+                    </div>
+                  )}
+
                   {(() => {
                     const isNow = campanhaAtiva.start_mode === "now";
                     if (isNow) return (
@@ -1606,57 +1776,139 @@ export default function CampanhaPage() {
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  <div className="grid grid-cols-2 gap-2 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+                  <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
                     {biblioteca
                       .filter((item) => selectedContentIds.includes(item.id))
-                      .map((item) => (
-                        <div
-                          key={item.id}
-                          className="relative aspect-video rounded-md overflow-hidden group"
-                        >
-                          {loadingUrls[item.id] ? (
-                            <div className="w-full h-full flex items-center justify-center bg-muted/50">
-                              <Loader2 className="w-4 h-4 text-primary animate-spin" />
-                            </div>
-                          ) : signedUrls[item.id] ? (
-                            <video
-                              src={signedUrls[item.id]}
-                              className="w-full h-full object-cover"
-                            />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center bg-muted/50">
-                              <X className="w-4 h-4 text-red-500/50" />
-                            </div>
-                          )}
-                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="h-6 w-6 text-foreground hover:text-red-400 hover:bg-transparent"
-                              onClick={async () => {
-                                if (!campanhaAtiva) return;
-                                try {
-                                  const { error } = await supabase
-                                    .from("campaign_contents")
-                                    .delete()
-                                    .eq("campaign_id", campanhaAtiva.id)
-                                    .eq("content_id", item.id);
+                      .map((item) => {
+                        const render = renders.find(r => r.source_content_id === item.id);
+                        
+                        return (
+                          <div key={item.id} className="bg-muted/30 border border-border/50 rounded-xl overflow-hidden group">
+                            <div className="flex gap-4 p-3">
+                              <div className="relative w-24 aspect-[9/16] rounded-lg overflow-hidden flex-shrink-0">
+                                {loadingUrls[item.id] ? (
+                                  <div className="w-full h-full flex items-center justify-center bg-muted/50">
+                                    <Loader2 className="w-4 h-4 text-primary animate-spin" />
+                                  </div>
+                                ) : signedUrls[item.id] ? (
+                                  <video src={signedUrls[item.id]} className="w-full h-full object-cover" />
+                                ) : (
+                                  <div className="w-full h-full flex items-center justify-center bg-muted/50">
+                                    <X className="w-4 h-4 text-red-500/50" />
+                                  </div>
+                                )}
+                                
+                                <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <Button
+                                    size="icon"
+                                    variant="destructive"
+                                    className="h-6 w-6 rounded-full"
+                                    onClick={async () => {
+                                      if (!campanhaAtiva) return;
+                                      try {
+                                        const { error } = await supabase
+                                          .from("campaign_contents")
+                                          .delete()
+                                          .eq("campaign_id", campanhaAtiva.id)
+                                          .eq("content_id", item.id);
 
-                                  if (error) throw error;
-                                  setSelectedContentIds((prev) =>
-                                    prev.filter((id) => id !== item.id),
-                                  );
-                                  toast.success("Conteúdo removido da campanha");
-                                } catch (err: any) {
-                                  toast.error("Erro ao remover: " + err.message);
-                                }
-                              }}
-                            >
-                              <X size={14} />
-                            </Button>
+                                        if (error) throw error;
+                                        setSelectedContentIds((prev) => prev.filter((id) => id !== item.id));
+                                        toast.success("Conteúdo removido");
+                                      } catch (err: any) {
+                                        toast.error("Erro ao remover: " + err.message);
+                                      }
+                                    }}
+                                  >
+                                    <X size={12} />
+                                  </Button>
+                                </div>
+                              </div>
+
+                              <div className="flex-1 flex flex-col justify-between py-1">
+                                <div className="space-y-2">
+                                  <div className="flex items-center justify-between">
+                                    <p className="text-xs font-bold text-foreground truncate max-w-[120px]">{item.title}</p>
+                                    {render ? (
+                                      <Badge 
+                                        variant="outline" 
+                                        className={`text-[9px] h-5 px-2 font-bold uppercase tracking-wider ${
+                                          render.status === 'ready' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' :
+                                          render.status === 'processing' ? 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20 animate-pulse' :
+                                          render.status === 'failed' ? 'bg-red-500/10 text-red-500 border-red-500/20' :
+                                          'bg-blue-500/10 text-blue-500 border-blue-500/20'
+                                        }`}
+                                      >
+                                        {render.status === 'ready' ? 'PRONTO' : 
+                                         render.status === 'processing' ? 'RENDERIZANDO' :
+                                         render.status === 'failed' ? 'FALHOU' : 'NA FILA'}
+                                      </Badge>
+                                    ) : (
+                                      <Badge variant="outline" className="text-[9px] h-5 px-2 bg-slate-500/10 text-slate-400 border-slate-500/20 uppercase">Aguardando</Badge>
+                                    )}
+                                  </div>
+
+                                  {render?.status === 'failed' && (
+                                    <Alert variant="destructive" className="py-1 px-2 h-auto bg-red-500/5 border-red-500/10">
+                                      <AlertCircle className="h-3 w-3" />
+                                      <AlertDescription className="text-[9px] leading-tight ml-1">
+                                        {render.error_message || "Erro desconhecido"}
+                                      </AlertDescription>
+                                    </Alert>
+                                  )}
+
+                                  <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                                    <div className="flex flex-col">
+                                      <span className="text-[8px] text-muted-foreground uppercase font-bold tracking-tighter">Duração</span>
+                                      <span className="text-[10px] text-foreground font-mono">{item.duration_seconds || '0'}s</span>
+                                    </div>
+                                    {render?.completed_at && (
+                                      <div className="flex flex-col">
+                                        <span className="text-[8px] text-muted-foreground uppercase font-bold tracking-tighter">Concluído em</span>
+                                        <span className="text-[10px] text-foreground font-mono">{format(new Date(render.completed_at), "HH:mm")}</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+
+                                <div className="flex gap-2 pt-2">
+                                  {render?.status === 'ready' ? (
+                                    <>
+                                      <Button 
+                                        size="sm" 
+                                        className="h-7 text-[10px] flex-1 bg-[#7C3AED]/20 hover:bg-[#7C3AED]/30 text-[#7C3AED] border border-[#7C3AED]/20 gap-1"
+                                        onClick={() => handlePreviewRender(render, item.title)}
+                                      >
+                                        <Eye size={12} /> Preview
+                                      </Button>
+                                      <Button 
+                                        size="sm" 
+                                        variant="outline"
+                                        className="h-7 w-8 p-0 border-border text-muted-foreground hover:text-foreground"
+                                        onClick={() => handleRerender(render)}
+                                      >
+                                        <RotateCcw size={12} />
+                                      </Button>
+                                    </>
+                                  ) : render?.status === 'failed' ? (
+                                    <Button 
+                                      size="sm" 
+                                      className="h-7 text-[10px] flex-1 bg-red-500/20 hover:bg-red-500/30 text-red-500 border border-red-500/20 gap-1"
+                                      onClick={() => handleRerender(render)}
+                                    >
+                                      <RefreshCw size={12} /> Tentar Novamente
+                                    </Button>
+                                  ) : render?.status === 'processing' ? (
+                                    <div className="flex-1 flex items-center justify-center gap-2 text-[10px] text-yellow-500/50 bg-yellow-500/5 rounded h-7 border border-yellow-500/10 italic">
+                                      <Loader2 size={10} className="animate-spin" /> Processando...
+                                    </div>
+                                  ) : null}
+                                </div>
+                              </div>
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                   </div>
                   
                   <div className="pt-2 border-t border-border space-y-2">
@@ -1689,6 +1941,65 @@ export default function CampanhaPage() {
           </div>
         )}
       </div>
+
+      {/* Preview Modal */}
+      <Dialog open={isPreviewOpen} onOpenChange={(open) => {
+        if (!open) {
+          setIsPreviewOpen(false);
+          setPreviewVideoUrl(null);
+        }
+      }}>
+        <DialogContent className="max-w-md bg-[#0A0A0F] border-slate-800 p-0 overflow-hidden">
+          <DialogHeader className="p-4 border-b border-slate-800/50">
+            <DialogTitle className="text-slate-200 flex items-center gap-2">
+              <Video size={18} className="text-[#7C3AED]" />
+              {previewTitle}
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="aspect-[9/16] bg-black relative flex items-center justify-center">
+            {isPreviewLoading ? (
+              <div className="flex flex-col items-center gap-3">
+                <Loader2 className="w-10 h-10 text-[#7C3AED] animate-spin" />
+                <p className="text-xs text-slate-400 font-mono">Gerando URL segura...</p>
+              </div>
+            ) : previewVideoUrl ? (
+              <video 
+                src={previewVideoUrl} 
+                className="w-full h-full object-contain"
+                controls
+                autoPlay
+              />
+            ) : (
+              <div className="flex flex-col items-center gap-3">
+                <AlertCircle className="w-10 h-10 text-red-500/50" />
+                <p className="text-xs text-slate-400 font-mono">Erro ao carregar vídeo.</p>
+              </div>
+            )}
+          </div>
+          
+          <div className="p-4 bg-slate-900/50 border-t border-slate-800/50 flex gap-3">
+            <Button 
+              className="flex-1 bg-[#7C3AED] hover:bg-[#6D28D9] text-white gap-2 h-10"
+              onClick={() => {
+                toast.success("Conteúdo aprovado para publicação!");
+                setIsPreviewOpen(false);
+              }}
+            >
+              <CheckCircle2 size={16} />
+              Aprovar Vídeo
+            </Button>
+            <Button 
+              variant="outline" 
+              className="border-slate-800 text-slate-400 hover:text-white gap-2 h-10"
+              onClick={() => setIsPreviewOpen(false)}
+            >
+              Fechar
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
     </DashboardLayout>
   );
 }
