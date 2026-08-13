@@ -311,14 +311,16 @@ export default function CampanhaPage() {
       if (campanhas) {
         setCampanhaAtiva(campanhas as any);
 
-        // Count posts
-        const { count, error: countError } = await supabase
+        // Fetch publications
+        const { data: pubsData, error: pubsError } = await supabase
           .from("publications")
-          .select("*", { count: "exact", head: true })
-          .eq("campaign_id", campanhas.id)
-          .eq("status", "published");
+          .select("*")
+          .eq("campaign_id", campanhas.id);
 
-        if (!countError) setTotalPosts(count || 0);
+        if (!pubsError && pubsData) {
+          setPublications(pubsData);
+          setTotalPosts(pubsData.filter(p => p.status === 'published').length);
+        }
 
         // Fetch campaign contents
         const { data: campaignContents, error: contentsError } = await supabase
