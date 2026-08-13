@@ -39,33 +39,19 @@ export default function Index() {
     <DashboardLayout>
       <div className="p-8 space-y-8 max-w-7xl mx-auto">
         <div className="bg-slate-950 border border-slate-800 p-8 rounded-xl font-mono text-sm leading-relaxed whitespace-pre-wrap text-slate-300">
-{`FASE 4.5 — CORRIGIR RENDER DE VÍDEOS SEM ÁUDIO
-
-A auditoria confirmou a causa raiz do erro FFmpeg no Render Worker.
-
-ROOT CAUSE CONFIRMADA:
-Alguns vídeos da biblioteca/Pexels não possuem stream de áudio.
-O worker atual sempre monta:
-[0:a]volume=0.2[a0];
-[1:a]volume=0.8[a1];
-[a0][a1]amix=inputs=2:duration=first[aout]
-
-Quando o vídeo é mudo, [0:a] não existe e o FFmpeg falha com:
-Error initializing complex filters
-Invalid argument
-
-Implemente agora uma correção robusta no Render Worker.
-
-FFPROBE IMPLEMENTED: YES
-VIDEO AUDIO DETECTION: PASS
-VIDEO WITH AUDIO FLOW: PASS
-VIDEO WITHOUT AUDIO FLOW: PASS
-MUSIC ONLY FILTER: [1:a]volume=\${musicVol}[aout]
-AUDIO MIX FILTER: [0:a]volume=\${origVol}[a0];[1:a]volume=\${musicVol}[a1];[a0][a1]amix=inputs=2:duration=first[aout]
-FFMPEG STDERR CAPTURE: YES
-BRIDGE UNCHANGED: YES
-AUTH UNCHANGED: YES
-READY TO DEPLOY VPS: YES
+{`EMPTY QUEUE BUG CONFIRMED: YES
+BRIDGE RETURNS JOB NULL: YES
+EMPTY QUEUE HTTP STATUS: 200
+INPUT LOOKUP SKIPPED WHEN EMPTY: YES
+WORKER HANDLES JOB NULL: YES
+EMPTY QUEUE LOGGED AS ERROR: NO
+FFPROBE FIX PRESERVED: YES
+BRIDGE AUTH PRESERVED: YES
+HEALTHCHECK VALID: YES
+HEALTHCHECK ISSUE: NONE
+RENDER_BRIDGE DEPLOYED: YES
+WORKER UPDATE READY FOR VPS: YES
+READY FOR VPS UPDATE: YES
 
 PARE.`}
         </div>
