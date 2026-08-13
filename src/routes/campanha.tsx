@@ -1048,17 +1048,17 @@ export default function CampanhaPage() {
 
 
         {!campanhaAtiva ? (
-          <Card className="bg-card border-border">
-            <CardHeader>
-              <CardTitle className="text-foreground flex items-center gap-2">
-                <Megaphone className="text-primary" />
-                Criar Nova Campanha
-              </CardTitle>
-              <CardDescription className="text-muted-foreground">
-                Configure os parâmetros para sua automação de postagens.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
+          <div className="space-y-12">
+            {/* BLOCO 1 — CAMPANHA */}
+            <Card className="bg-card/50 border-border/50 backdrop-blur-sm overflow-hidden">
+              <div className="bg-primary/5 px-6 py-4 border-b border-border/50">
+                <CardTitle className="text-xl font-bold text-foreground flex items-center gap-2">
+                  <Megaphone className="text-primary w-5 h-5" />
+                  1. DADOS DA CAMPANHA
+                </CardTitle>
+              </div>
+              <CardContent className="p-8 space-y-8">
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <Label className="text-muted-foreground">Nome da Campanha</Label>
