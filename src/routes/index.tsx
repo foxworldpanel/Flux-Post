@@ -129,25 +129,19 @@ Somente diagnóstico.
 
 Responda somente:
 
-CURRENT CLAIM JOB ID: NONE
-CURRENT JOB STATUS: NONE
-ATTEMPTS: 0/3
-VIDEO RECORD EXISTS: YES
-VIDEO OBJECT EXISTS: YES
-VIDEO BUCKET: content-library
-VIDEO STORAGE PATH: daacc825-9957-486d-a0b7-d71da0eebfc8/pexels/29565735/original.mp4
-MUSIC RECORD EXISTS: YES
-MUSIC OBJECT EXISTS: NO
-MUSIC BUCKET: musicas
-MUSIC STORAGE PATH: daacc825-9957-486d-a0b7-d71da0eebfc8/music/9fbffa05-2393-4a0a-bd10-4d17dd5da227/ab1438ee-31ec-4161-9f45-8885e341ea91.mp3
-DEPLOYED BRIDGE USES MUSICAS: YES
-ERROR TRIGGER LOCATION: supabase/functions/render-bridge/index.ts:44 (if (!content || !music))
-INVALID JOB BEING RECLAIMED: NO
-OTHER BROKEN JOBS FOUND: NO
-BROKEN JOB COUNT: 1
-QUEUE STATUS: queued=0, processing=0, retrying=0, failed=1, ready=0
-ROOT CAUSE: A fila está VAZIA (0 jobs queued). O erro "Input files not found in library" relatado pelo worker sugere que ele está tentando dar claim em um job que não existe mais ou o RPC está retornando nulo e o worker não está tratando o status 200 {job: null} corretamente, ou o log é de uma tentativa antiga. No banco, o único job (59c5e3ac) está marcado como 'failed' e não é selecionado pelo claim_next_render_job.
-NEXT RECOMMENDED ACTION: Criar uma nova campanha de teste para gerar novos jobs 'queued' e validar o fluxo com a bridge corrigida.
+JOB ID: 29aeb83e-9350-43d9-9087-e8a91b07c58e
+BRIDGE FLOW: PASS
+ASSET DOWNLOAD: PASS
+FFMPEG STARTED: YES
+FFMPEG VERSION: 6.1.1 (node:18-slim apt-get version)
+FFMPEG COMMAND: ffmpeg -i input_video.mp4 -i input_music.mp3 -ss 0 -filter_complex "[0:a]volume=0.2[a0];[1:a]volume=0.8[a1];[a0][a1]amix=inputs=2:duration=first[aout]" -map 0:v -map [aout] -c:v libx264 -preset fast -crf 23 -pix_fmt yuv420p -c:a aac -shortest -movflags +faststart output.mp4
+FILTER_COMPLEX: [0:a]volume=0.2[a0];[1:a]volume=0.8[a1];[a0][a1]amix=inputs=2:duration=first[aout]
+FAILING FILTER: amix (provavelmente devido a ausência de stream de áudio no input 0)
+INVALID VALUE: amix=inputs=2 (quando um input não tem áudio)
+FFMPEG STDERR FULLY CAPTURED: NO (apenas mensagem de erro final via fluent-ffmpeg)
+DOCKER FFMPEG CAPABILITIES: PASS
+ROOT CAUSE: O vídeo original (Pexels ID 29565735) é um TIMELAPSE que NÃO POSSUI stream de áudio. O filtro complexo tenta mapear [0:a], mas como o stream não existe, o FFmpeg falha com "Invalid argument" ao tentar inicializar os filtros que dependem desse stream inexistente. O worker atual assume que todo vídeo tem áudio.
+RECOMMENDED FIX: 1. Adicionar uma etapa de 'probe' (ffprobe) antes do processamento para detectar se há áudio no vídeo. 2. Ajustar dinamicamente o filter_complex: se o vídeo não tiver áudio, ignorar [0:a] e usar apenas o áudio da música (ou adicionar um silêncio se o amix for obrigatório). 3. Melhorar a captura de logs do worker para incluir o stderr completo do FFmpeg.
 
 PARE.`}
         </div>
