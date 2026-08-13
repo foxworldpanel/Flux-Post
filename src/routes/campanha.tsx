@@ -300,30 +300,17 @@ export default function CampanhaPage() {
       if (!user) return;
 
       // 1. Check for active campaign
-      console.log("[AUDIT] Buscando TODAS as campanhas para depuração...");
-      const { data: allCampanhas, error: debugError } = await supabase
-        .from("campanhas")
-        .select("id, nome, status, data_inicio");
-      
-      console.log("[AUDIT] Total de campanhas acessíveis via RLS:", allCampanhas?.length);
-      if (allCampanhas) {
-        allCampanhas.forEach(c => console.log(`[AUDIT] Campanha: ${c.nome} | ID: ${c.id} | Status: ${c.status}`));
-      }
-
       const { data: campanhas, error: campError } = await supabase
         .from("campanhas")
         .select("*, music_tracks(id, nome, artista, storage_path, artist_id), artists(id, name)")
+        .in("status", ["ativo", "pausado"])
         .order("data_inicio", { ascending: false })
         .limit(1)
         .maybeSingle();
 
-      if (campError) {
-        console.error("[AUDIT] Erro ao buscar campanha:", campError);
-        throw campError;
-      }
+      if (campError) throw campError;
 
       if (campanhas) {
-        console.log("[AUDIT] Campanha selecionada:", campanhas.id, "Status:", campanhas.status);
         setCampanhaAtiva(campanhas as any);
 
         // Fetch publications
@@ -333,7 +320,6 @@ export default function CampanhaPage() {
           .eq("campaign_id", campanhas.id);
 
         if (!pubsError && pubsData) {
-          console.log("[AUDIT] Publications carregadas:", pubsData.length);
           setPublications(pubsData);
           setTotalPosts(pubsData.filter(p => p.status === 'published').length);
         }
