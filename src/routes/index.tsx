@@ -1,18 +1,13 @@
 import { useState, useEffect } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { 
-  BarChart3, 
   Users, 
   Music, 
   Video, 
   TrendingUp, 
   Clock, 
-  CheckCircle2, 
-  AlertCircle,
   Megaphone,
   Plus
 } from "lucide-react";
@@ -53,7 +48,6 @@ export default function DashboardPage() {
           totalPosts: publications.count || 0
         });
 
-        // Recent activities (mock logic or real from publications)
         const { data: recentPubs } = await supabase
           .from("publications")
           .select("*, social_accounts(account_name), content_library(title)")
@@ -141,7 +135,6 @@ export default function DashboardPage() {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {/* Real list would go here */}
                   <div className="p-4 rounded-xl bg-muted/30 border border-border flex items-center justify-between">
                     <div className="flex items-center gap-4">
                       <div className="w-10 h-10 rounded-lg bg-[#7C3AED]/10 flex items-center justify-center text-[#7C3AED]">
