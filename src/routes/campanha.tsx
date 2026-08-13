@@ -389,12 +389,17 @@ export default function CampanhaPage() {
   async function fetchRenders(campaignId: string) {
     try {
       // Get all render keys for this campaign's publications to filter correctly
-      const { data: pubs } = await supabase
+      const { data: pubs, error: pubsErr } = await supabase
         .from('publications')
-        .select('render_key')
+        .select('metadata, render_options')
         .eq('campaign_id', campaignId);
       
-      const renderKeys = (pubs || []).map(p => p.render_key).filter(Boolean);
+      if (pubsErr) throw pubsErr;
+
+      // Extract render_key from render_options (standard) or metadata (fallback)
+      const renderKeys = (pubs || [])
+        .map(p => (p.render_options as any)?.render_key || (p.metadata as any)?.render_key)
+        .filter(Boolean);
       
       if (renderKeys.length === 0) return;
 
