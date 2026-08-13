@@ -313,7 +313,6 @@ export default function CampanhaPage() {
       const { data: campanhas, error: campError } = await supabase
         .from("campanhas")
         .select("*, music_tracks(id, nome, artista, storage_path, artist_id), artists(id, name)")
-        .in("status", ["ativo", "pausado", "encerrado"])
         .order("data_inicio", { ascending: false })
         .limit(1)
         .maybeSingle();
