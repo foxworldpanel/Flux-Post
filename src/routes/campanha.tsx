@@ -1518,10 +1518,398 @@ export default function CampanhaPage() {
                   </div>
                 </div>
 
-                <div className="space-y-6 pt-4 border-t border-border">
-                  <Label className="text-foreground text-base font-semibold uppercase">Programação</Label>
+            {/* BLOCO 2 — MÍDIA E ÁUDIO */}
+            <Card className="bg-card/50 border-border/50 backdrop-blur-sm overflow-hidden">
+              <div className="bg-primary/5 px-6 py-4 border-b border-border/50">
+                <CardTitle className="text-xl font-bold text-foreground flex items-center gap-2">
+                  <MusicIcon className="text-primary w-5 h-5" />
+                  2. CONFIGURAÇÕES DE ÁUDIO
+                </CardTitle>
+              </div>
+              <CardContent className="p-8 space-y-12">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-8">
+                  <div className="space-y-6">
+                    <div className="space-y-2">
+                      <Label className="text-muted-foreground font-bold tracking-widest text-[10px] uppercase">Modo de Áudio</Label>
+                      <div className="grid grid-cols-3 gap-2">
+                        {[
+                          { id: 'only_music', label: 'Só Música' },
+                          { id: 'music_plus_original', label: 'Mix' },
+                          { id: 'only_original', label: 'Original' }
+                        ].map((mode) => (
+                          <button
+                            key={mode.id}
+                            onClick={() => setFormData({ ...formData, audio_mode: mode.id as any })}
+                            className={`px-3 py-2 rounded-lg border text-xs font-bold transition-all ${
+                              formData.audio_mode === mode.id 
+                                ? "bg-primary/20 border-primary text-primary" 
+                                : "bg-muted/30 border-border text-muted-foreground hover:border-border/80"
+                            }`}
+                          >
+                            {mode.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label className="text-muted-foreground font-bold tracking-widest text-[10px] uppercase flex justify-between">
+                        Volume da Música <span>{formData.music_volume}%</span>
+                      </Label>
+                      <Input
+                        type="range"
+                        min="0"
+                        max="100"
+                        value={formData.music_volume}
+                        onChange={(e) => setFormData({ ...formData, music_volume: parseInt(e.target.value) })}
+                        className="accent-primary"
+                        disabled={formData.audio_mode === 'only_original'}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-6">
+                    <div className="space-y-2">
+                      <Label className="text-muted-foreground font-bold tracking-widest text-[10px] uppercase flex justify-between">
+                        Volume Original <span>{formData.original_audio_volume}%</span>
+                      </Label>
+                      <Input
+                        type="range"
+                        min="0"
+                        max="100"
+                        value={formData.original_audio_volume}
+                        onChange={(e) => setFormData({ ...formData, original_audio_volume: parseInt(e.target.value) })}
+                        className="accent-primary"
+                        disabled={formData.audio_mode === 'only_music'}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label className="text-muted-foreground font-bold tracking-widest text-[10px] uppercase">
+                        Início da Música (Segundos)
+                      </Label>
+                      <div className="flex gap-2">
+                        <Input
+                          type="number"
+                          placeholder="0"
+                          className="bg-muted/50 border-border text-foreground font-bold"
+                          value={formData.music_start_ms / 1000}
+                          onChange={(e) => setFormData({ ...formData, music_start_ms: (parseFloat(e.target.value) || 0) * 1000 })}
+                        />
+                        <div className="flex items-center px-3 bg-muted/30 border border-border rounded-md text-xs font-bold text-muted-foreground uppercase">
+                          SEG
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-6 pt-12 border-t border-border/30">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-1">
+                      <h3 className="text-xl font-bold text-foreground">SELECIONAR VÍDEOS</h3>
+                      <p className="text-muted-foreground text-xs font-medium uppercase tracking-wider">
+                        Escolha o conteúdo base da biblioteca
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 px-3 py-1 font-black">
+                        {selectedContentIds.length} SELECIONADOS
+                      </Badge>
+                      <Select value={contentFilter} onValueChange={setContentFilter}>
+                        <SelectTrigger className="w-[180px] bg-muted/50 border-border text-foreground font-bold text-xs h-10">
+                          <div className="flex items-center gap-2 uppercase">
+                            <Filter size={14} />
+                            <SelectValue placeholder="FILTRAR" />
+                          </div>
+                        </SelectTrigger>
+                        <SelectContent className="bg-card border-border text-foreground">
+                          <SelectItem value="todos">TODOS OS VÍDEOS</SelectItem>
+                          <SelectItem value="raw">RAW (ORIGINAIS)</SelectItem>
+                          <SelectItem value="processed">JÁ PROCESSADOS</SelectItem>
+                          <SelectItem value="artist">DESTE ARTISTA</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar p-1">
+                    {biblioteca
+                      .filter((c) => c.status !== "arquivado" && c.status !== "descartado")
+                      .filter((c) => {
+                        if (contentFilter === "todos") return true;
+                        if (contentFilter === "artist") return c.artist_id === formData.artist_id;
+                        return c.category === contentFilter;
+                      })
+                      .map((item) => {
+                        const isSelected = selectedContentIds.includes(item.id);
+                        return (
+                          <div
+                            key={item.id}
+                            onClick={() => {
+                              if (isSelected) {
+                                setSelectedContentIds((prev) => prev.filter((id) => id !== item.id));
+                              } else {
+                                setSelectedContentIds((prev) => [...prev, item.id]);
+                              }
+                            }}
+                            className={`relative aspect-[9/16] rounded-xl overflow-hidden border-2 cursor-pointer transition-all duration-300 group shadow-md ${
+                              isSelected
+                                ? "border-primary scale-[0.98] ring-4 ring-primary/20"
+                                : "border-transparent hover:border-border/80"
+                            }`}
+                          >
+                            {loadingUrls[item.id] ? (
+                              <div className="w-full h-full flex items-center justify-center bg-muted/50">
+                                <Loader2 className="w-6 h-6 text-primary animate-spin" />
+                              </div>
+                            ) : signedUrls[item.id] ? (
+                              <video
+                                src={signedUrls[item.id]}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center bg-muted/50">
+                                <X className="w-6 h-6 text-red-500/50" />
+                              </div>
+                            )}
+
+                            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent p-3 translate-y-2 group-hover:translate-y-0 transition-transform">
+                              <p className="text-[11px] text-white font-black truncate uppercase tracking-tighter">
+                                {item.title}
+                              </p>
+                              <div className="flex items-center justify-between mt-1">
+                                <Badge className="bg-white/10 hover:bg-white/20 text-white border-none text-[8px] h-4 px-1 font-bold backdrop-blur-sm">
+                                  {item.duration_seconds || 0}S
+                                </Badge>
+                                <div className="text-[8px] text-white/50 font-bold uppercase">
+                                  {item.category}
+                                </div>
+                              </div>
+                            </div>
+                            
+                            {isSelected && (
+                              <div className="absolute top-3 right-3 bg-primary rounded-full p-1.5 shadow-xl z-10 animate-in zoom-in duration-300">
+                                <Check size={16} className="text-white stroke-[3px]" />
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                  </div>
+
+                  {selectedContentIds.length > 0 && (
+                    <div className="flex items-center justify-between bg-primary/5 p-6 rounded-2xl border border-primary/20 shadow-inner">
+                      <div className="space-y-1">
+                        <p className="text-lg font-black text-foreground">
+                          {selectedContentIds.length} VÍDEOS SELECIONADOS
+                        </p>
+                        <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest">
+                          Prontos para processamento com a música
+                        </p>
+                      </div>
+                      <Button 
+                        onClick={(e) => {
+                          e.preventDefault();
+                          handleProcessBatch();
+                        }}
+                        disabled={isProcessingBatch || !formData.music_track_id}
+                        className="bg-primary hover:bg-primary/90 text-white gap-3 h-14 px-8 rounded-xl font-black text-lg shadow-xl shadow-primary/20 transition-all hover:scale-105 active:scale-95"
+                      >
+                        {isProcessingBatch ? (
+                          <Loader2 className="h-6 w-6 animate-spin" />
+                        ) : (
+                          <RefreshCw className="h-6 w-6" />
+                        )}
+                        PROCESSAR EM LOTE
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* BLOCO 3 — PROCESSAMENTO E REVISÃO */}
+            {selectedContentIds.length > 0 && (
+              <Card className="bg-card/50 border-border/50 backdrop-blur-sm overflow-hidden">
+                <div className="bg-primary/5 px-6 py-4 border-b border-border/50 flex items-center justify-between">
+                  <CardTitle className="text-xl font-bold text-foreground flex items-center gap-2">
+                    <Layers className="text-primary w-5 h-5" />
+                    3. VÍDEOS PROCESSADOS
+                  </CardTitle>
+                  <div className="flex items-center gap-6 text-[10px] font-black uppercase tracking-widest">
+                    <div className="flex items-center gap-2">
+                      <span className="text-muted-foreground">Status:</span>
+                      <span className="text-primary">{renders.filter(r => r.status === 'ready').length} / {selectedContentIds.length} PRONTOS</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-muted-foreground">Revisão:</span>
+                      <span className="text-emerald-500">{renders.filter(r => r.is_approved).length} APROVADOS</span>
+                    </div>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="h-7 text-[9px] font-black border-emerald-500/50 text-emerald-500 hover:bg-emerald-500/10"
+                      onClick={async () => {
+                        const readyIds = renders.filter(r => r.status === 'ready' && !r.is_approved).map(r => r.id);
+                        if (readyIds.length > 0) {
+                          const { error } = await supabase.from('media_renders').update({ is_approved: true }).in('id', readyIds);
+                          if (!error) {
+                            toast.success(`${readyIds.length} vídeos aprovados com sucesso!`);
+                            fetchRenders(campanhaAtiva?.id || '');
+                          }
+                        }
+                      }}
+                    >
+                      APROVAR TODOS PRONTOS
+                    </Button>
+                  </div>
+                </div>
+                <CardContent className="p-8">
+                  <p className="text-muted-foreground text-sm font-medium mb-8">
+                    Revise o resultado final com a música aplicada antes de publicar.
+                  </p>
                   
-                  <div className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+                    {selectedContentIds.map(contentId => {
+                      const content = biblioteca.find(c => c.id === contentId);
+                      const rKey = generateRenderKey({
+                        contentId,
+                        musicTrackId: formData.music_track_id,
+                        musicStartMs: formData.music_start_ms,
+                        musicVolume: formData.music_volume,
+                        originalAudioVolume: formData.original_audio_volume,
+                        audioMode: formData.audio_mode
+                      });
+                      const render = renders.find(r => r.render_key === rKey);
+                      
+                      return (
+                        <Card key={contentId} className="bg-muted/20 border-border/50 overflow-hidden group">
+                          <div className="aspect-[9/16] relative bg-black/40">
+                            {render?.status === 'ready' ? (
+                               <video 
+                                 src={signedUrls[`render_${render.id}`] || ''} 
+                                 className="w-full h-full object-cover"
+                                 poster={signedUrls[contentId]}
+                                 onClick={() => handlePreviewRender(render, content?.title || '')}
+                               />
+                            ) : (
+                               <div className="w-full h-full flex flex-col items-center justify-center p-6 text-center space-y-4">
+                                 {render?.status === 'processing' ? (
+                                   <div className="space-y-4">
+                                     <div className="relative w-16 h-16 mx-auto">
+                                       <Loader2 className="w-16 h-16 text-primary animate-spin opacity-20" />
+                                       <div className="absolute inset-0 flex items-center justify-center">
+                                          <RefreshCw className="w-8 h-8 text-primary animate-spin" />
+                                       </div>
+                                     </div>
+                                     <p className="text-[10px] font-black text-primary uppercase animate-pulse">Renderizando...</p>
+                                   </div>
+                                 ) : render?.status === 'failed' ? (
+                                   <div className="space-y-2">
+                                     <AlertTriangle className="w-12 h-12 text-red-500 mx-auto opacity-50" />
+                                     <p className="text-[10px] font-black text-red-500 uppercase">Falha no Processo</p>
+                                     <Button variant="link" size="sm" className="text-[8px] h-auto p-0 text-muted-foreground uppercase" onClick={() => handleProcessBatch()}>Tentar Novamente</Button>
+                                   </div>
+                                 ) : (
+                                   <div className="space-y-2">
+                                     <Clock className="w-12 h-12 text-muted-foreground/30 mx-auto" />
+                                     <p className="text-[10px] font-black text-muted-foreground uppercase">Aguardando Fila</p>
+                                   </div>
+                                 )}
+                               </div>
+                            )}
+
+                            {render?.status === 'ready' && (
+                              <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/20 pointer-events-none">
+                                <div className="w-16 h-16 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center border border-white/30">
+                                  <Play fill="white" className="text-white ml-1 w-8 h-8" />
+                                </div>
+                              </div>
+                            )}
+
+                            <div className="absolute top-3 right-3 flex flex-col gap-2">
+                              {render && (
+                                <Badge 
+                                  className={`border-none text-[8px] font-black px-2 py-0.5 tracking-tighter ${
+                                    render.status === 'ready' ? 'bg-emerald-500 text-white' :
+                                    render.status === 'processing' ? 'bg-yellow-500 text-black' :
+                                    render.status === 'failed' ? 'bg-red-500 text-white' :
+                                    'bg-blue-500 text-white'
+                                  }`}
+                                >
+                                  {render.status.toUpperCase()}
+                                </Badge>
+                              )}
+                              {render?.is_approved && (
+                                <Badge className="bg-emerald-600 text-white border-none text-[8px] font-black p-1">
+                                  <Check size={10} className="stroke-[4px]" />
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                          <div className="p-4 space-y-4">
+                            <div className="space-y-1">
+                              <h4 className="text-[11px] font-black text-foreground uppercase truncate tracking-tighter">{content?.title}</h4>
+                              <p className="text-[9px] text-muted-foreground font-bold font-mono tracking-tighter truncate">{rKey}</p>
+                            </div>
+                            
+                            <div className="grid grid-cols-2 gap-2">
+                              {render?.status === 'ready' ? (
+                                <>
+                                  <Button 
+                                    variant={render.is_approved ? "outline" : "default"}
+                                    size="sm" 
+                                    className={`text-[9px] font-black h-8 ${render.is_approved ? 'border-emerald-500/30 text-emerald-500' : 'bg-emerald-500 hover:bg-emerald-600 text-white'}`}
+                                    onClick={async () => {
+                                      const { error } = await supabase
+                                        .from('media_renders')
+                                        .update({ is_approved: !render.is_approved })
+                                        .eq('id', render.id);
+                                      if (!error) fetchRenders(campanhaAtiva?.id || '');
+                                    }}
+                                  >
+                                    {render.is_approved ? 'APROVADO' : 'APROVAR'}
+                                  </Button>
+                                  <Button 
+                                    variant="outline" 
+                                    size="sm" 
+                                    className="text-[9px] font-black h-8 border-border text-muted-foreground hover:text-foreground"
+                                    onClick={() => handlePreviewRender(render, content?.title || '')}
+                                  >
+                                    PLAY
+                                  </Button>
+                                </>
+                              ) : (
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm" 
+                                  className="col-span-2 text-[9px] font-black h-8 text-red-500 hover:bg-red-500/5"
+                                  onClick={() => setSelectedContentIds(prev => prev.filter(id => id !== contentId))}
+                                >
+                                  REMOVER DA CAMPANHA
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                        </Card>
+                      );
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* BLOCO 4 — PUBLICAÇÃO E PROGRAMAÇÃO */}
+            <Card className="bg-card/50 border-border/50 backdrop-blur-sm overflow-hidden">
+              <div className="bg-primary/5 px-6 py-4 border-b border-border/50">
+                <CardTitle className="text-xl font-bold text-foreground flex items-center gap-2">
+                  <Calendar className="text-primary w-5 h-5" />
+                  4. PROGRAMAÇÃO E DISTRIBUIÇÃO
+                </CardTitle>
+              </div>
+              <CardContent className="p-8 space-y-12">
+
                     <Label className="text-muted-foreground">Quando a campanha deve começar?</Label>
                     <div className="grid grid-cols-2 gap-4">
                       <button
