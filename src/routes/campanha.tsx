@@ -109,6 +109,7 @@ type MediaRender = {
   attempts: number;
   created_at: string;
   completed_at: string | null;
+  render_key: string;
 };
 
 export default function CampanhaPage() {
@@ -130,6 +131,7 @@ export default function CampanhaPage() {
   const [previewVideoUrl, setPreviewVideoUrl] = useState<string | null>(null);
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
   const [previewTitle, setPreviewTitle] = useState("");
+  const [publications, setPublications] = useState<any[]>([]);
   
   // Modal states for new music
   const [isMusicModalOpen, setIsMusicModalOpen] = useState(false);
@@ -309,14 +311,16 @@ export default function CampanhaPage() {
       if (campanhas) {
         setCampanhaAtiva(campanhas as any);
 
-        // Count posts
-        const { count, error: countError } = await supabase
+        // Fetch publications
+        const { data: pubsData, error: pubsError } = await supabase
           .from("publications")
-          .select("*", { count: "exact", head: true })
-          .eq("campaign_id", campanhas.id)
-          .eq("status", "published");
+          .select("*")
+          .eq("campaign_id", campanhas.id);
 
-        if (!countError) setTotalPosts(count || 0);
+        if (!pubsError && pubsData) {
+          setPublications(pubsData);
+          setTotalPosts(pubsData.filter(p => p.status === 'published').length);
+        }
 
         // Fetch campaign contents
         const { data: campaignContents, error: contentsError } = await supabase
@@ -385,12 +389,17 @@ export default function CampanhaPage() {
   async function fetchRenders(campaignId: string) {
     try {
       // Get all render keys for this campaign's publications to filter correctly
-      const { data: pubs } = await supabase
+      const { data: pubs, error: pubsErr } = await supabase
         .from('publications')
-        .select('render_key')
+        .select('metadata, render_options')
         .eq('campaign_id', campaignId);
       
-      const renderKeys = (pubs || []).map(p => p.render_key).filter(Boolean);
+      if (pubsErr) throw pubsErr;
+
+      // Extract render_key from render_options (standard) or metadata (fallback)
+      const renderKeys = (pubs || [])
+        .map(p => (p.render_options as any)?.render_key || (p.metadata as any)?.render_key)
+        .filter(Boolean);
       
       if (renderKeys.length === 0) return;
 
@@ -1780,7 +1789,14 @@ export default function CampanhaPage() {
                     {biblioteca
                       .filter((item) => selectedContentIds.includes(item.id))
                       .map((item) => {
-                        const render = renders.find(r => r.source_content_id === item.id);
+                        const pubsForThisContent = publications.filter(p => p.content_id === item.id);
+                        const render = renders.find(r => 
+                          r.source_content_id === item.id || 
+                          (r.render_key && pubsForThisContent.some((p: any) => 
+                            (p.render_options as any)?.render_key === r.render_key || 
+                            (p.metadata as any)?.render_key === r.render_key
+                          ))
+                        );
                         
                         return (
                           <div key={item.id} className="bg-muted/30 border border-border/50 rounded-xl overflow-hidden group">
