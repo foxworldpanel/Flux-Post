@@ -47,6 +47,11 @@ import {
   CheckCircle2,
   AlertTriangle,
   ShieldCheck,
+  Video,
+  ExternalLink,
+  RefreshCw,
+  AlertCircle,
+  Eye,
 } from "lucide-react";
 import { format, addDays, differenceInDays, isBefore, isAfter, startOfDay, addMinutes, setHours, setMinutes } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -54,6 +59,7 @@ import { artistService } from "@/services/artists";
 import { contentService } from "@/services/content";
 import { socialService, type SocialAccount } from "@/services/social";
 import { storageService } from "@/services/storage";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 type MusicTrack = {
   id: string;
@@ -92,6 +98,18 @@ type Campanha = {
   artists?: Artist;
 };
 
+type MediaRender = {
+  id: string;
+  source_content_id: string;
+  music_track_id: string;
+  status: 'queued' | 'processing' | 'ready' | 'failed';
+  storage_path: string | null;
+  error_message: string | null;
+  attempts: number;
+  created_at: string;
+  completed_at: string | null;
+};
+
 export default function CampanhaPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -106,6 +124,11 @@ export default function CampanhaPage() {
   const [signedUrls, setSignedUrls] = useState<Record<string, string>>({});
   const [loadingUrls, setLoadingUrls] = useState<Record<string, boolean>>({});
   const [totalPosts, setTotalPosts] = useState(0);
+  const [renders, setRenders] = useState<MediaRender[]>([]);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [previewVideoUrl, setPreviewVideoUrl] = useState<string | null>(null);
+  const [isPreviewLoading, setIsPreviewLoading] = useState(false);
+  const [previewTitle, setPreviewTitle] = useState("");
   
   // Modal states for new music
   const [isMusicModalOpen, setIsMusicModalOpen] = useState(false);
@@ -313,6 +336,9 @@ export default function CampanhaPage() {
         if (!accountsRelError && campaignAccounts) {
           setSelectedAccountIds(campaignAccounts.map(a => a.social_account_id));
         }
+        
+        // Fetch renders
+        fetchRenders(campanhas.id);
       }
 
       // Fetch data for new/existing campaign
@@ -352,6 +378,115 @@ export default function CampanhaPage() {
       toast.error("Erro ao carregar dados: " + error.message);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function fetchRenders(campaignId: string) {
+    try {
+      // Get all render keys for this campaign's publications to filter correctly
+      const { data: pubs } = await supabase
+        .from('publications')
+        .select('render_key')
+        .eq('campaign_id', campaignId);
+      
+      const renderKeys = (pubs || []).map(p => p.render_key).filter(Boolean);
+      
+      if (renderKeys.length === 0) return;
+
+      const { data: rendersData, error } = await supabase
+        .from('media_renders')
+        .select('*')
+        .in('render_key', renderKeys);
+
+      if (error) throw error;
+      setRenders((rendersData as any) || []);
+    } catch (err) {
+      console.error("Erro ao buscar renders:", err);
+    }
+  }
+
+  // Realtime subscription for renders
+  useEffect(() => {
+    if (!campanhaAtiva?.id) return;
+
+    const channel = supabase
+      .channel('schema-db-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'media_renders',
+          // We can't filter by campaign_id directly as it's not in media_renders
+          // but we filter by user_id which RLS already does
+        },
+        (payload) => {
+          console.log('Realtime render update:', payload);
+          if (payload.eventType === 'INSERT') {
+            setRenders(prev => [...prev, payload.new as MediaRender]);
+          } else if (payload.eventType === 'UPDATE') {
+            setRenders(prev => prev.map(r => r.id === payload.new.id ? (payload.new as MediaRender) : r));
+          } else if (payload.eventType === 'DELETE') {
+            setRenders(prev => prev.filter(r => r.id !== payload.old.id));
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [campanhaAtiva?.id]);
+
+  const renderStats = useMemo(() => {
+    return {
+      total: renders.length,
+      queued: renders.filter(r => r.status === 'queued').length,
+      processing: renders.filter(r => r.status === 'processing').length,
+      ready: renders.filter(r => r.status === 'ready').length,
+      failed: renders.filter(r => r.status === 'failed').length,
+    };
+  }, [renders]);
+
+  async function handlePreviewRender(render: MediaRender, title: string) {
+    if (!render.storage_path) return;
+    
+    setIsPreviewLoading(true);
+    setPreviewTitle(title);
+    setIsPreviewOpen(true);
+    
+    try {
+      const { data, error } = await supabase.storage
+        .from('rendered')
+        .createSignedUrl(render.storage_path, 3600);
+      
+      if (error) throw error;
+      setPreviewVideoUrl(data.signedUrl);
+    } catch (err: any) {
+      toast.error("Erro ao gerar preview: " + err.message);
+      setIsPreviewOpen(false);
+    } finally {
+      setIsPreviewLoading(false);
+    }
+  }
+
+  async function handleRerender(render: MediaRender) {
+    try {
+      const { error } = await supabase
+        .from('media_renders')
+        .update({ 
+          status: 'queued', 
+          attempts: 0, 
+          error_message: null,
+          started_at: null,
+          completed_at: null
+        })
+        .eq('id', render.id);
+
+      if (error) throw error;
+      toast.success("Renderização reiniciada!");
+    } catch (err: any) {
+      toast.error("Erro ao reiniciar: " + err.message);
     }
   }
 
