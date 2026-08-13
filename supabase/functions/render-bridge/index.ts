@@ -40,15 +40,25 @@ serve(async (req) => {
         }
 
         // RPC returns null if no job found, but we normalize checks for security
-        if (!job || Object.keys(job).length === 0) {
+        // Use strict check: if job is null, undefined, or empty object/array, it's an empty queue
+        if (!job || (Array.isArray(job) && job.length === 0) || (typeof job === 'object' && Object.keys(job).length === 0)) {
+          return new Response(JSON.stringify({ job: null }), { 
+            headers: { ...corsHeaders, "Content-Type": "application/json" } 
+          });
+        }
+
+        // Standardize: if job returned as array [job], take the first element
+        const jobData = Array.isArray(job) ? job[0] : job;
+
+        if (!jobData || !jobData.id) {
           return new Response(JSON.stringify({ job: null }), { 
             headers: { ...corsHeaders, "Content-Type": "application/json" } 
           });
         }
 
         // Get content & music details
-        const { data: content } = await supabase.from('content_library').select('*').eq('id', job.source_content_id).single();
-        const { data: music } = await supabase.from('music_tracks').select('*').eq('id', job.music_track_id).single();
+        const { data: content } = await supabase.from('content_library').select('*').eq('id', jobData.source_content_id).single();
+        const { data: music } = await supabase.from('music_tracks').select('*').eq('id', jobData.music_track_id).single();
 
         if (!content || !music) throw new Error("Input files not found in library");
 
@@ -72,7 +82,7 @@ serve(async (req) => {
             status: 'failed',
             error_message: errorMsg,
             last_heartbeat: null
-          }).eq('id', job.id);
+          }).eq('id', jobData.id);
 
           return new Response(JSON.stringify({ 
             job: null,
@@ -85,7 +95,7 @@ serve(async (req) => {
         const { data: musicUrl } = await supabase.storage.from('musicas').createSignedUrl(music.storage_path, 3600);
 
         return new Response(JSON.stringify({ 
-          job, 
+          job: jobData, 
           inputs: {
             video_url: videoUrl?.signedUrl,
             music_url: musicUrl?.signedUrl
