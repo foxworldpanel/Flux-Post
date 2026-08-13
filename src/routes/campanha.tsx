@@ -303,12 +303,13 @@ export default function CampanhaPage() {
       const { data: campanhas, error: campError } = await supabase
         .from("campanhas")
         .select("*, music_tracks(id, nome, artista, storage_path, artist_id), artists(id, name)")
-        .in("status", ["ativo", "pausado"])
         .order("data_inicio", { ascending: false })
         .limit(1)
         .maybeSingle();
 
       if (campError) throw campError;
+      
+      console.log("[AUDIT] Campanha bruta encontrada:", campanhas);
 
       if (campanhas) {
         setCampanhaAtiva(campanhas as any);
