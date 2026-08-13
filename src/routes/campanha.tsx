@@ -511,6 +511,95 @@ export default function CampanhaPage() {
     }
   }
 
+  async function handleProcessBatch() {
+    if (!formData.music_track_id) {
+      toast.error("Selecione uma música primeiro.");
+      return;
+    }
+    if (selectedContentIds.length === 0) {
+      toast.error("Selecione vídeos para processar.");
+      return;
+    }
+
+    setIsProcessingBatch(true);
+    const loadingToast = toast.loading(`Criando jobs para ${selectedContentIds.length} vídeos...`);
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Usuário não autenticado");
+
+      const renderOptions = {
+        musicStartMs: formData.music_start_ms,
+        musicVolume: formData.music_volume,
+        originalAudioVolume: formData.original_audio_volume,
+        audioMode: formData.audio_mode
+      };
+
+      const jobs = selectedContentIds.map(contentId => {
+        const render_key = `${contentId}_${formData.music_track_id}_${formData.music_start_ms}`;
+        return {
+          user_id: user.id,
+          source_content_id: contentId,
+          music_track_id: formData.music_track_id,
+          render_key,
+          render_options: renderOptions,
+          status: 'queued',
+          attempts: 0
+        };
+      });
+
+      // Insert with upsert to respect render_key idempotency
+      const { error } = await supabase
+        .from('media_renders')
+        .upsert(jobs, { onConflict: 'render_key' });
+
+      if (error) throw error;
+
+      toast.success(`${selectedContentIds.length} vídeos enviados para a fila de renderização!`);
+      
+      // Trigger dispatcher to start processing immediately
+      supabase.functions.invoke('campaign-dispatcher');
+      
+      // Refresh renders list
+      if (campanhaAtiva) {
+        fetchRenders(campanhaAtiva.id);
+      } else {
+        // Se for uma campanha nova, buscamos todos os renders do usuário recentes
+        const { data: latestRenders } = await supabase
+          .from('media_renders')
+          .select('*')
+          .in('source_content_id', selectedContentIds)
+          .eq('music_track_id', formData.music_track_id);
+        
+        setRenders((latestRenders as any) || []);
+      }
+      
+      setStep(3); // Avança para etapa de acompanhamento
+    } catch (err: any) {
+      console.error("Erro ao processar lote:", err);
+      toast.error("Falha ao criar jobs: " + err.message);
+    } finally {
+      setIsProcessingBatch(false);
+      toast.dismiss(loadingToast);
+    }
+  }
+
+  async function handleToggleApproval(renderId: string, currentStatus: boolean) {
+    try {
+      const { error } = await supabase
+        .from('media_renders')
+        .update({ is_approved: !currentStatus })
+        .eq('id', renderId);
+      
+      if (error) throw error;
+      
+      setRenders(prev => prev.map(r => r.id === renderId ? { ...r, is_approved: !currentStatus } : r));
+      toast.success(!currentStatus ? "Vídeo aprovado!" : "Aprovação removida.");
+    } catch (err: any) {
+      toast.error("Erro ao atualizar aprovação: " + err.message);
+    }
+  }
+
   async function loadSignedUrl(id: string, path: string) {
     if (signedUrls[id] || loadingUrls[id]) return;
 
