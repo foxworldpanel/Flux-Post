@@ -1616,6 +1616,25 @@ export default function CampanhaPage() {
                     </div>
                   )}
 
+                  {/* Botão de Ação de Processamento (FASE 4.6) */}
+                  {selectedContentIds.length > 0 && campanhaAtiva && (
+                    <div className="bg-gradient-to-r from-[#7C3AED]/10 to-[#7C3AED]/5 border border-[#7C3AED]/20 p-4 rounded-xl flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-bold text-foreground">Processamento de Conteúdo</p>
+                        <p className="text-xs text-muted-foreground">{selectedContentIds.length} vídeos selecionados prontos para renderizar</p>
+                      </div>
+                      <Button 
+                        onClick={async () => {
+                           // Adicionar lógica de processamento em lote aqui
+                           toast.info("Processamento em lote iniciado...");
+                        }}
+                        className="bg-[#7C3AED] hover:bg-[#6D28D9] text-white"
+                      >
+                        [ PROCESSAR {selectedContentIds.length} VÍDEOS ]
+                      </Button>
+                    </div>
+                  )}
+
                   {(() => {
                     const isNow = campanhaAtiva.start_mode === "now";
                     if (isNow) return (
