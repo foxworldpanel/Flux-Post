@@ -40,51 +40,35 @@ export default function Index() {
     <DashboardLayout>
       <div className="p-8 space-y-8 max-w-7xl mx-auto">
         <div className="bg-slate-950 border border-slate-800 p-8 rounded-xl font-mono text-sm leading-relaxed whitespace-pre-wrap text-slate-300">
-{`FASE 4.4 — CADASTRAR RENDER_WORKER_SECRET
+{`FASE 4.5 — DIAGNÓSTICO DO PRIMEIRO JOB DO RENDER WORKER
 
-Quero configurar agora o segredo compartilhado da arquitetura Bridge Server-to-Server v4.
+RESULTADOS DA AUDITORIA:
 
-Cadastre no ambiente seguro de Secrets do Lovable Cloud:
+RENDER BRIDGE AUTH: PASS
+JOB FOUND: YES
+JOB ID: 59c5e3ac-b258-4624-b31d-070cfb0fd9d8
 
-Nome:
- RENDER_WORKER_SECRET
+VIDEO RECORD EXISTS: YES
+VIDEO OBJECT EXISTS: YES
+VIDEO STORAGE PATH: daacc825-9957-486d-a0b7-d71da0eebfc8/pexels/29565735/original.mp4
 
-Valor:
- e1af0567091f2616e47aa1c67b574e2f08faf3ed3bcf5fe45bb612baa52b6bb8
+MUSIC RECORD EXISTS: YES
+MUSIC OBJECT EXISTS: NO
+MUSIC STORAGE PATH: daacc825-9957-486d-a0b7-d71da0eebfc8/music/9fbffa05-2393-4a0a-bd10-4d17dd5da227/ab1438ee-31ec-4161-9f45-8885e341ea91.mp3
 
+BROKEN INPUT: MUSIC
+ORPHAN JOB: YES (Relacionado à campanha legada "Rise Above")
+BRIDGE LOOKUP LOGIC CORRECT: NO
 
+ROOT CAUSE:
+O erro "Input files not found in library" ocorre porque o \`render-bridge\` tenta buscar a música no bucket \`music-tracks\` (linha 48), mas as músicas reais estão no bucket \`musicas\`. Além disso, o objeto físico da música para este job específico (59c5e3ac) não existe no storage, mesmo que o registro no banco aponte para ele. Este é um job "órfão" da fase de testes da campanha "Rise Above".
 
-Requisitos:
+RECOMMENDED FIX:
+1. Corrigir o bucket name no \`render-bridge\` de \`music-tracks\` para \`musicas\`.
+2. O Render Worker deve reportar falha definitiva para jobs onde o arquivo físico não existe, ou o sistema deve limpar jobs órfãos que referenciam arquivos inexistentes.
+3. Marcar o job 59c5e3ac como 'failed' manualmente para liberar a fila.
 
- Armazene o valor somente como Secret server-side. 
-
- NÃO grave o valor no código. 
-
- NÃO grave em .env do repositório. 
-
- NÃO grave em migrations. 
-
- NÃO exponha no frontend. 
-
- NÃO mostre o valor em logs. 
-
- NÃO retorne o valor na resposta. 
-
- NÃO altere o valor fornecido. 
-
- A Edge Function render-bridge deve continuar lendo o segredo através de Deno.env.get("RENDER_WORKER_SECRET"). 
-
- NÃO altere outras partes do sistema. 
-
-Depois de cadastrar, verifique apenas se RENDER_WORKER_SECRET está disponível para a Edge Function render-bridge.
-
-Ao finalizar, responda somente:
-
-RENDER_WORKER_SECRET CREATED: YES/NO
- RENDER_BRIDGE CAN ACCESS SECRET: YES/NO
- READY FOR VPS CONFIGURATION: YES/NO
-
-Não exiba o valor do segredo na resposta. PARE após essa configuração.`}
+PARE.`}
         </div>
       </div>
     </DashboardLayout>
