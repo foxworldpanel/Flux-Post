@@ -71,55 +71,67 @@ export default function DashboardPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold text-foreground">Dashboard</h1>
-            <p className="text-muted-foreground whitespace-pre-wrap">{`O processamento de vídeo via Edge Function 
+            <p className="text-muted-foreground whitespace-pre-wrap">{`No arquivo src/routes/campanha.tsx, 
 
-está falhando por CORS.
+na função handleProcessBatch, após inserir 
 
-Mude a estratégia de processamento:
+o job na tabela media_renders, adicione 
 
-Em vez de chamar a Edge Function render-bridge,
+uma chamada para o worker da VPS:
 
-insira o job diretamente na tabela media_renders
+Para cada contentId selecionado, após 
 
-usando o cliente supabase normal:
+salvar o job no Supabase, chama:
 
-const { data: { user } } = await supabase.auth.getUser();
+const workerUrl = 'http://169.58.169.242:3000/render';
 
-const render_key = [
+// Busca as URLs dos arquivos
 
-  videoId,
+const { data: content } = await supabase
 
-  formData.music_track_id,
+  .from('content_library')
 
-  formData.music_start_ms,
+  .select('storage_path')
 
-  formData.music_volume,
+  .eq('id', contentId)
 
-  formData.original_audio_volume,
+  .single();
 
-  formData.audio_mode,
+const { data: music } = await supabase
 
-  "v1"
+  .from('music_tracks')
 
-].join("|");
+  .select('storage_path')
 
-const { data: render, error } = await supabase
+  .eq('id', formData.music_track_id)
 
-  .from("media_renders")
+  .single();
 
-  .upsert({
+const { data: videoUrlData } = supabase.storage
 
-    user_id: user.id,
+  .from('videos')
 
-    source_content_id: videoId,
+  .getPublicUrl(content.storage_path);
 
-    music_track_id: formData.music_track_id,
+const { data: musicUrlData } = supabase.storage
 
-    render_key,
+  .from('musicas')
 
-    status: "ready",
+  .getPublicUrl(music.storage_path);
 
-    attempts: 1,
+await fetch(workerUrl, {
+
+  method: 'POST',
+
+  headers: { 'Content-Type': 'application/json' },
+
+  body: JSON.stringify({
+
+    render_id: render.id,
+
+    video_url: videoUrlData.publicUrl,
+
+    music_url: musicUrlData.publicUrl,
 
     audio_mode: formData.audio_mode,
 
@@ -129,19 +141,9 @@ const { data: render, error } = await supabase
 
     music_start_ms: formData.music_start_ms,
 
-  }, { onConflict: "render_key" })
+  })
 
-  .select()
-
-  .single();
-
-Marque status como "ready" diretamente.
-
-Remova qualquer chamada para Edge Functions
-
-no processo de renderização.
-
-Atualize o estado renders com o resultado.`}</p>
+});`}</p>
           </div>
           <Button 
             className="bg-[#7C3AED] hover:bg-[#6D28D9] text-white gap-2"

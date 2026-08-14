@@ -150,8 +150,8 @@ export default function CampanhaPage() {
   // ─── Process videos (via render-bridge) ──────────────────────────────────
   async function handleProcessAll() {
     if (!formData.music_track_id) return toast.error("Selecione uma música primeiro");
-    const music = musicas.find(m => m.id === formData.music_track_id);
-    if (!music) return toast.error("Música não encontrada");
+    const musicTrack = musicas.find(m => m.id === formData.music_track_id);
+    if (!musicTrack) return toast.error("Música não encontrada");
 
     setIsProcessing(true);
     try {
@@ -179,7 +179,7 @@ export default function CampanhaPage() {
               source_content_id: videoId,
               music_track_id: formData.music_track_id,
               render_key,
-              status: "ready", // Marcamos como ready para o render-worker pegar, ou simulando sucesso se o worker for manual
+              status: "ready", 
               attempts: 0,
               audio_mode: formData.audio_mode,
               music_volume: formData.music_volume,
@@ -192,6 +192,49 @@ export default function CampanhaPage() {
           if (error) throw error;
 
           if (render) {
+            // Chamada para o worker da VPS
+            const workerUrl = 'http://169.58.169.242:3000/render';
+            
+            const { data: content } = await supabase
+              .from('content_library')
+              .select('storage_path')
+              .eq('id', videoId)
+              .single();
+
+            const { data: music } = await supabase
+              .from('music_tracks')
+              .select('storage_path')
+              .eq('id', formData.music_track_id)
+              .single();
+
+            if (content?.storage_path && music?.storage_path) {
+              const { data: videoUrlData } = supabase.storage
+                .from('videos')
+                .getPublicUrl(content.storage_path);
+
+              const { data: musicUrlData } = supabase.storage
+                .from('musicas')
+                .getPublicUrl(music.storage_path);
+
+              try {
+                await fetch(workerUrl, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    render_id: render.id,
+                    video_url: videoUrlData.publicUrl,
+                    music_url: musicUrlData.publicUrl,
+                    audio_mode: formData.audio_mode,
+                    music_volume: formData.music_volume,
+                    original_audio_volume: formData.original_audio_volume,
+                    music_start_ms: formData.music_start_ms,
+                  })
+                });
+              } catch (fetchErr) {
+                console.warn("Worker VPS inacessível, mas job salvo:", fetchErr);
+              }
+            }
+
             setRenders(prev => {
               const filtered = prev.filter(r => r.id !== render.id);
               return [...filtered, render as RenderItem];
@@ -204,7 +247,7 @@ export default function CampanhaPage() {
           toast.error(`Falha ao processar vídeo ${videoId}`);
         }
       }
-      toast.success("Jobs de renderização inseridos!");
+      toast.success("Jobs de renderização enviados para o worker!");
     } catch (e: any) {
       toast.error("Erro: " + e.message);
     } finally {
