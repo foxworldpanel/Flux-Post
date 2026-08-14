@@ -1494,10 +1494,10 @@ export default function CampanhaPage() {
               <div className="flex items-center justify-between">
                 <Button 
                   onClick={handleProcessBatch}
-                  disabled={processingBatch || selectedContentIds.length === 0}
+                  disabled={isProcessingBatch || selectedContentIds.length === 0}
                   className="bg-[#7C3AED] hover:bg-[#6D28D9] text-foreground font-bold"
                 >
-                  {processingBatch ? (
+                  {isProcessingBatch ? (
                     <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> PROCESSANDO...</>
                   ) : (
                     <><Zap className="mr-2 h-4 w-4" /> PROCESSAR TUDO</>
@@ -1510,7 +1510,7 @@ export default function CampanhaPage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {selectedContentIds.map(id => {
-                  const item = libraryItems.find(i => i.id === id);
+                  const item = biblioteca.find((i: any) => i.id === id);
                   if (!item) return null;
                   const rKey = generateRenderKey({
                     contentId: id,
