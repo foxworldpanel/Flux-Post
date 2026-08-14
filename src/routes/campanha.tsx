@@ -1775,6 +1775,8 @@ export default function CampanhaPage() {
             </CardContent>
           </Card>
         )}
+        </div>
+      )}
 
         {!campanhaAtiva && (
           <div className="fixed bottom-6 left-0 right-0 z-50 px-6 max-w-4xl mx-auto">
