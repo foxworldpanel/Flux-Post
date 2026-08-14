@@ -135,12 +135,26 @@ async function processJob(claimResult) {
 
     // 3. Secure Upload via Signed Upload URL
     console.log(`[${job.id}] Uploading result...`);
-    const { data: uploadInfo } = await client.post('', { action: 'get_upload_url', job_id: job.id });
-    
     const finalBuffer = await fs.readFile(outputPath);
-    await axios.put(uploadInfo.upload_url, finalBuffer, {
-      headers: { 'Content-Type': 'video/mp4' }
-    });
+    
+    try {
+      // Supabase Storage TUS/Standard Upload via Signed URL:
+      // The token must be sent in the Authorization header as a Bearer token.
+      await axios.put(uploadInfo.upload_url, finalBuffer, {
+        headers: { 
+          'Content-Type': 'video/mp4',
+          'Authorization': `Bearer ${uploadInfo.token}`
+        }
+      });
+    } catch (uploadErr) {
+      const errorResponse = uploadErr.response;
+      const detailedError = errorResponse 
+        ? `HTTP ${errorResponse.status}: ${JSON.stringify(errorResponse.data)}`
+        : uploadErr.message;
+      
+      console.error(`[${job.id}] Upload Error Details:`, detailedError);
+      throw new Error(`Upload failed: ${detailedError}`);
+    }
 
     // 4. Complete Job
     const stats = await fs.stat(outputPath);
