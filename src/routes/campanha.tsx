@@ -193,7 +193,7 @@ export default function CampanhaPage() {
 
           if (render) {
             // Chamada para o worker da VPS
-            const workerUrl = 'https://ruth-techrepublic-precision-now.trycloudflare.com/render';
+            const workerUrl = 'https://worker.fluxpost.store/render';
             
             const { data: content } = await supabase
               .from('content_library')
