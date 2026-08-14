@@ -1192,14 +1192,14 @@ export default function CampanhaPage() {
                     <Input
                       type="time"
                       className="bg-muted/50 border-border text-foreground"
-                      value={formData.horario_inicio}
-                      onChange={(e) => setFormData({ ...formData, horario_inicio: e.target.value })}
+                      value={formData.hora_inicio}
+                      onChange={(e) => setFormData({ ...formData, hora_inicio: e.target.value })}
                     />
                     <Input
                       type="time"
                       className="bg-muted/50 border-border text-foreground"
-                      value={formData.horario_fim}
-                      onChange={(e) => setFormData({ ...formData, horario_fim: e.target.value })}
+                      value={formData.hora_fim}
+                      onChange={(e) => setFormData({ ...formData, hora_fim: e.target.value })}
                     />
                   </div>
                 </div>
