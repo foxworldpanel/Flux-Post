@@ -1621,14 +1621,14 @@ export default function CampanhaPage() {
                         <div className="flex gap-2">
                           <Button 
                             className={`flex-1 h-8 text-[10px] font-bold ${render.is_approved ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-muted hover:bg-muted/80 text-muted-foreground'}`}
-                            onClick={() => toggleApproval(render.id, true)}
+                            onClick={() => handleToggleApproval(render.id, !!render.is_approved)}
                           >
                             APROVAR
                           </Button>
                           <Button 
                             variant="ghost"
                             className={`h-8 text-[10px] font-bold ${!render.is_approved && render.is_approved === false ? 'text-red-500' : 'text-muted-foreground'}`}
-                            onClick={() => toggleApproval(render.id, false)}
+                            onClick={() => handleToggleApproval(render.id, !!render.is_approved)}
                           >
                             REJEITAR
                           </Button>
