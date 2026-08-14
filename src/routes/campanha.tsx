@@ -17,7 +17,7 @@ import {
 import { format, addDays } from "date-fns";
 import { socialService, type SocialAccount } from "@/services/social";
 import { contentService } from "@/services/content";
-import { processVideo, loadFFmpeg } from "@/services/videoProcessor";
+// Removidos processVideo e loadFFmpeg pois agora usamos a Edge Function render-bridge
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type MusicTrack = { id: string; nome: string; artista: string; artist_id: string; storage_path: string | null; };
@@ -147,62 +147,71 @@ export default function CampanhaPage() {
   }
 
   // ─── Process videos ───────────────────────────────────────────────────────
+  // ─── Process videos (via render-bridge) ──────────────────────────────────
   async function handleProcessAll() {
     if (!formData.music_track_id) return toast.error("Selecione uma música primeiro");
     const music = musicas.find(m => m.id === formData.music_track_id);
-    if (!music?.storage_path) return toast.error("Música sem arquivo de áudio");
+    if (!music) return toast.error("Música não encontrada");
 
     setIsProcessing(true);
     try {
-      await loadFFmpeg();
-      const { data: { publicUrl: musicUrl } } = supabase.storage.from("musicas").getPublicUrl(music.storage_path);
+      const pollRender = async (renderId: string) => {
+        for (let i = 0; i < 60; i++) {
+          await new Promise(r => setTimeout(r, 3000));
+          const { data: render } = await supabase
+            .from('media_renders')
+            .select('*')
+            .eq('id', renderId)
+            .single();
+          
+          if (render?.status === 'ready' || render?.status === 'failed') return render;
+        }
+        return null;
+      };
 
       for (const videoId of Array.from(selVideos)) {
-        const video = biblioteca.find(v => v.id === videoId);
-        if (!video) continue;
-
         setProcessProgress(prev => ({ ...prev, [videoId]: "processing" }));
+        
         try {
-          const videoUrl = signedUrls[videoId];
-          if (!videoUrl) throw new Error("URL do vídeo não disponível");
+          const { data, error } = await supabase.functions.invoke(
+            'render-bridge',
+            {
+              body: {
+                source_content_id: videoId,
+                music_track_id: formData.music_track_id,
+                audio_mode: formData.audio_mode,
+                music_volume: formData.music_volume,
+                original_audio_volume: formData.original_audio_volume,
+                music_start_ms: formData.music_start_ms,
+              }
+            }
+          );
 
-          const blob = await processVideo(videoUrl, musicUrl, {
-            audioMode: formData.audio_mode,
-            musicVolume: formData.music_volume,
-            originalAudioVolume: formData.original_audio_volume,
-            musicStartMs: formData.music_start_ms,
-          });
+          if (error) throw error;
+          if (!data?.id) throw new Error("Render ID não retornado pelo motor");
 
-          // Upload processed video
-          const { data: { user } } = await supabase.auth.getUser();
-          const path = `rendered/${user!.id}/${videoId}_${formData.music_track_id}.mp4`;
-          const { error: upErr } = await supabase.storage.from("rendered").upload(path, blob, { upsert: true, contentType: "video/mp4" });
-          if (upErr) throw upErr;
-
-          // Save render record
-          const { data: render, error: dbErr } = await supabase.from("media_renders").upsert({
-            user_id: user!.id,
-            source_content_id: videoId,
-            music_track_id: formData.music_track_id,
-            status: "ready",
-            storage_path: path,
-            render_key: `${videoId}|${formData.music_track_id}`,
-            attempts: 1,
-          }, { onConflict: "render_key" }).select().single();
-
-          if (!dbErr && render) {
+          const finalRender = await pollRender(data.id);
+          
+          if (finalRender) {
             setRenders(prev => {
-              const filtered = prev.filter(r => r.id !== render.id);
-              return [...filtered, render as RenderItem];
+              const filtered = prev.filter(r => r.id !== finalRender.id);
+              return [...filtered, finalRender as RenderItem];
             });
+            setProcessProgress(prev => ({ ...prev, [videoId]: finalRender.status }));
+            if (finalRender.status === 'failed') {
+              console.error(`Erro no render ${videoId}:`, finalRender.error_message);
+            }
+          } else {
+            setProcessProgress(prev => ({ ...prev, [videoId]: "failed" }));
+            toast.error(`Timeout no processamento do vídeo ${videoId}`);
           }
-          setProcessProgress(prev => ({ ...prev, [videoId]: "ready" }));
         } catch (e: any) {
           setProcessProgress(prev => ({ ...prev, [videoId]: "failed" }));
-          console.error("Erro ao processar vídeo", videoId, e);
+          console.error("Erro ao solicitar render:", videoId, e);
+          toast.error(`Falha ao iniciar render do vídeo ${videoId}`);
         }
       }
-      toast.success("Processamento concluído!");
+      toast.success("Processamento solicitado!");
     } catch (e: any) {
       toast.error("Erro: " + e.message);
     } finally {
