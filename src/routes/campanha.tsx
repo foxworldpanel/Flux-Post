@@ -1109,7 +1109,7 @@ export default function CampanhaPage() {
         )}
 
 
-        {!campanhaAtiva ? (
+        {!campanhaAtiva && (
           <div className="space-y-6">
             {step === 1 && (
               <Card className="bg-card border-border">
