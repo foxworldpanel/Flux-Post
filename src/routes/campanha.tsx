@@ -30,6 +30,7 @@ import {
   Megaphone,
   Zap,
   Music as MusicIcon,
+  Music2,
   Calendar,
   Clock,
   RotateCcw,
@@ -53,6 +54,10 @@ import {
   RefreshCw,
   AlertCircle,
   Eye,
+  CheckSquare,
+  Rocket,
+  ArrowLeft,
+  ArrowRight,
 } from "lucide-react";
 import { format, addDays, differenceInDays, isBefore, isAfter, startOfDay, addMinutes, setHours, setMinutes } from "date-fns";
 import { ptBR } from "date-fns/locale";
