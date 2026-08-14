@@ -193,7 +193,7 @@ export default function CampanhaPage() {
 
           if (render) {
             // Chamada para o worker da VPS
-            const workerUrl = 'http://169.58.169.242:3000/render';
+            const workerUrl = 'https://marine-eclipse-superior-calculations.trycloudflare.com/render';
             
             const { data: content } = await supabase
               .from('content_library')
