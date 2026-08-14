@@ -134,6 +134,16 @@ async function processJob(claimResult) {
     });
 
     // 3. Secure Upload via Signed Upload URL
+    console.log(`[${job.id}] Requesting signed upload URL...`);
+    const { data: uploadInfo } = await client.post('', {
+      action: 'get_upload_url',
+      job_id: job.id
+    });
+
+    if (!uploadInfo || !uploadInfo.upload_url || !uploadInfo.token) {
+      throw new Error("Failed to obtain a valid signed upload URL from bridge");
+    }
+
     console.log(`[${job.id}] Uploading result...`);
     const finalBuffer = await fs.readFile(outputPath);
     
@@ -146,6 +156,7 @@ async function processJob(claimResult) {
           'Authorization': `Bearer ${uploadInfo.token}`
         }
       });
+      console.log(`[${job.id}] Upload completed.`);
     } catch (uploadErr) {
       const errorResponse = uploadErr.response;
       const detailedError = errorResponse 
@@ -157,6 +168,7 @@ async function processJob(claimResult) {
     }
 
     // 4. Complete Job
+    console.log(`[${job.id}] Completing job...`);
     const stats = await fs.stat(outputPath);
     await client.post('', { 
       action: 'complete', 
@@ -166,7 +178,7 @@ async function processJob(claimResult) {
       }
     });
 
-    console.log(`[${job.id}] Success: ${uploadInfo.storage_path}`);
+    console.log(`[${job.id}] Success.`);
 
   } catch (err) {
     const errMsg = err.response?.data?.error || err.message;
