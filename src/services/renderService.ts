@@ -1,6 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
 import { storageService } from "./storage";
-import { processVideo } from "./videoProcessor";
 import { toast } from "sonner";
 
 export interface RenderOptions {
@@ -109,12 +108,6 @@ export const renderService = {
         }
       }
 
-      const blob = await processVideo(
-        signedVideo.signedUrl,
-        musicUrl,
-        options,
-        (msg) => {
-          if (msg.includes("Writing file")) onProgress?.('processing', 30);
           if (msg.includes("Running command")) onProgress?.('processing', 60);
         }
       );
