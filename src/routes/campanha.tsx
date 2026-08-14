@@ -1445,12 +1445,16 @@ export default function CampanhaPage() {
               </div>
 
               <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3">
-                {libraryItems.map((item) => {
+                {biblioteca.map((item) => {
                   const isSelected = selectedContentIds.includes(item.id);
                   return (
                     <div
                       key={item.id}
-                      onClick={() => toggleContentSelection(item.id)}
+                      onClick={() => {
+                        setSelectedContentIds(prev => 
+                          prev.includes(item.id) ? prev.filter(id => id !== item.id) : [...prev, item.id]
+                        );
+                      }}
                       className={`relative aspect-[9/16] rounded-lg overflow-hidden border-2 cursor-pointer transition-all ${
                         isSelected ? "border-primary ring-2 ring-primary/20 scale-[0.98]" : "border-border/50 opacity-60 grayscale-[0.5] hover:opacity-100"
                       }`}
