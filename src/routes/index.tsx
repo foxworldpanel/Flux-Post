@@ -71,7 +71,87 @@ export default function DashboardPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold text-foreground">Dashboard</h1>
-            <p className="text-muted-foreground">Bem-vindo ao Flux Post Engine.</p>
+            <p className="text-muted-foreground whitespace-pre-wrap">{`No arquivo src/routes/campanha.tsx, a função 
+
+handleProcessAll está tentando usar FFmpeg.wasm 
+
+direto no navegador mas falha por CORS.
+
+Substitua o processamento local pelo render-bridge
+
+que já existe no projeto:
+
+1. Em vez de chamar processVideo() do videoProcessor.ts,
+
+   chame a Edge Function render-bridge via:
+
+   
+
+   const { data, error } = await supabase.functions.invoke(
+
+     'render-bridge',
+
+     {
+
+       body: {
+
+         source_content_id: videoId,
+
+         music_track_id: formData.music_track_id,
+
+         audio_mode: formData.audio_mode,
+
+         music_volume: formData.music_volume,
+
+         original_audio_volume: formData.original_audio_volume,
+
+         music_start_ms: formData.music_start_ms,
+
+       }
+
+     }
+
+   );
+
+2. Após invocar, poll o status do render na tabela
+
+   media_renders a cada 3 segundos até status = 'ready'
+
+   ou 'failed':
+
+   
+
+   const pollRender = async (renderId: string) => {
+
+     for (let i = 0; i < 60; i++) {
+
+       await new Promise(r => setTimeout(r, 3000));
+
+       const { data: render } = await supabase
+
+         .from('media_renders')
+
+         .select('*')
+
+         .eq('id', renderId)
+
+         .single();
+
+       if (render?.status === 'ready' || 
+
+           render?.status === 'failed') return render;
+
+     }
+
+   };
+
+3. Atualize o estado renders com o resultado
+
+   do poll
+
+4. Remova os imports de processVideo e loadFFmpeg
+
+   do arquivo campanha.tsx`}</p>
           </div>
           <Button 
             className="bg-[#7C3AED] hover:bg-[#6D28D9] text-white gap-2"
