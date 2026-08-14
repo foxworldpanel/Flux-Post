@@ -1206,8 +1206,8 @@ export default function CampanhaPage() {
                 <div className="space-y-2">
                   <Label className="text-muted-foreground text-[10px] font-bold uppercase tracking-wider">Intervalo entre Contas (min)</Label>
                   <Select
-                    value={formData.intervalo_contas_min.toString()}
-                    onValueChange={(v) => setFormData({ ...formData, intervalo_contas_min: parseInt(v) })}
+                    value={formData.intervalo_min.toString()}
+                    onValueChange={(v) => setFormData({ ...formData, intervalo_min: parseInt(v) })}
                   >
                     <SelectTrigger className="bg-muted/50 border-border text-foreground">
                       <SelectValue />
