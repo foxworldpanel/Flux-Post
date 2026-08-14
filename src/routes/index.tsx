@@ -79,11 +79,11 @@ a URL do worker:
 
 Mude de:
 
-const workerUrl = 'http://169.58.169.242:3000/render';
+'https://marine-eclipse-superior-calculations.trycloudflare.com/render'
 
 Para:
 
-const workerUrl = 'https://marine-eclipse-superior-calculations.trycloudflare.com/render';`}</p>
+'http://169.58.169.242/render'`}</p>
           </div>
           <Button 
             className="bg-[#7C3AED] hover:bg-[#6D28D9] text-white gap-2"
