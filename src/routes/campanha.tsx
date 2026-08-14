@@ -1426,7 +1426,7 @@ export default function CampanhaPage() {
                     variant="outline"
                     size="sm"
                     className="text-[10px] bg-muted/50 border-border text-foreground"
-                    onClick={() => setSelectedContentIds(libraryItems.map(i => i.id))}
+                    onClick={() => setSelectedContentIds(biblioteca.map((i: any) => i.id))}
                   >
                     Selecionar Todos
                   </Button>
