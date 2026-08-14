@@ -1805,6 +1805,7 @@ export default function CampanhaPage() {
           </div>
         )}
       </div>
+      </div>
 
       {/* Preview Modal */}
       <Dialog open={isPreviewOpen} onOpenChange={(open) => {
