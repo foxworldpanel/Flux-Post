@@ -71,87 +71,55 @@ export default function DashboardPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold text-foreground">Dashboard</h1>
-            <p className="text-muted-foreground whitespace-pre-wrap">{`No arquivo src/routes/campanha.tsx, a função 
+            <p className="text-muted-foreground whitespace-pre-wrap">{`A Edge Function render-bridge está sendo 
 
-handleProcessAll está tentando usar FFmpeg.wasm 
+chamada com URL errada causando erro de CORS.
 
-direto no navegador mas falha por CORS.
+No arquivo src/routes/campanha.tsx, 
 
-Substitua o processamento local pelo render-bridge
+na função handleProcessAll, substitua 
 
-que já existe no projeto:
+a chamada da Edge Function por:
 
-1. Em vez de chamar processVideo() do videoProcessor.ts,
+const { data, error } = await supabase.functions.invoke(
 
-   chame a Edge Function render-bridge via:
+  'render-bridge',
 
-   
+  {
 
-   const { data, error } = await supabase.functions.invoke(
+    body: {
 
-     'render-bridge',
+      source_content_id: videoId,
 
-     {
+      music_track_id: formData.music_track_id,
 
-       body: {
+      audio_mode: formData.audio_mode,
 
-         source_content_id: videoId,
+      music_volume: formData.music_volume,
 
-         music_track_id: formData.music_track_id,
+      original_audio_volume: formData.original_audio_volume,
 
-         audio_mode: formData.audio_mode,
+      music_start_ms: formData.music_start_ms,
 
-         music_volume: formData.music_volume,
+    }
 
-         original_audio_volume: formData.original_audio_volume,
+  }
 
-         music_start_ms: formData.music_start_ms,
+);
 
-       }
+if (error) throw error;
 
-     }
+const renderId = data?.render_id;
 
-   );
+Certifique que está usando 
 
-2. Após invocar, poll o status do render na tabela
+supabase.functions.invoke() e NÃO 
 
-   media_renders a cada 3 segundos até status = 'ready'
+fetch() direto para chamar Edge Functions.
 
-   ou 'failed':
+O cliente supabase já está importado 
 
-   
-
-   const pollRender = async (renderId: string) => {
-
-     for (let i = 0; i < 60; i++) {
-
-       await new Promise(r => setTimeout(r, 3000));
-
-       const { data: render } = await supabase
-
-         .from('media_renders')
-
-         .select('*')
-
-         .eq('id', renderId)
-
-         .single();
-
-       if (render?.status === 'ready' || 
-
-           render?.status === 'failed') return render;
-
-     }
-
-   };
-
-3. Atualize o estado renders com o resultado
-
-   do poll
-
-4. Remova os imports de processVideo e loadFFmpeg
-
-   do arquivo campanha.tsx`}</p>
+no arquivo.`}</p>
           </div>
           <Button 
             className="bg-[#7C3AED] hover:bg-[#6D28D9] text-white gap-2"
