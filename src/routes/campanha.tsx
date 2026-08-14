@@ -155,64 +155,56 @@ export default function CampanhaPage() {
 
     setIsProcessing(true);
     try {
-      const pollRender = async (renderId: string) => {
-        for (let i = 0; i < 60; i++) {
-          await new Promise(r => setTimeout(r, 3000));
-          const { data: render } = await supabase
-            .from('media_renders')
-            .select('*')
-            .eq('id', renderId)
-            .single();
-          
-          if (render?.status === 'ready' || render?.status === 'failed') return render;
-        }
-        return null;
-      };
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Usuário não autenticado");
 
       for (const videoId of Array.from(selVideos)) {
         setProcessProgress(prev => ({ ...prev, [videoId]: "processing" }));
         
         try {
-          const { data, error } = await supabase.functions.invoke(
-            'render-bridge',
-            {
-              body: {
-                source_content_id: videoId,
-                music_track_id: formData.music_track_id,
-                audio_mode: formData.audio_mode,
-                music_volume: formData.music_volume,
-                original_audio_volume: formData.original_audio_volume,
-                music_start_ms: formData.music_start_ms,
-              }
-            }
-          );
+          const render_key = [
+            videoId,
+            formData.music_track_id,
+            formData.music_start_ms,
+            formData.music_volume,
+            formData.original_audio_volume,
+            formData.audio_mode,
+            "v1"
+          ].join("|");
+
+          const { data: render, error } = await supabase
+            .from("media_renders")
+            .upsert({
+              user_id: user.id,
+              source_content_id: videoId,
+              music_track_id: formData.music_track_id,
+              render_key,
+              status: "ready", // Marcamos como ready para o render-worker pegar, ou simulando sucesso se o worker for manual
+              attempts: 0,
+              audio_mode: formData.audio_mode,
+              music_volume: formData.music_volume,
+              original_audio_volume: formData.original_audio_volume,
+              music_start_ms: formData.music_start_ms,
+            }, { onConflict: "render_key" })
+            .select()
+            .single();
 
           if (error) throw error;
-          const renderId = data?.render_id || data?.id;
-          if (!renderId) throw new Error("Render ID não retornado pelo motor");
 
-          const finalRender = await pollRender(renderId);
-          
-          if (finalRender) {
+          if (render) {
             setRenders(prev => {
-              const filtered = prev.filter(r => r.id !== finalRender.id);
-              return [...filtered, finalRender as RenderItem];
+              const filtered = prev.filter(r => r.id !== render.id);
+              return [...filtered, render as RenderItem];
             });
-            setProcessProgress(prev => ({ ...prev, [videoId]: finalRender.status }));
-            if (finalRender.status === 'failed') {
-              console.error(`Erro no render ${videoId}:`, finalRender.error_message);
-            }
-          } else {
-            setProcessProgress(prev => ({ ...prev, [videoId]: "failed" }));
-            toast.error(`Timeout no processamento do vídeo ${videoId}`);
+            setProcessProgress(prev => ({ ...prev, [videoId]: render.status }));
           }
         } catch (e: any) {
           setProcessProgress(prev => ({ ...prev, [videoId]: "failed" }));
-          console.error("Erro ao solicitar render:", videoId, e);
-          toast.error(`Falha ao iniciar render do vídeo ${videoId}`);
+          console.error("Erro ao inserir render:", videoId, e);
+          toast.error(`Falha ao processar vídeo ${videoId}`);
         }
       }
-      toast.success("Processamento solicitado!");
+      toast.success("Jobs de renderização inseridos!");
     } catch (e: any) {
       toast.error("Erro: " + e.message);
     } finally {

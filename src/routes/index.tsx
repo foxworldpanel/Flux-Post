@@ -71,55 +71,77 @@ export default function DashboardPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold text-foreground">Dashboard</h1>
-            <p className="text-muted-foreground whitespace-pre-wrap">{`A Edge Function render-bridge está sendo 
+            <p className="text-muted-foreground whitespace-pre-wrap">{`O processamento de vídeo via Edge Function 
 
-chamada com URL errada causando erro de CORS.
+está falhando por CORS.
 
-No arquivo src/routes/campanha.tsx, 
+Mude a estratégia de processamento:
 
-na função handleProcessAll, substitua 
+Em vez de chamar a Edge Function render-bridge,
 
-a chamada da Edge Function por:
+insira o job diretamente na tabela media_renders
 
-const { data, error } = await supabase.functions.invoke(
+usando o cliente supabase normal:
 
-  'render-bridge',
+const { data: { user } } = await supabase.auth.getUser();
 
-  {
+const render_key = [
 
-    body: {
+  videoId,
 
-      source_content_id: videoId,
+  formData.music_track_id,
 
-      music_track_id: formData.music_track_id,
+  formData.music_start_ms,
 
-      audio_mode: formData.audio_mode,
+  formData.music_volume,
 
-      music_volume: formData.music_volume,
+  formData.original_audio_volume,
 
-      original_audio_volume: formData.original_audio_volume,
+  formData.audio_mode,
 
-      music_start_ms: formData.music_start_ms,
+  "v1"
 
-    }
+].join("|");
 
-  }
+const { data: render, error } = await supabase
 
-);
+  .from("media_renders")
 
-if (error) throw error;
+  .upsert({
 
-const renderId = data?.render_id;
+    user_id: user.id,
 
-Certifique que está usando 
+    source_content_id: videoId,
 
-supabase.functions.invoke() e NÃO 
+    music_track_id: formData.music_track_id,
 
-fetch() direto para chamar Edge Functions.
+    render_key,
 
-O cliente supabase já está importado 
+    status: "ready",
 
-no arquivo.`}</p>
+    attempts: 1,
+
+    audio_mode: formData.audio_mode,
+
+    music_volume: formData.music_volume,
+
+    original_audio_volume: formData.original_audio_volume,
+
+    music_start_ms: formData.music_start_ms,
+
+  }, { onConflict: "render_key" })
+
+  .select()
+
+  .single();
+
+Marque status como "ready" diretamente.
+
+Remova qualquer chamada para Edge Functions
+
+no processo de renderização.
+
+Atualize o estado renders com o resultado.`}</p>
           </div>
           <Button 
             className="bg-[#7C3AED] hover:bg-[#6D28D9] text-white gap-2"
