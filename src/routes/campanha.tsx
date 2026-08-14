@@ -188,9 +188,10 @@ export default function CampanhaPage() {
           );
 
           if (error) throw error;
-          if (!data?.id) throw new Error("Render ID não retornado pelo motor");
+          const renderId = data?.render_id || data?.id;
+          if (!renderId) throw new Error("Render ID não retornado pelo motor");
 
-          const finalRender = await pollRender(data.id);
+          const finalRender = await pollRender(renderId);
           
           if (finalRender) {
             setRenders(prev => {
