@@ -23,7 +23,7 @@ interface LibraryItem {
   storage_path: string;
 }
 
-type ProcessStep = "idle" | "loading-ffmpeg" | "downloading" | "processing" | "completed";
+type ProcessStep = "idle" | "enqueued" | "completed";
 
 export default function ProcessarPage() {
   const [videos, setVideos] = useState<LibraryItem[]>([]);
@@ -33,7 +33,8 @@ export default function ProcessarPage() {
   
   const [step, setStep] = useState<ProcessStep>("idle");
   const [progress, setProgress] = useState(0);
-  const [resultBlob, setResultBlob] = useState<Blob | null>(null);
+  const [resultRender, setResultRender] = useState<any>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -56,9 +57,10 @@ export default function ProcessarPage() {
     }
 
     try {
-      setStep("loading-ffmpeg");
-      setProgress(10);
-      setResultBlob(null);
+      setStep("enqueued");
+      setProgress(20);
+      setResultRender(null);
+      setPreviewUrl(null);
 
       const render = await renderService.requestRender({
         videoId: selectedVideo,
@@ -66,24 +68,43 @@ export default function ProcessarPage() {
         audioMode: 'music_plus_original',
         musicVolume: 80,
         originalAudioVolume: 20
-      }, (stepName, progressVal) => {
-        if (stepName === 'downloading') setStep('downloading');
-        if (stepName === 'processing') setStep('processing');
-        setProgress(progressVal);
       });
 
-      // Get the signed URL for the resulting video
-      const { data: signedUrlData } = await supabase.storage
-        .from('rendered')
-        .createSignedUrl(render.storage_path!, 3600);
+      toast.info("Trabalho enfileirado! Acompanhando progresso...");
 
-      const response = await fetch(signedUrlData?.signedUrl || '');
-      const blob = await response.blob();
+      // Poll for render status
+      const pollInterval = setInterval(async () => {
+        const { data, error } = await supabase
+          .from('media_renders')
+          .select('*')
+          .eq('id', render.id)
+          .single();
 
-      setStep("completed");
-      setProgress(100);
-      setResultBlob(blob);
-      toast.success("Vídeo processado com sucesso (Engine Centralizada)!");
+        if (error) {
+          clearInterval(pollInterval);
+          throw error;
+        }
+
+        if (data.status === 'ready' && data.storage_path) {
+          clearInterval(pollInterval);
+          
+          const { data: signedUrlData } = await supabase.storage
+            .from('rendered')
+            .createSignedUrl(data.storage_path, 3600);
+
+          setPreviewUrl(signedUrlData?.signedUrl || null);
+          setResultRender(data);
+          setStep("completed");
+          setProgress(100);
+          toast.success("Vídeo processado com sucesso!");
+        } else if (data.status === 'failed') {
+          clearInterval(pollInterval);
+          throw new Error(data.error_message || "Erro no processamento remoto");
+        } else if (data.status === 'processing') {
+          setProgress(60);
+        }
+      }, 3000);
+
     } catch (error: any) {
       console.error(error);
       setStep("idle");
@@ -92,48 +113,23 @@ export default function ProcessarPage() {
   };
 
   const handleSave = async () => {
-    if (!resultBlob || !selectedVideo || !selectedMusic) return;
+    if (!resultRender || !selectedVideo || !selectedMusic) return;
 
     try {
       setSaving(true);
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Usuário não autenticado");
 
-      const extension = "mp4";
-      const filePath = storageService.generateSafePath({
-        userId: user.id,
-        assetType: 'video',
-        extension
-      });
-      
-      console.log('Salvando vídeo processado (seguro):', filePath);
-
-      const { error: uploadError } = await supabase.storage
-        .from('videos')
-        .upload(filePath, resultBlob, {
-          cacheControl: '3600',
-          upsert: true,
-          contentType: 'video/mp4'
-        });
-
-      if (uploadError) {
-        console.error('Erro upload storage:', uploadError);
-        throw new Error("Não foi possível salvar o vídeo na biblioteca.");
-      }
-
-      // 3. Save to videos table (Manual processing)
+      // Link the existing render to the library
       const { error: dbError } = await supabase.from("videos").insert({
-        nome: `Processado ${new Date().toLocaleDateString()}`,
-        storage_path: filePath,
+        nome: `Remoto ${new Date().toLocaleDateString()}`,
+        storage_path: resultRender.storage_path,
         user_id: user.id
       });
 
-      if (dbError) {
-        await storageService.cleanup('videos', filePath);
-        throw dbError;
-      }
+      if (dbError) throw dbError;
       
-      toast.success("Vídeo processado e salvo na biblioteca!");
+      toast.success("Vídeo adicionado à biblioteca!");
     } catch (error: any) {
       toast.error("Erro ao salvar: " + error.message);
     } finally {
@@ -143,9 +139,7 @@ export default function ProcessarPage() {
 
   const getStepLabel = () => {
     switch (step) {
-      case "loading-ffmpeg": return "Carregando FFmpeg... (isso pode levar alguns segundos)";
-      case "downloading": return "Baixando arquivos...";
-      case "processing": return "Processando vídeo...";
+      case "enqueued": return "Aguardando processamento remoto...";
       case "completed": return "Concluído!";
       default: return "";
     }
@@ -243,10 +237,10 @@ export default function ProcessarPage() {
           )}
         </div>
 
-        {resultBlob && (
+        {previewUrl && (
           <Card className="bg-card border-border overflow-hidden animate-in fade-in slide-in-from-bottom-4">
             <CardHeader className="flex flex-row items-center justify-between border-b border-border pb-4">
-              <CardTitle className="text-foreground">Resultado</CardTitle>
+              <CardTitle className="text-foreground">Resultado Remoto</CardTitle>
               <Button
                 onClick={handleSave}
                 disabled={saving}
@@ -258,7 +252,7 @@ export default function ProcessarPage() {
             </CardHeader>
             <CardContent className="p-0">
               <video
-                src={URL.createObjectURL(resultBlob)}
+                src={previewUrl}
                 controls
                 className="w-full aspect-video"
               />

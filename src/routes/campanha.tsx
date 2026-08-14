@@ -79,7 +79,46 @@ export default function CampanhaPage() {
   // Active campaign
   const [campanhaAtiva, setCampanhaAtiva] = useState<any>(null);
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => { 
+    fetchData(); 
+
+    // Realtime subscription for media_renders
+    const channel = supabase
+      .channel('media_renders_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'media_renders'
+        },
+        (payload) => {
+          const updatedRender = payload.new as RenderItem;
+          if (updatedRender) {
+            setRenders(prev => {
+              const filtered = prev.filter(r => r.id !== updatedRender.id);
+              return [...filtered, updatedRender];
+            });
+            
+            // Sync process progress
+            setProcessProgress(prev => ({
+              ...prev,
+              [updatedRender.source_content_id]: updatedRender.status
+            }));
+
+            // Handle success toast if just turned ready
+            if (updatedRender.status === 'ready') {
+              toast.success("Vídeo processado e pronto!");
+            }
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
 
   async function fetchData() {
     setLoading(true);
@@ -87,18 +126,29 @@ export default function CampanhaPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const [tracksRes, libraryRes, accountsRes, campRes] = await Promise.all([
+      const [tracksRes, libraryRes, accountsRes, campRes, rendersRes] = await Promise.all([
         supabase.from("music_tracks").select("id, nome, artista, artist_id, storage_path"),
         supabase.from("content_library").select("id, title, storage_path, duration_seconds").order("created_at", { ascending: false }),
         socialService.getConnectedAccounts(),
         supabase.from("campanhas").select("*").in("status", ["ativo", "pausado"]).order("data_inicio", { ascending: false }).limit(1),
+        supabase.from("media_renders").select("*").eq("user_id", user.id)
       ]);
 
       setMusicas(tracksRes.data || []);
       setBiblioteca(libraryRes.data || []);
       setSocialAccounts(accountsRes || []);
+      setRenders(rendersRes.data || []);
 
       if (campRes.data?.[0]) setCampanhaAtiva(campRes.data[0]);
+
+      // Sync progress state from initial renders
+      if (rendersRes.data) {
+        const progress: Record<string, string> = {};
+        rendersRes.data.forEach(r => {
+          progress[r.source_content_id] = r.status;
+        });
+        setProcessProgress(progress);
+      }
 
       // Load signed URLs
       for (const item of (libraryRes.data || [])) {
@@ -123,9 +173,9 @@ export default function CampanhaPage() {
     if (step === 3) return selVideos.size > 0;
     if (step === 4) return Array.from(selVideos).every(id => {
       const r = renders.find(r => r.source_content_id === id && r.music_track_id === formData.music_track_id);
-      return r?.status === "ready";
+      return r?.status === "ready" && !!r.storage_path;
     });
-    if (step === 5) return renders.some(r => r.is_approved);
+    if (step === 5) return renders.filter(r => selVideos.has(r.source_content_id) && r.music_track_id === formData.music_track_id).every(r => r.is_approved);
     if (step === 6) return selAccounts.size > 0;
     return true;
   }
@@ -137,17 +187,21 @@ export default function CampanhaPage() {
     if (step === 4) {
       const pending = Array.from(selVideos).filter(id => {
         const r = renders.find(r => r.source_content_id === id && r.music_track_id === formData.music_track_id);
-        return r?.status !== "ready";
+        return r?.status !== "ready" || !r.storage_path;
       });
       if (pending.length > 0) return `Aguarde o processamento: ${pending.length} vídeos pendentes`;
     }
-    if (step === 5 && !renders.some(r => r.is_approved)) return "Aprove pelo menos um vídeo";
+    if (step === 5) {
+      const selectedRenders = renders.filter(r => selVideos.has(r.source_content_id) && r.music_track_id === formData.music_track_id);
+      const unapprovedCount = selectedRenders.filter(r => !r.is_approved).length;
+      if (unapprovedCount > 0) return `Aprove todos os vídeos (${unapprovedCount} pendentes)`;
+    }
     if (step === 6 && selAccounts.size === 0) return "Selecione pelo menos uma conta";
     return "";
   }
 
   // ─── Process videos ───────────────────────────────────────────────────────
-  // ─── Process videos (via render-bridge) ──────────────────────────────────
+  // ─── Process videos (Server-side Enqueue) ──────────────────────────────────
   async function handleProcessAll() {
     if (!formData.music_track_id) return toast.error("Selecione uma música primeiro");
     const musicTrack = musicas.find(m => m.id === formData.music_track_id);
@@ -159,8 +213,7 @@ export default function CampanhaPage() {
       if (!user) throw new Error("Usuário não autenticado");
 
       for (const videoId of Array.from(selVideos)) {
-        setProcessProgress(prev => ({ ...prev, [videoId]: "processing" }));
-        
+        // Enforce status = "queued" and proper schema
         try {
           const render_key = [
             videoId,
@@ -179,12 +232,13 @@ export default function CampanhaPage() {
               source_content_id: videoId,
               music_track_id: formData.music_track_id,
               render_key,
-              status: "ready", 
+              status: "queued", 
               attempts: 0,
               audio_mode: formData.audio_mode,
               music_volume: formData.music_volume,
               original_audio_volume: formData.original_audio_volume,
               music_start_ms: formData.music_start_ms,
+              output_profile: "short_vertical_v1"
             }, { onConflict: "render_key" })
             .select()
             .single();
@@ -192,62 +246,18 @@ export default function CampanhaPage() {
           if (error) throw error;
 
           if (render) {
-            // Chamada para o worker da VPS
-            const workerUrl = 'https://worker.fluxpost.store/render';
-            
-            const { data: content } = await supabase
-              .from('content_library')
-              .select('storage_path')
-              .eq('id', videoId)
-              .single();
-
-            const { data: music } = await supabase
-              .from('music_tracks')
-              .select('storage_path')
-              .eq('id', formData.music_track_id)
-              .single();
-
-            if (content?.storage_path && music?.storage_path) {
-              const { data: videoUrlData } = supabase.storage
-                .from('videos')
-                .getPublicUrl(content.storage_path);
-
-              const { data: musicUrlData } = supabase.storage
-                .from('musicas')
-                .getPublicUrl(music.storage_path);
-
-              try {
-                await fetch(workerUrl, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    render_id: render.id,
-                    video_url: videoUrlData.publicUrl,
-                    music_url: musicUrlData.publicUrl,
-                    audio_mode: formData.audio_mode,
-                    music_volume: formData.music_volume,
-                    original_audio_volume: formData.original_audio_volume,
-                    music_start_ms: formData.music_start_ms,
-                  })
-                });
-              } catch (fetchErr) {
-                console.warn("Worker VPS inacessível, mas job salvo:", fetchErr);
-              }
-            }
-
             setRenders(prev => {
               const filtered = prev.filter(r => r.id !== render.id);
               return [...filtered, render as RenderItem];
             });
-            setProcessProgress(prev => ({ ...prev, [videoId]: render.status }));
+            setProcessProgress(prev => ({ ...prev, [videoId]: "queued" }));
           }
         } catch (e: any) {
           setProcessProgress(prev => ({ ...prev, [videoId]: "failed" }));
-          console.error("Erro ao inserir render:", videoId, e);
-          toast.error(`Falha ao processar vídeo ${videoId}`);
+          console.error("Erro ao enfileirar render:", videoId, e);
         }
       }
-      toast.success("Jobs de renderização enviados para o worker!");
+      toast.success("Vídeos enfileirados para processamento!");
     } catch (e: any) {
       toast.error("Erro: " + e.message);
     } finally {
@@ -582,20 +592,24 @@ export default function CampanhaPage() {
                           <p className="text-sm font-medium text-foreground">{video?.title || `Vídeo ${idx + 1}`}</p>
                           <p className="text-xs text-muted-foreground">Trilha: {selectedMusic?.nome}</p>
                         </div>
-                        {status === "pending" && <Badge variant="outline" className="text-xs border-border text-muted-foreground">Aguardando</Badge>}
-                        {status === "processing" && <Badge className="text-xs bg-yellow-500/10 text-yellow-500 border-yellow-500/20 animate-pulse">Processando...</Badge>}
+                        {status === "queued" && <Badge variant="outline" className="text-xs border-border text-muted-foreground animate-pulse">NA FILA</Badge>}
+                        {status === "processing" && <Badge className="text-xs bg-yellow-500/10 text-yellow-500 border-yellow-500/20 animate-pulse">PROCESSANDO...</Badge>}
                         {status === "ready" && (
                           <div className="flex items-center gap-2">
-                            <Badge className="text-xs bg-emerald-500/10 text-emerald-500 border-emerald-500/20">Pronto</Badge>
-                            {render?.storage_path && (
-                              <Button size="sm" variant="outline" className="h-7 text-xs gap-1 border-border"
-                                onClick={() => handlePreview(render!, video?.title || "")}>
-                                <Eye size={12} /> Preview
-                              </Button>
+                            {render?.storage_path ? (
+                              <>
+                                <Badge className="text-xs bg-emerald-500/10 text-emerald-500 border-emerald-500/20">PRONTO PARA REVISAR</Badge>
+                                <Button size="sm" variant="outline" className="h-7 text-xs gap-1 border-border"
+                                  onClick={() => handlePreview(render!, video?.title || "")}>
+                                  <Eye size={12} /> Preview
+                                </Button>
+                              </>
+                            ) : (
+                              <Badge className="text-xs bg-red-500/10 text-red-500 border-red-500/20">Arquivo processado indisponível</Badge>
                             )}
                           </div>
                         )}
-                        {status === "failed" && <Badge className="text-xs bg-red-500/10 text-red-500 border-red-500/20">Falhou</Badge>}
+                        {status === "failed" && <Badge className="text-xs bg-red-500/10 text-red-500 border-red-500/20">FALHOU</Badge>}
                       </div>
                     );
                   })}

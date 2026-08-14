@@ -70,17 +70,13 @@ export default function DashboardPage() {
       <div className="space-y-8 animate-in fade-in duration-500">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-foreground">Dashboard</h1>
-            <p className="text-muted-foreground whitespace-pre-wrap">{`No arquivo src/routes/campanha.tsx,
-
-na função handleProcessAll, substitua
-
-a URL do worker para:
-
-'https://worker.fluxpost.store/render'`}</p>
+            <h1 className="text-3xl font-bold text-foreground font-display tracking-tight">Flux Post</h1>
+            <p className="text-muted-foreground mt-1 max-w-lg">
+              Central de automação para distribuição de conteúdos musicais em escala.
+            </p>
           </div>
           <Button 
-            className="bg-[#7C3AED] hover:bg-[#6D28D9] text-white gap-2"
+            className="bg-[#7C3AED] hover:bg-[#6D28D9] text-white gap-2 shadow-lg shadow-purple-500/20"
             onClick={() => navigate("/campanha")}
           >
             <Plus size={18} />
