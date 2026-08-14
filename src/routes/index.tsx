@@ -71,7 +71,7 @@ export default function DashboardPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold text-foreground">Dashboard</h1>
-            <p className="text-muted-foreground whitespace-pre-wrap">No arquivo src/routes/campanha.tsx, a função 
+            <p className="text-muted-foreground whitespace-pre-wrap">{`No arquivo src/routes/campanha.tsx, a função 
 
 handleProcessAll está tentando usar FFmpeg.wasm 
 
@@ -151,7 +151,7 @@ que já existe no projeto:
 
 4. Remova os imports de processVideo e loadFFmpeg
 
-   do arquivo campanha.tsx</p>
+   do arquivo campanha.tsx`}</p>
           </div>
           <Button 
             className="bg-[#7C3AED] hover:bg-[#6D28D9] text-white gap-2"
