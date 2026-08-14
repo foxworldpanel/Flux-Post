@@ -25,11 +25,13 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
+import { Slider } from "@/components/ui/slider";
 import { toast } from "sonner";
 import {
   Megaphone,
   Zap,
   Music as MusicIcon,
+  Music2,
   Calendar,
   Clock,
   RotateCcw,
@@ -53,6 +55,10 @@ import {
   RefreshCw,
   AlertCircle,
   Eye,
+  CheckSquare,
+  Rocket,
+  ArrowLeft,
+  ArrowRight,
 } from "lucide-react";
 import { format, addDays, differenceInDays, isBefore, isAfter, startOfDay, addMinutes, setHours, setMinutes } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -1058,7 +1064,6 @@ export default function CampanhaPage() {
   }
 
   return (
-
     <DashboardLayout>
       <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in duration-500 pb-20">
         <div className="flex items-center justify-between">
@@ -1105,7 +1110,7 @@ export default function CampanhaPage() {
         )}
 
 
-        {!campanhaAtiva ? (
+        {!campanhaAtiva && (
           <div className="space-y-6">
             {step === 1 && (
               <Card className="bg-card border-border">
@@ -1187,22 +1192,22 @@ export default function CampanhaPage() {
                     <Input
                       type="time"
                       className="bg-muted/50 border-border text-foreground"
-                      value={formData.horario_inicio}
-                      onChange={(e) => setFormData({ ...formData, horario_inicio: e.target.value })}
+                      value={formData.hora_inicio}
+                      onChange={(e) => setFormData({ ...formData, hora_inicio: e.target.value })}
                     />
                     <Input
                       type="time"
                       className="bg-muted/50 border-border text-foreground"
-                      value={formData.horario_fim}
-                      onChange={(e) => setFormData({ ...formData, horario_fim: e.target.value })}
+                      value={formData.hora_fim}
+                      onChange={(e) => setFormData({ ...formData, hora_fim: e.target.value })}
                     />
                   </div>
                 </div>
                 <div className="space-y-2">
                   <Label className="text-muted-foreground text-[10px] font-bold uppercase tracking-wider">Intervalo entre Contas (min)</Label>
                   <Select
-                    value={formData.intervalo_contas_min.toString()}
-                    onValueChange={(v) => setFormData({ ...formData, intervalo_contas_min: parseInt(v) })}
+                    value={formData.intervalo_min.toString()}
+                    onValueChange={(v) => setFormData({ ...formData, intervalo_min: parseInt(v) })}
                   >
                     <SelectTrigger className="bg-muted/50 border-border text-foreground">
                       <SelectValue />
@@ -1421,7 +1426,7 @@ export default function CampanhaPage() {
                     variant="outline"
                     size="sm"
                     className="text-[10px] bg-muted/50 border-border text-foreground"
-                    onClick={() => setSelectedContentIds(libraryItems.map(i => i.id))}
+                    onClick={() => setSelectedContentIds(biblioteca.map((i: any) => i.id))}
                   >
                     Selecionar Todos
                   </Button>
@@ -1440,12 +1445,16 @@ export default function CampanhaPage() {
               </div>
 
               <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3">
-                {libraryItems.map((item) => {
+                {biblioteca.map((item) => {
                   const isSelected = selectedContentIds.includes(item.id);
                   return (
                     <div
                       key={item.id}
-                      onClick={() => toggleContentSelection(item.id)}
+                      onClick={() => {
+                        setSelectedContentIds(prev => 
+                          prev.includes(item.id) ? prev.filter(id => id !== item.id) : [...prev, item.id]
+                        );
+                      }}
                       className={`relative aspect-[9/16] rounded-lg overflow-hidden border-2 cursor-pointer transition-all ${
                         isSelected ? "border-primary ring-2 ring-primary/20 scale-[0.98]" : "border-border/50 opacity-60 grayscale-[0.5] hover:opacity-100"
                       }`}
@@ -1485,10 +1494,10 @@ export default function CampanhaPage() {
               <div className="flex items-center justify-between">
                 <Button 
                   onClick={handleProcessBatch}
-                  disabled={processingBatch || selectedContentIds.length === 0}
+                  disabled={isProcessingBatch || selectedContentIds.length === 0}
                   className="bg-[#7C3AED] hover:bg-[#6D28D9] text-foreground font-bold"
                 >
-                  {processingBatch ? (
+                  {isProcessingBatch ? (
                     <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> PROCESSANDO...</>
                   ) : (
                     <><Zap className="mr-2 h-4 w-4" /> PROCESSAR TUDO</>
@@ -1501,7 +1510,7 @@ export default function CampanhaPage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {selectedContentIds.map(id => {
-                  const item = libraryItems.find(i => i.id === id);
+                  const item = biblioteca.find((i: any) => i.id === id);
                   if (!item) return null;
                   const rKey = generateRenderKey({
                     contentId: id,
@@ -1575,7 +1584,7 @@ export default function CampanhaPage() {
             <CardContent className="space-y-6 pt-6">
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                 {selectedContentIds.map(id => {
-                  const item = libraryItems.find(i => i.id === id);
+                  const item = biblioteca.find((i: any) => i.id === id);
                   if (!item) return null;
                   const rKey = generateRenderKey({
                     contentId: id,
@@ -1612,14 +1621,14 @@ export default function CampanhaPage() {
                         <div className="flex gap-2">
                           <Button 
                             className={`flex-1 h-8 text-[10px] font-bold ${render.is_approved ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-muted hover:bg-muted/80 text-muted-foreground'}`}
-                            onClick={() => toggleApproval(render.id, true)}
+                            onClick={() => handleToggleApproval(render.id, !!render.is_approved)}
                           >
                             APROVAR
                           </Button>
                           <Button 
                             variant="ghost"
                             className={`h-8 text-[10px] font-bold ${!render.is_approved && render.is_approved === false ? 'text-red-500' : 'text-muted-foreground'}`}
-                            onClick={() => toggleApproval(render.id, false)}
+                            onClick={() => handleToggleApproval(render.id, !!render.is_approved)}
                           >
                             REJEITAR
                           </Button>
@@ -1648,7 +1657,7 @@ export default function CampanhaPage() {
               <div className="space-y-4">
                 <Label className="text-foreground text-base font-semibold uppercase">Contas Sociais</Label>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  {contasSociais.map((account) => (
+                  {socialAccounts.map((account: any) => (
                     <div
                       key={account.id}
                       onClick={() => toggleAccount(account.id)}
@@ -1678,7 +1687,7 @@ export default function CampanhaPage() {
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <Label className="text-foreground text-base font-semibold uppercase">Programação Sugerida</Label>
-                  <Button variant="ghost" size="sm" className="h-6 text-[10px] text-primary" onClick={() => generateSchedulingPreview()}>
+                  <Button variant="ghost" size="sm" className="h-6 text-[10px] text-primary" onClick={() => { fetchData(); }}>
                     <RefreshCw size={10} className="mr-1" /> RECALCULAR
                   </Button>
                 </div>
@@ -1757,10 +1766,10 @@ export default function CampanhaPage() {
                   <Button
                     size="lg"
                     className="flex-1 bg-[#7C3AED] hover:bg-[#6D28D9] text-foreground font-bold h-14 text-lg gap-2 shadow-[0_0_20px_rgba(124,58,237,0.3)]"
-                    disabled={!canAdvance() || starting}
+                    disabled={!canAdvance() || saving}
                     onClick={handleIniciar}
                   >
-                    {starting ? (
+                    {saving ? (
                       <><Loader2 className="animate-spin" /> ATIVANDO...</>
                     ) : (
                       <><Rocket /> INICIAR CAMPANHA AGORA</>
@@ -1771,6 +1780,8 @@ export default function CampanhaPage() {
             </CardContent>
           </Card>
         )}
+        </div>
+      )}
 
         {!campanhaAtiva && (
           <div className="fixed bottom-6 left-0 right-0 z-50 px-6 max-w-4xl mx-auto">
