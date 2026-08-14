@@ -1766,10 +1766,10 @@ export default function CampanhaPage() {
                   <Button
                     size="lg"
                     className="flex-1 bg-[#7C3AED] hover:bg-[#6D28D9] text-foreground font-bold h-14 text-lg gap-2 shadow-[0_0_20px_rgba(124,58,237,0.3)]"
-                    disabled={!canAdvance() || starting}
+                    disabled={!canAdvance() || saving}
                     onClick={handleIniciar}
                   >
-                    {starting ? (
+                    {saving ? (
                       <><Loader2 className="animate-spin" /> ATIVANDO...</>
                     ) : (
                       <><Rocket /> INICIAR CAMPANHA AGORA</>
