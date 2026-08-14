@@ -71,79 +71,19 @@ export default function DashboardPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold text-foreground">Dashboard</h1>
-            <p className="text-muted-foreground whitespace-pre-wrap">{`No arquivo src/routes/campanha.tsx, 
+            <p className="text-muted-foreground whitespace-pre-wrap">{`No arquivo src/routes/campanha.tsx,
 
-na função handleProcessBatch, após inserir 
+na função handleProcessAll, substitua
 
-o job na tabela media_renders, adicione 
+a URL do worker:
 
-uma chamada para o worker da VPS:
-
-Para cada contentId selecionado, após 
-
-salvar o job no Supabase, chama:
+Mude de:
 
 const workerUrl = 'http://169.58.169.242:3000/render';
 
-// Busca as URLs dos arquivos
+Para:
 
-const { data: content } = await supabase
-
-  .from('content_library')
-
-  .select('storage_path')
-
-  .eq('id', contentId)
-
-  .single();
-
-const { data: music } = await supabase
-
-  .from('music_tracks')
-
-  .select('storage_path')
-
-  .eq('id', formData.music_track_id)
-
-  .single();
-
-const { data: videoUrlData } = supabase.storage
-
-  .from('videos')
-
-  .getPublicUrl(content.storage_path);
-
-const { data: musicUrlData } = supabase.storage
-
-  .from('musicas')
-
-  .getPublicUrl(music.storage_path);
-
-await fetch(workerUrl, {
-
-  method: 'POST',
-
-  headers: { 'Content-Type': 'application/json' },
-
-  body: JSON.stringify({
-
-    render_id: render.id,
-
-    video_url: videoUrlData.publicUrl,
-
-    music_url: musicUrlData.publicUrl,
-
-    audio_mode: formData.audio_mode,
-
-    music_volume: formData.music_volume,
-
-    original_audio_volume: formData.original_audio_volume,
-
-    music_start_ms: formData.music_start_ms,
-
-  })
-
-});`}</p>
+const workerUrl = 'https://marine-eclipse-superior-calculations.trycloudflare.com/render';`}</p>
           </div>
           <Button 
             className="bg-[#7C3AED] hover:bg-[#6D28D9] text-white gap-2"
