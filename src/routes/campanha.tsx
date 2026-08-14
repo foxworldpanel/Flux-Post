@@ -1687,7 +1687,7 @@ export default function CampanhaPage() {
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <Label className="text-foreground text-base font-semibold uppercase">Programação Sugerida</Label>
-                  <Button variant="ghost" size="sm" className="h-6 text-[10px] text-primary" onClick={() => generateSchedulingPreview()}>
+                  <Button variant="ghost" size="sm" className="h-6 text-[10px] text-primary" onClick={() => { fetchData(); }}>
                     <RefreshCw size={10} className="mr-1" /> RECALCULAR
                   </Button>
                 </div>
