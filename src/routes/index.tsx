@@ -75,15 +75,9 @@ export default function DashboardPage() {
 
 na função handleProcessAll, substitua
 
-a URL do worker:
+a URL do worker para:
 
-Mude de:
-
-'https://marine-eclipse-superior-calculations.trycloudflare.com/render'
-
-Para:
-
-'http://169.58.169.242/render'`}</p>
+'https://ruth-techrepublic-precision-now.trycloudflare.com/render'`}</p>
           </div>
           <Button 
             className="bg-[#7C3AED] hover:bg-[#6D28D9] text-white gap-2"
