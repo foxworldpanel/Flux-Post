@@ -1584,7 +1584,7 @@ export default function CampanhaPage() {
             <CardContent className="space-y-6 pt-6">
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                 {selectedContentIds.map(id => {
-                  const item = libraryItems.find(i => i.id === id);
+                  const item = biblioteca.find((i: any) => i.id === id);
                   if (!item) return null;
                   const rKey = generateRenderKey({
                     contentId: id,
