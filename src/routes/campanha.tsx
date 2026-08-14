@@ -1657,7 +1657,7 @@ export default function CampanhaPage() {
               <div className="space-y-4">
                 <Label className="text-foreground text-base font-semibold uppercase">Contas Sociais</Label>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  {contasSociais.map((account) => (
+                  {socialAccounts.map((account: any) => (
                     <div
                       key={account.id}
                       onClick={() => toggleAccount(account.id)}
