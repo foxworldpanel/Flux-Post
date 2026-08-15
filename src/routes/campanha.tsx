@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import {
   Check, X, Loader2, Play, Music as MusicIcon, Video, CheckCircle2,
@@ -79,6 +80,8 @@ export default function CampanhaPage() {
   // Active campaign
   const [campanhaAtiva, setCampanhaAtiva] = useState<any>(null);
 
+  const pollTimerRef = useRef<number | null>(null);
+
   useEffect(() => { 
     fetchData(); 
 
@@ -95,9 +98,10 @@ export default function CampanhaPage() {
         (payload) => {
           const updatedRender = payload.new as RenderItem;
           if (updatedRender) {
+            console.log("Realtime update received:", updatedRender.id, updatedRender.status);
             setRenders(prev => {
-              const filtered = prev.filter(r => r.id !== updatedRender.id);
-              return [...filtered, updatedRender];
+              const otherRenders = prev.filter(r => r.id !== updatedRender.id);
+              return [...otherRenders, updatedRender];
             });
             
             // Sync process progress
@@ -106,8 +110,7 @@ export default function CampanhaPage() {
               [updatedRender.source_content_id]: updatedRender.status
             }));
 
-            // Handle success toast if just turned ready
-            if (updatedRender.status === 'ready') {
+            if (updatedRender.status === 'ready' && updatedRender.storage_path) {
               toast.success("Vídeo processado e pronto!");
             }
           }
@@ -117,8 +120,53 @@ export default function CampanhaPage() {
 
     return () => {
       supabase.removeChannel(channel);
+      if (pollTimerRef.current) clearInterval(pollTimerRef.current);
     };
   }, []);
+
+  // Polling fallback
+  useEffect(() => {
+    const hasActiveRenders = renders.some(r => 
+      (r.status === 'queued' || r.status === 'processing') && 
+      selVideos.has(r.source_content_id) && 
+      r.music_track_id === formData.music_track_id
+    );
+
+    if (hasActiveRenders && !pollTimerRef.current) {
+      console.log("Starting polling fallback...");
+      pollTimerRef.current = window.setInterval(async () => {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        const { data } = await supabase
+          .from("media_renders")
+          .select("*")
+          .eq("user_id", user.id)
+          .eq("music_track_id", formData.music_track_id)
+          .in("source_content_id", Array.from(selVideos));
+
+        if (data) {
+          setRenders(prev => {
+            // Merge existing with new data, prioritizing new data
+            const newRenders = [...data];
+            const existingIds = new Set(newRenders.map(r => r.id));
+            const keptRenders = prev.filter(r => !existingIds.has(r.id));
+            return [...keptRenders, ...newRenders];
+          });
+          
+          const progress: Record<string, string> = {};
+          data.forEach(r => {
+            progress[r.source_content_id] = r.status;
+          });
+          setProcessProgress(prev => ({ ...prev, ...progress }));
+        }
+      }, 3000);
+    } else if (!hasActiveRenders && pollTimerRef.current) {
+      console.log("Stopping polling fallback.");
+      clearInterval(pollTimerRef.current);
+      pollTimerRef.current = null;
+    }
+  }, [renders, selVideos, formData.music_track_id]);
 
   async function fetchData() {
     setLoading(true);
@@ -578,38 +626,79 @@ export default function CampanhaPage() {
                     {isProcessing ? "Processando..." : "Processar tudo"}
                   </Button>
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-4">
                   {Array.from(selVideos).map((id, idx) => {
                     const video = biblioteca.find(v => v.id === id);
                     const render = getRender(id);
                     const status = render?.status || "pending";
+                    
+                    const getProgressValue = () => {
+                      if (status === "ready") return 100;
+                      if (status === "processing") return 60;
+                      if (status === "queued") return 15;
+                      return 0;
+                    };
+
+                    const getStatusConfig = () => {
+                      switch (status) {
+                        case "ready":
+                          return { label: "Concluído", color: "bg-emerald-500", text: "text-emerald-500", icon: <CheckCircle2 size={14} className="text-emerald-500" /> };
+                        case "processing":
+                          return { label: "Processando vídeo...", color: "bg-yellow-500", text: "text-yellow-500", icon: <Loader2 size={14} className="text-yellow-500 animate-spin" /> };
+                        case "queued":
+                          return { label: "Na fila...", color: "bg-primary", text: "text-primary", icon: <Clock size={14} className="text-primary animate-pulse" /> };
+                        case "failed":
+                          return { label: "Falha no processamento", color: "bg-red-500", text: "text-red-500", icon: <AlertCircle size={14} className="text-red-500" /> };
+                        default:
+                          return { label: "Aguardando início", color: "bg-muted", text: "text-muted-foreground", icon: <Clock size={14} /> };
+                      }
+                    };
+
+                    const config = getStatusConfig();
+
                     return (
-                      <div key={id} className="flex items-center gap-3 p-3 rounded-lg border border-border bg-muted/30">
-                        <div className="w-10 h-14 rounded bg-muted/50 overflow-hidden flex-shrink-0">
-                          {signedUrls[id] ? <video src={signedUrls[id]} className="w-full h-full object-cover" /> : <div className="w-full h-full bg-muted" />}
+                      <div key={id} className="p-4 rounded-xl border border-border bg-muted/20 space-y-3">
+                        <div className="flex items-center gap-4">
+                          <div className="w-12 h-16 rounded-lg bg-muted/50 overflow-hidden flex-shrink-0 border border-border/50">
+                            {signedUrls[id] ? <video src={signedUrls[id]} className="w-full h-full object-cover" /> : <div className="w-full h-full bg-muted/50 flex items-center justify-center"><Video size={16} className="text-muted-foreground/30" /></div>}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between mb-1">
+                              <p className="text-sm font-semibold text-foreground truncate">{video?.title || `Vídeo ${idx + 1}`}</p>
+                              <div className="flex items-center gap-1.5">
+                                {config.icon}
+                                <span className={`text-[10px] font-bold uppercase tracking-wider ${config.text}`}>{config.label}</span>
+                              </div>
+                            </div>
+                            
+                            <div className="space-y-2">
+                              <div className="flex items-center justify-between text-[10px]">
+                                <span className="text-muted-foreground">Trilha: {selectedMusic?.nome}</span>
+                                <span className="text-muted-foreground font-mono">{getProgressValue()}%</span>
+                              </div>
+                              <Progress 
+                                value={getProgressValue()} 
+                                className={`h-1.5 bg-muted/50 ${status === 'processing' ? '[&>div]:animate-pulse' : ''}`}
+                              />
+                            </div>
+                          </div>
+                          
+                          {status === "ready" && render?.storage_path && (
+                            <Button size="sm" variant="ghost" className="h-8 w-8 p-0 hover:bg-primary/10 hover:text-primary transition-colors"
+                              onClick={() => handlePreview(render!, video?.title || "")}>
+                              <Eye size={16} />
+                            </Button>
+                          )}
                         </div>
-                        <div className="flex-1">
-                          <p className="text-sm font-medium text-foreground">{video?.title || `Vídeo ${idx + 1}`}</p>
-                          <p className="text-xs text-muted-foreground">Trilha: {selectedMusic?.nome}</p>
-                        </div>
-                        {status === "queued" && <Badge variant="outline" className="text-xs border-border text-muted-foreground animate-pulse">NA FILA</Badge>}
-                        {status === "processing" && <Badge className="text-xs bg-yellow-500/10 text-yellow-500 border-yellow-500/20 animate-pulse">PROCESSANDO...</Badge>}
-                        {status === "ready" && (
-                          <div className="flex items-center gap-2">
-                            {render?.storage_path ? (
-                              <>
-                                <Badge className="text-xs bg-emerald-500/10 text-emerald-500 border-emerald-500/20">PRONTO PARA REVISAR</Badge>
-                                <Button size="sm" variant="outline" className="h-7 text-xs gap-1 border-border"
-                                  onClick={() => handlePreview(render!, video?.title || "")}>
-                                  <Eye size={12} /> Preview
-                                </Button>
-                              </>
-                            ) : (
-                              <Badge className="text-xs bg-red-500/10 text-red-500 border-red-500/20">Arquivo processado indisponível</Badge>
-                            )}
+                        
+                        {status === "failed" && (
+                          <div className="flex items-center justify-between pt-1 border-t border-red-500/10">
+                            <p className="text-[10px] text-red-500/80 italic">{render?.error_message || "Erro desconhecido durante o render"}</p>
+                            <Button variant="outline" size="sm" className="h-6 text-[10px] border-red-500/20 text-red-500 hover:bg-red-500/10" onClick={handleProcessAll}>
+                              Tentar novamente
+                            </Button>
                           </div>
                         )}
-                        {status === "failed" && <Badge className="text-xs bg-red-500/10 text-red-500 border-red-500/20">FALHOU</Badge>}
                       </div>
                     );
                   })}
