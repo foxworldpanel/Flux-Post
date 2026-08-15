@@ -97,7 +97,7 @@ serve(async (req) => {
 
         console.log("TIKTOK_CONNECT_START_WITH_REDIRECT");
         results.stages.push("TIKTOK_REDIRECT_START");
-        const redirectUri = "https://kdbgfgnopqqnzmvxvtje.supabase.co/functions/v1/postpeer-callback";
+        const redirectUri = `${supabaseUrl}/functions/v1/postpeer-callback`;
         const connectWithRedirect = await postpeer.getOAuthUrl("tiktok", profileId, redirectUri);
         results.connect_with_redirect = connectWithRedirect;
         console.log("TIKTOK_CONNECT_OK_WITH_REDIRECT");

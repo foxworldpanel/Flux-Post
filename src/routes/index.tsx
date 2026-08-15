@@ -32,6 +32,16 @@ export default function Index() {
           <p className="text-gray-400">Visão geral da sua operação no Flux Post.</p>
         </div>
 
+        <div className="bg-[#1A1A24] border border-[#7C3AED]/30 rounded-xl p-4 mb-6">
+          <h2 className="text-sm font-semibold text-[#7C3AED] mb-2 uppercase tracking-wider">Relatório de Migração de Infraestrutura</h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-[10px] font-mono">
+            <div><span className="text-gray-500">OLD REF:</span> <span className="text-red-400">kdbgfgn...</span></div>
+            <div><span className="text-gray-500">NEW REF:</span> <span className="text-green-400">yfdbsjd...</span></div>
+            <div><span className="text-gray-500">INFRA:</span> <span className="text-green-400">VERIFIED</span></div>
+            <div><span className="text-gray-500">WORKER:</span> <span className="text-green-400">REDIRECTED</span></div>
+          </div>
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <Card className="bg-[#1A1A24] border-[#2A2A35]">
             <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
@@ -82,7 +92,7 @@ export default function Index() {
                 <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
                 <span className="text-white font-medium">Hybrid Motor v2 (Scheduler)</span>
               </div>
-              <span className="text-xs text-green-500 font-mono">OPERACIONAL</span>
+              <span className="text-xs text-green-500 font-mono">OPERACIONAL (NEW PROJECT)</span>
             </div>
             
             <div className="flex items-center justify-between p-4 bg-[#0A0A0F] rounded-lg border border-[#2A2A35]">

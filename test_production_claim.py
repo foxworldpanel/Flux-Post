@@ -3,7 +3,7 @@ import os
 import json
 
 def test_claim():
-    url = "https://kdbgfgnopqqnzmvxvtje.supabase.co/functions/v1/render-bridge"
+    url = "https://yfdbsjdhntajsddvlcsc.supabase.co/functions/v1/render-bridge"
     secret = "e1af0567091f2616e47aa1c67b574e2f08faf3ed3bcf5fe45bb612baa52b6bb8"
     
     headers = {
