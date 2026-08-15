@@ -167,6 +167,9 @@ serve(async (req) => {
         const { data, error } = await supabase.storage.from('rendered').createSignedUploadUrl(storagePath);
         if (error) throw error;
 
+        // Log the generated URL for audit (internal logs only)
+        console.log(`[render-bridge] Generated signed upload URL for ${storagePath}`);
+
         return new Response(JSON.stringify({ 
           upload_url: data.signedUrl,
           token: data.token,
