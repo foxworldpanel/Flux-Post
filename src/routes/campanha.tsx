@@ -314,17 +314,36 @@ export default function CampanhaPage() {
   }
 
   async function handlePreview(render: RenderItem, title: string) {
-    if (!render.storage_path) return;
+    if (!render.storage_path) {
+      toast.error("Caminho do arquivo não encontrado");
+      return;
+    }
+    
     setPreviewTitle(title);
-    setPreviewOpen(true);
     setPreviewLoading(true);
+    // Don't open modal yet to avoid showing broken player if URL generation fails
+    
     try {
-      const { data, error } = await supabase.storage.from("rendered").createSignedUrl(render.storage_path, 3600);
-      if (error) throw error;
+      console.log("Generating signed read URL for:", render.storage_path, "in bucket: rendered");
+      
+      const { data, error } = await supabase.storage
+        .from("rendered")
+        .createSignedUrl(render.storage_path, 3600);
+        
+      if (error) {
+        console.error("Signed URL error:", error.message, "Path:", render.storage_path);
+        throw error;
+      }
+      
+      if (!data?.signedUrl) {
+        throw new Error("URL assinada não retornada pelo servidor");
+      }
+
       setPreviewUrl(data.signedUrl);
+      setPreviewOpen(true);
     } catch (e: any) {
-      toast.error("Erro ao carregar preview");
-      setPreviewOpen(false);
+      console.error("Full preview error details:", e);
+      toast.error("Não foi possível carregar o preview: " + (e.message || "Erro desconhecido"));
     } finally {
       setPreviewLoading(false);
     }
@@ -845,7 +864,14 @@ export default function CampanhaPage() {
             {previewLoading ? (
               <Loader2 className="w-8 h-8 text-primary animate-spin" />
             ) : previewUrl ? (
-              <video src={previewUrl} controls autoPlay className="w-full h-full object-contain" />
+              <video 
+                src={previewUrl} 
+                controls 
+                autoPlay 
+                playsInline
+                preload="metadata"
+                className="w-full h-full object-contain" 
+              />
             ) : (
               <AlertCircle className="w-8 h-8 text-red-500" />
             )}
