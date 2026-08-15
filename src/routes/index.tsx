@@ -37,7 +37,7 @@ export default function Index() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-[10px] font-mono">
             <div><span className="text-gray-500">TARGET:</span> <span className="text-green-400">yfdbsjd...</span></div>
             <div><span className="text-gray-500">BRIDGE:</span> <span className="text-green-400">DEPLOYED (v1.1)</span></div>
-            <div><span className="text-gray-500">CLAIM:</span> <span className="text-green-400">VERIFIED (200 OK)</span></div>
+            <div><span className="text-gray-500">CLAIM:</span> <span className="text-green-400">ACTIVE (RPC 200)</span></div>
             <div><span className="text-gray-500">RPC:</span> <span className="text-green-400">SYNCHRONIZED</span></div>
           </div>
         </div>
