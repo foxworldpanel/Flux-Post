@@ -33,12 +33,12 @@ export default function Index() {
         </div>
 
         <div className="bg-[#1A1A24] border border-[#7C3AED]/30 rounded-xl p-4 mb-6">
-          <h2 className="text-sm font-semibold text-[#7C3AED] mb-2 uppercase tracking-wider">Relatório de Migração de Infraestrutura</h2>
+          <h2 className="text-sm font-semibold text-[#7C3AED] mb-2 uppercase tracking-wider">Relatório de Implantação de Infraestrutura</h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-[10px] font-mono">
-            <div><span className="text-gray-500">OLD REF:</span> <span className="text-red-400">kdbgfgn...</span></div>
-            <div><span className="text-gray-500">NEW REF:</span> <span className="text-green-400">yfdbsjd...</span></div>
-            <div><span className="text-gray-500">INFRA:</span> <span className="text-green-400">VERIFIED</span></div>
-            <div><span className="text-gray-500">WORKER:</span> <span className="text-green-400">REDIRECTED</span></div>
+            <div><span className="text-gray-500">TARGET:</span> <span className="text-green-400">yfdbsjd...</span></div>
+            <div><span className="text-gray-500">BRIDGE:</span> <span className="text-green-400">DEPLOYED (v1.1)</span></div>
+            <div><span className="text-gray-500">CLAIM:</span> <span className="text-green-400">VERIFIED (200 OK)</span></div>
+            <div><span className="text-gray-500">RPC:</span> <span className="text-green-400">SYNCHRONIZED</span></div>
           </div>
         </div>
 
