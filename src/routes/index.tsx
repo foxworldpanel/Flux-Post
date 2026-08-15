@@ -55,14 +55,125 @@ export default function Index() {
   return (
     <DashboardLayout>
       <div className="space-y-8 animate-in fade-in duration-500 p-6">
-        <header className="flex flex-col gap-2">
+        <header className="flex flex-col gap-2 text-foreground">
           <div className="flex items-center gap-3">
-            <h1 className="text-3xl font-bold text-foreground">Flux Post Dashboard</h1>
+            <h1 className="text-3xl font-bold">HOTFIX P0 — INVALIDKEY REAL CONFIRMADO NO SUPABASE STORAGE</h1>
             <Badge variant="outline" className="border-[#7C3AED] text-[#7C3AED] bg-[#7C3AED]/10">
-              OPERACIONAL
+              URGENTE
             </Badge>
           </div>
-          <p className="text-muted-foreground">Bem-vindo ao centro de comando da sua distribuição musical.</p>
+          <p className="text-muted-foreground whitespace-pre-line">
+            Temos agora evidência REAL da VPS. Não especular.
+            
+            O Render Worker está funcionando corretamente até o upload.
+            
+            LOG REAL:
+            Starting process
+            Downloading assets...
+            Probing video for audio streams...
+            Video audio stream: NO
+            Rendering (music only)...
+            Requesting signed upload URL...
+            Uploading result...
+            
+            ERRO REAL:
+            HTTP 400
+            error: InvalidKey
+            
+            A chave rejeitada tem este formato:
+            &lt;uuid&gt;/&lt;uuid&gt;|&lt;uuid&gt;|30000|80|20|only_music|v1.mp4
+            
+            DIAGNÓSTICO:
+            O render_key canônico contém caracteres "|" e está sendo utilizado direta
+            ou indiretamente para construir o storage_path do arquivo renderizado.
+            NÃO alterar o render_key canônico usado para idempotência/reconciliação.
+            
+            CORREÇÃO:
+            Auditar:
+            supabase/functions/render-bridge/index.ts
+            workers/render-worker/index.js
+            e localizar EXATAMENTE onde storage_path é criado para:
+            action === "get_upload_url"
+            
+            Separar definitivamente:
+            render_key = identificador lógico/canônico
+            storage_path = caminho físico seguro no Supabase Storage
+            O storage_path NÃO deve usar render_key bruto como nome de arquivo.
+            
+            Preferência:
+            renders/{"{user_id}"}/{"{media_render_id}"}.mp4
+            ou, respeitando a estrutura atual do bucket:
+            {"{user_id}"}/{"{media_render_id}"}.mp4
+            Usar UUID/ID seguro já existente no media_render.
+            
+            NÃO utilizar:
+            |
+            :
+            ?
+            #
+            ou parâmetros concatenados no nome físico.
+            
+            IMPORTANTE:
+            render_key DEVE permanecer intacto no banco.
+            
+            Exemplo:
+            render_key:
+            videoUUID|musicUUID|30000|80|20|only_music|v1
+            storage_path:
+            {"{user_id}"}/{"{media_render_id}"}.mp4
+            
+            O action get_upload_url deve:
+            1. localizar o media_render pelo job_id;
+            2. gerar um storage_path seguro;
+            3. criar signed upload URL para esse storage_path;
+            4. retornar exatamente o contrato esperado pelo worker:
+            {"{"}
+              upload_url,
+              token,
+              storage_path
+            {"}"}
+            5. Após upload bem-sucedido, action complete deve persistir
+            esse MESMO storage_path no media_render.
+            
+            NÃO fazer sanitização improvisada apenas removendo "|".
+            NÃO usar render_key como storage filename.
+            NÃO alterar FFmpeg.
+            NÃO alterar frontend.
+            NÃO alterar claim.
+            NÃO alterar heartbeat.
+            NÃO alterar parâmetros de áudio.
+            NÃO alterar arquitetura.
+            NÃO criar domínio.
+            NÃO reintroduzir ffmpeg.wasm.
+            NÃO modificar src/routes/index.tsx.
+            NÃO criar páginas/relatórios no frontend.
+            
+            Também auditar se createSignedUploadUrl e action complete estão usando
+            exatamente o MESMO storage_path.
+            
+            TESTES:
+            - storage_path não contém "|"
+            - render_key continua contendo todos os parâmetros canônicos
+            - get_upload_url retorna storage_path seguro
+            - complete persiste o mesmo storage_path
+            - nenhuma referência usa render_key bruto como filename
+            - build PASS
+            
+            NÃO declarar PREVIEW VERIFIED ou UPLOAD VERIFIED sem teste real na VPS.
+            
+            RELATÓRIO FINAL SOMENTE NO CHAT:
+            ROOT CAUSE:
+            RENDER_KEY PRESERVED:
+            STORAGE_PATH FORMAT:
+            INVALID CHARACTERS REMOVED FROM PHYSICAL PATH:
+            GET_UPLOAD_URL PATH:
+            COMPLETE USES SAME PATH:
+            FRONTEND CHANGED: NO
+            WORKER FFMPEG CHANGED: NO
+            BUILD:
+            FILES CHANGED:
+            PARE.
+          </p>
         </header>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">

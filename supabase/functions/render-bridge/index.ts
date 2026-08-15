@@ -159,7 +159,7 @@ serve(async (req) => {
         const { data: jobData } = await supabase.from('media_renders').select('render_key, user_id').eq('id', job_id).single();
         if (!jobData) throw new Error("Job not found");
 
-        const storagePath = `${jobData.user_id}/${jobData.render_key}.mp4`;
+        const storagePath = `${jobData.user_id}/${job_id}.mp4`;
         
         // Ensure path is updated in DB first so 'complete' can verify it
         await supabase.from('media_renders').update({ storage_path: storagePath }).eq('id', job_id);
