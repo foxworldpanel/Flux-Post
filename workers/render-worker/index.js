@@ -144,19 +144,25 @@ async function processJob(claimResult) {
       throw new Error("Failed to obtain a valid signed upload URL from bridge");
     }
 
-    console.log(`[${job.id}] Uploading result...`);
+    console.log(`[${job.id}] Uploading result to: ${uploadInfo.upload_url.split('?')[0]}`);
     const finalBuffer = await fs.readFile(outputPath);
     
     try {
-      // Supabase Storage TUS/Standard Upload via Signed URL:
-      // The token must be sent in the Authorization header as a Bearer token.
-      await axios.put(uploadInfo.upload_url, finalBuffer, {
+      // Supabase Storage Signed Upload Contract Audit:
+      // The signed URL returned by createSignedUploadUrl is for the TUS protocol or standard S3-like PUT.
+      // However, when using the signed URL directly via PUT, the 'x-upsert' header might be required if overwriting,
+      // and the 'Authorization' header must be exactly what Supabase expects.
+      
+      const uploadResponse = await axios.put(uploadInfo.upload_url, finalBuffer, {
         headers: { 
           'Content-Type': 'video/mp4',
-          'Authorization': `Bearer ${uploadInfo.token}`
+          'Authorization': `Bearer ${uploadInfo.token}`,
+          'x-upsert': 'true'
         }
       });
-      console.log(`[${job.id}] Upload completed.`);
+      
+      console.log(`[${job.id}] Upload HTTP status: ${uploadResponse.status}`);
+      console.log(`[${job.id}] Upload response validated.`);
     } catch (uploadErr) {
       const errorResponse = uploadErr.response;
       const detailedError = errorResponse 
@@ -167,8 +173,9 @@ async function processJob(claimResult) {
       throw new Error(`Upload failed: ${detailedError}`);
     }
 
-    // 4. Complete Job
-    console.log(`[${job.id}] Completing job...`);
+    // 4. Verification Step: Bridge will verify object existence during 'complete' action
+    console.log(`[${job.id}] Verifying stored object...`);
+
     const stats = await fs.stat(outputPath);
     await client.post('', { 
       action: 'complete', 
