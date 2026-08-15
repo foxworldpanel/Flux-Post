@@ -88,9 +88,13 @@ export default function ProcessarPage() {
         if (data.status === 'ready' && data.storage_path) {
           clearInterval(pollInterval);
           
-          const { data: signedUrlData } = await supabase.storage
+          const { data: signedUrlData, error: signedError } = await supabase.storage
             .from('rendered')
             .createSignedUrl(data.storage_path, 3600);
+
+          if (signedError) {
+            console.error("Signed URL error in processar:", signedError.message);
+          }
 
           setPreviewUrl(signedUrlData?.signedUrl || null);
           setResultRender(data);
@@ -254,6 +258,8 @@ export default function ProcessarPage() {
               <video
                 src={previewUrl}
                 controls
+                playsInline
+                preload="metadata"
                 className="w-full aspect-video"
               />
             </CardContent>
