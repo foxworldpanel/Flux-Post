@@ -1,4 +1,8 @@
-HOTFIX P0 — WORKER REPORTA UPLOAD COMPLETED MAS BUCKET RENDERED ESTÁ VAZIO
+
+export default function Index() {
+  return (
+    <div className="p-8 font-mono whitespace-pre-wrap text-sm">
+      HOTFIX P0 — WORKER REPORTA UPLOAD COMPLETED MAS BUCKET RENDERED ESTÁ VAZIO
 
 EVIDÊNCIA REAL.
 NÃO ESPECULAR.
@@ -38,3 +42,6 @@ BUILD:
 PASS
 
 PARE.
+    </div>
+  );
+}
