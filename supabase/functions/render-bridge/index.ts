@@ -113,19 +113,22 @@ serve(async (req) => {
       case "complete": {
         if (!job_id) throw new Error("Missing job_id");
         
-        // 1. Verify storage object exists in 'rendered' bucket
         const { data: jobData } = await supabase.from('media_renders').select('storage_path, user_id').eq('id', job_id).single();
         if (!jobData || !jobData.storage_path) throw new Error("Job storage path not defined");
 
-        const { data: fileExists } = await supabase.storage.from('rendered').list(pathDir(jobData.storage_path), {
-          search: pathBase(jobData.storage_path)
-        });
+        // List files in the exact directory
+        const directory = pathDir(jobData.storage_path);
+        const filename = pathBase(jobData.storage_path);
+        
+        const { data: files } = await supabase.storage.from('rendered').list(directory);
 
-        if (!fileExists || fileExists.length === 0) {
+        // Exact match verification
+        const fileExists = files?.some(f => f.name === filename);
+
+        if (!fileExists) {
           throw new Error(`Output file not found in storage: ${jobData.storage_path}`);
         }
 
-        // 2. Update media_renders
         const { error: upError } = await supabase.from('media_renders').update({
           status: 'ready',
           completed_at: new Date().toISOString(),

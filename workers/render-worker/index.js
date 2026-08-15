@@ -6,16 +6,22 @@ import { tmpdir } from 'os';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import 'dotenv/config';
+import { createClient } from '@supabase/supabase-js';
 
 const execAsync = promisify(exec);
 
 const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || 'no-key-provided';
 const workerSecret = process.env.RENDER_WORKER_SECRET;
 
 if (!supabaseUrl || !workerSecret) {
   console.error('ERROR: Missing SUPABASE_URL or RENDER_WORKER_SECRET');
   process.exit(1);
 }
+
+// Create a storage client for uploadToSignedUrl
+// We use the anon key since we will use a signed token for the actual upload
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 const BRIDGE_URL = `${supabaseUrl}/functions/v1/render-bridge`;
 
@@ -148,29 +154,26 @@ async function processJob(claimResult) {
     const finalBuffer = await fs.readFile(outputPath);
     
     try {
-      // Supabase Storage Signed Upload Contract Audit:
-      // The signed URL returned by createSignedUploadUrl is for the TUS protocol or standard S3-like PUT.
-      // However, when using the signed URL directly via PUT, the 'x-upsert' header might be required if overwriting,
-      // and the 'Authorization' header must be exactly what Supabase expects.
+      console.log(`[${job.id}] Uploading via Supabase signed upload...`);
       
-      const uploadResponse = await axios.put(uploadInfo.upload_url, finalBuffer, {
-        headers: { 
-          'Content-Type': 'video/mp4',
-          'Authorization': `Bearer ${uploadInfo.token}`,
-          'x-upsert': 'true'
-        }
-      });
+      const { data: uploadResult, error: uploadError } = await supabase.storage
+        .from('rendered')
+        .uploadToSignedUrl(
+          uploadInfo.storage_path,
+          uploadInfo.token,
+          finalBuffer,
+          {
+            contentType: 'video/mp4',
+            upsert: true
+          }
+        );
       
-      console.log(`[${job.id}] Upload HTTP status: ${uploadResponse.status}`);
-      console.log(`[${job.id}] Upload response validated.`);
+      if (uploadError) throw uploadError;
+      
+      console.log(`[${job.id}] Signed upload completed.`);
     } catch (uploadErr) {
-      const errorResponse = uploadErr.response;
-      const detailedError = errorResponse 
-        ? `HTTP ${errorResponse.status}: ${JSON.stringify(errorResponse.data)}`
-        : uploadErr.message;
-      
-      console.error(`[${job.id}] Upload Error Details:`, detailedError);
-      throw new Error(`Upload failed: ${detailedError}`);
+      console.error(`[${job.id}] Upload Error:`, uploadErr.message);
+      throw new Error(`Upload failed: ${uploadErr.message}`);
     }
 
     // 4. Verification Step: Bridge will verify object existence during 'complete' action
