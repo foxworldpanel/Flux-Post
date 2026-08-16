@@ -42,6 +42,7 @@ serve(async (req) => {
         // RPC returns null if no job found, but we normalize checks for security
         // Use strict check: if job is null, undefined, or empty object/array, it's an empty queue
         if (!job || (Array.isArray(job) && job.length === 0) || (typeof job === 'object' && Object.keys(job).length === 0)) {
+          console.log('[render-bridge] No jobs available in queue');
           return new Response(JSON.stringify({ job: null }), { 
             headers: { ...corsHeaders, "Content-Type": "application/json" } 
           });
@@ -91,8 +92,9 @@ serve(async (req) => {
           }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
         }
 
-        const { data: videoUrl } = await supabase.storage.from('content-library').createSignedUrl(content.storage_path, 3600);
-        const { data: musicUrl } = await supabase.storage.from('musicas').createSignedUrl(music.storage_path, 3600);
+        // Generate signed URLs with 2 hours expiry to be safe for slow downloads
+        const { data: videoUrl } = await supabase.storage.from('content-library').createSignedUrl(content.storage_path, 7200);
+        const { data: musicUrl } = await supabase.storage.from('musicas').createSignedUrl(music.storage_path, 7200);
 
         return new Response(JSON.stringify({ 
           job: jobData, 
