@@ -28,8 +28,12 @@ const BRIDGE_URL = `${supabaseUrl}/functions/v1/render-bridge`;
 const client = axios.create({
   baseURL: BRIDGE_URL,
   headers: {
-    'x-render-worker-secret': workerSecret,
-    'Content-Type': 'application/json'
+    headers: {
+  'x-render-worker-secret': workerSecret,
+  'Content-Type': 'application/json',
+  'apikey': supabaseAnonKey,
+  'Authorization': `Bearer ${supabaseAnonKey}`
+}
   }
 });
 
