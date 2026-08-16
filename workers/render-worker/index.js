@@ -212,10 +212,12 @@ async function main() {
       if (claimResult && claimResult.job) {
         await processJob(claimResult);
       } else {
-        await new Promise(r => setTimeout(r, 10000));
+        // Queue is empty, wait 5 seconds before next poll
+        await new Promise(r => setTimeout(r, 5000));
       }
     } catch (err) {
       console.error('Main loop error:', err.message);
+      // On error, wait longer before retrying (30s)
       await new Promise(r => setTimeout(r, 30000));
     }
   }
