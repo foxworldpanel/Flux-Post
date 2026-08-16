@@ -42,6 +42,7 @@ serve(async (req) => {
         // RPC returns null if no job found, but we normalize checks for security
         // Use strict check: if job is null, undefined, or empty object/array, it's an empty queue
         if (!job || (Array.isArray(job) && job.length === 0) || (typeof job === 'object' && Object.keys(job).length === 0)) {
+          console.log('[render-bridge] No jobs available in queue');
           return new Response(JSON.stringify({ job: null }), { 
             headers: { ...corsHeaders, "Content-Type": "application/json" } 
           });
