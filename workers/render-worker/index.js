@@ -150,7 +150,7 @@ async function processJob(claimResult) {
       throw new Error("Failed to obtain a valid signed upload URL from bridge");
     }
 
-    console.log(`[${job.id}] Uploading result to: ${uploadInfo.upload_url.split('?')[0]}`);
+    console.log(`[${job.id}] Uploading result to: ${uploadInfo.upload_url.split('?')[0]} (Path: ${uploadInfo.storage_path})`);
     const finalBuffer = await fs.readFile(outputPath);
     
     try {

@@ -280,7 +280,7 @@ export default function CampanhaPage() {
               source_content_id: videoId,
               music_track_id: formData.music_track_id,
               render_key,
-              status: "queued", 
+              status: "queued" as any, 
               attempts: 0,
               audio_mode: formData.audio_mode,
               music_volume: formData.music_volume,
@@ -307,7 +307,8 @@ export default function CampanhaPage() {
       }
       toast.success("Vídeos enfileirados para processamento!");
     } catch (e: any) {
-      toast.error("Erro: " + e.message);
+      console.error("Erro no processamento:", e);
+      toast.error("Erro ao iniciar processamento: " + (e.response?.data?.error || e.message));
     } finally {
       setIsProcessing(false);
     }
