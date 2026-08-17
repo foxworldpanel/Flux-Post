@@ -435,6 +435,8 @@ export default function CampanhaPage() {
       setLocalProcessingId(null);
     }
   }
+
+  async function handlePreview(render: RenderItem, title: string) {
     if (!render.storage_path) {
       toast.error("Caminho do arquivo não encontrado");
       return;
