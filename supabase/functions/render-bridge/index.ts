@@ -14,8 +14,13 @@ serve(async (req) => {
   const workerSecret = req.headers.get("x-render-worker-secret");
   const expectedSecret = Deno.env.get("RENDER_WORKER_SECRET");
 
+  // Use a timing-safe or at least consistent way to compare
   if (!workerSecret || workerSecret !== expectedSecret) {
-    return new Response(JSON.stringify({ error: "Unauthorized" }), { 
+    console.error(`[render-bridge] Unauthorized access attempt. Expected: ${expectedSecret ? 'SET' : 'NOT SET'}, Received: ${workerSecret ? 'SET' : 'NOT SET'}`);
+    return new Response(JSON.stringify({ 
+      error: "Unauthorized", 
+      details: workerSecret ? "Secret mismatch" : "Missing secret" 
+    }), { 
       status: 401, 
       headers: { ...corsHeaders, "Content-Type": "application/json" } 
     });
