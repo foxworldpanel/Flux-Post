@@ -301,6 +301,7 @@ export default function CampanhaPage() {
             .select()
             .single();
 
+
           if (error) throw error;
 
           if (render) {
@@ -442,22 +443,46 @@ export default function CampanhaPage() {
     
     setPreviewTitle(title);
     setPreviewLoading(true);
-    // Don't open modal yet to avoid showing broken player if URL generation fails
     
     try {
-      console.log("Generating signed read URL for:", render.storage_path, "in bucket: rendered");
+      console.log("Generating signed read URL for:", render.storage_path);
       
-      const { data, error } = await supabase.storage
+      // Try 'rendered' bucket first
+      let { data, error } = await supabase.storage
         .from("rendered")
         .createSignedUrl(render.storage_path, 3600);
         
+      // If error or not found, try 'content-library' (for bypass renders)
+      if (error || !data?.signedUrl) {
+        console.log("Not found in 'rendered', trying 'content-library'...");
+        const contentRes = await supabase.storage
+          .from("content-library")
+          .createSignedUrl(render.storage_path, 3600);
+          
+        if (contentRes.data?.signedUrl) {
+          data = contentRes.data;
+          error = null;
+        } else {
+          // Final attempt in 'videos' bucket
+          console.log("Not found in 'content-library', trying 'videos'...");
+          const videosRes = await supabase.storage
+            .from("videos")
+            .createSignedUrl(render.storage_path, 3600);
+            
+          if (videosRes.data?.signedUrl) {
+            data = videosRes.data;
+            error = null;
+          }
+        }
+      }
+
       if (error) {
         console.error("Signed URL error:", error.message, "Path:", render.storage_path);
         throw error;
       }
       
       if (!data?.signedUrl) {
-        throw new Error("URL assinada não retornada pelo servidor");
+        throw new Error("Arquivo não encontrado em nenhum bucket (rendered, content-library, videos)");
       }
 
       setPreviewUrl(data.signedUrl);
@@ -468,6 +493,7 @@ export default function CampanhaPage() {
     } finally {
       setPreviewLoading(false);
     }
+
   }
 
   async function handleToggleApprove(renderId: string, current: boolean) {
