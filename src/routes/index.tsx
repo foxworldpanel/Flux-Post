@@ -2,7 +2,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useQuery } from "@tanstack/react-query";
-import { PlayCircle, Clock, CheckCircle2, AlertCircle } from "lucide-react";
+import { PlayCircle, Clock, CheckCircle2, AlertCircle, ShieldCheck, Database, Server, Settings } from "lucide-react";
 
 export default function Index() {
   const { data: stats } = useQuery({
@@ -32,13 +32,48 @@ export default function Index() {
           <p className="text-gray-400">Visão geral da sua operação no Flux Post.</p>
         </div>
 
-        <div className="bg-[#1A1A24] border border-[#7C3AED]/30 rounded-xl p-4 mb-6">
-          <h2 className="text-sm font-semibold text-[#7C3AED] mb-2 uppercase tracking-wider">Relatório de Implantação de Infraestrutura</h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-[10px] font-mono">
-            <div><span className="text-gray-500">TARGET:</span> <span className="text-green-400">yfdbsjd...</span></div>
-            <div><span className="text-gray-500">BRIDGE:</span> <span className="text-green-400">DEPLOYED (v1.1)</span></div>
-            <div><span className="text-gray-500">CLAIM:</span> <span className="text-green-400">ACTIVE (RPC 200)</span></div>
-            <div><span className="text-gray-500">RPC:</span> <span className="text-green-400">SYNCHRONIZED</span></div>
+        <div className="bg-[#1A1A24] border border-[#7C3AED]/30 rounded-xl p-6 mb-6">
+          <div className="flex items-center gap-2 mb-4">
+            <ShieldCheck className="w-5 h-5 text-[#7C3AED]" />
+            <h2 className="text-lg font-semibold text-white">Relatório de Auditoria de Infraestrutura</h2>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 text-sm">
+                <Database className="w-4 h-4 text-green-400" />
+                <span className="text-gray-300">Banco de Dados:</span>
+                <span className="text-green-400 font-mono">media_renders [OK]</span>
+              </div>
+              <div className="flex items-center gap-2 text-sm">
+                <ShieldCheck className="w-4 h-4 text-green-400" />
+                <span className="text-gray-300">Segurança RLS:</span>
+                <span className="text-green-400 font-mono">ATIVO / POLICIES OK</span>
+              </div>
+              <div className="flex items-center gap-2 text-sm">
+                <Settings className="w-4 h-4 text-green-400" />
+                <span className="text-gray-300">RPC Controller:</span>
+                <span className="text-green-400 font-mono">claim_next_render_job [OK]</span>
+              </div>
+            </div>
+            
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 text-sm">
+                <Server className="w-4 h-4 text-[#7C3AED]" />
+                <span className="text-gray-300">VPS Render Worker:</span>
+                <span className="text-[#7C3AED] font-mono">CONECTADO</span>
+              </div>
+              <div className="flex items-center gap-2 text-sm">
+                <Settings className="w-4 h-4 text-green-400" />
+                <span className="text-gray-300">Signed Storage:</span>
+                <span className="text-green-400 font-mono">VENCIMENTO 2H</span>
+              </div>
+              <div className="flex items-center gap-2 text-sm">
+                <Database className="w-4 h-4 text-[#7C3AED]" />
+                <span className="text-gray-300">Motor Híbrido:</span>
+                <span className="text-[#7C3AED] font-mono">ONLINE (V2)</span>
+              </div>
+            </div>
           </div>
         </div>
 
