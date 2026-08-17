@@ -177,11 +177,28 @@ export const contentService = {
   },
 
   async getSignedUrl(path: string) {
-    const { data, error } = await supabase.storage
+    if (!path) return "";
+    
+    // Try content-library first (standard for this service)
+    let { data, error } = await supabase.storage
       .from('content-library')
-      .createSignedUrl(path, 3600); // 1 hour
+      .createSignedUrl(path, 3600);
 
-    if (error) throw error;
+    if (error || !data?.signedUrl) {
+      // Fallback to 'videos' bucket
+      const videosRes = await supabase.storage
+        .from('videos')
+        .createSignedUrl(path, 3600);
+      
+      if (videosRes.data?.signedUrl) {
+        return videosRes.data.signedUrl;
+      }
+      
+      if (error) throw error;
+      throw new Error("Arquivo não encontrado em content-library ou videos");
+    }
+
     return data.signedUrl;
   }
+
 };

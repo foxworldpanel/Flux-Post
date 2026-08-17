@@ -301,6 +301,7 @@ export default function CampanhaPage() {
             .select()
             .single();
 
+
           if (error) throw error;
 
           if (render) {
