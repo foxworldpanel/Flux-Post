@@ -833,12 +833,35 @@ export default function CampanhaPage() {
                           )}
                         </div>
                         
+                        {(status === "queued" || status === "pending") && (
+                          <div className="flex items-center justify-between pt-1 border-t border-border/10">
+                            <p className="text-[10px] text-muted-foreground italic flex items-center gap-1">
+                              <Clock size={10} /> O worker VPS está demorando? Tente o fallback local.
+                            </p>
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              className="h-6 text-[10px] border-primary/20 text-primary hover:bg-primary/10 gap-1" 
+                              onClick={() => handleLocalProcess(id)}
+                              disabled={localProcessingId !== null}
+                            >
+                              {localProcessingId === id ? <Loader2 size={10} className="animate-spin" /> : <RotateCcw size={10} />}
+                              Processar Local (Browser)
+                            </Button>
+                          </div>
+                        )}
+
                         {status === "failed" && (
                           <div className="flex items-center justify-between pt-1 border-t border-red-500/10">
                             <p className="text-[10px] text-red-500/80 italic">{render?.error_message || "Erro desconhecido durante o render"}</p>
-                            <Button variant="outline" size="sm" className="h-6 text-[10px] border-red-500/20 text-red-500 hover:bg-red-500/10" onClick={handleProcessAll}>
-                              Tentar novamente
-                            </Button>
+                            <div className="flex gap-2">
+                              <Button variant="outline" size="sm" className="h-6 text-[10px] border-red-500/20 text-red-500 hover:bg-red-500/10" onClick={handleProcessAll}>
+                                Tentar novamente
+                              </Button>
+                              <Button variant="outline" size="sm" className="h-6 text-[10px] border-primary/20 text-primary hover:bg-primary/10" onClick={() => handleLocalProcess(id)}>
+                                Fallback Local
+                              </Button>
+                            </div>
                           </div>
                         )}
                       </div>
