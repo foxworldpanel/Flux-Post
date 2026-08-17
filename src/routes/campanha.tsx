@@ -379,7 +379,7 @@ export default function CampanhaPage() {
       ]);
 
       const data = await ffmpeg.readFile("output.mp4");
-      const blob = new Blob([data], { type: "video/mp4" });
+      const blob = new Blob([data as Uint8Array], { type: "video/mp4" });
       
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Não autenticado");
