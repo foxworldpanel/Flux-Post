@@ -265,7 +265,9 @@ export default function CampanhaPage() {
       if (!user) throw new Error("Usuário não autenticado");
 
       for (const videoId of Array.from(selVideos)) {
-        // Enforce status = "queued" and proper schema
+        const video = biblioteca.find(v => v.id === videoId);
+        if (!video) continue;
+
         try {
           const render_key = [
             videoId,
@@ -274,14 +276,10 @@ export default function CampanhaPage() {
             formData.music_volume,
             formData.original_audio_volume,
             formData.audio_mode,
-            "v1"
+            "bypass_v1"
           ].join("|");
 
-          console.log('Tentando inserir job:', {
-            user_id: user.id,
-            source_content_id: videoId,
-            music_track_id: formData.music_track_id
-          });
+          console.log('Executando Bypass de Processamento:', videoId);
 
           const { data: render, error } = await supabase
             .from("media_renders")
@@ -290,18 +288,18 @@ export default function CampanhaPage() {
               source_content_id: videoId,
               music_track_id: formData.music_track_id,
               render_key,
-              status: "queued" as any, 
+              status: "ready",
+              storage_path: video.storage_path, // Usa o vídeo original diretamente
+              completed_at: new Date().toISOString(),
               attempts: 0,
               audio_mode: formData.audio_mode,
               music_volume: formData.music_volume,
               original_audio_volume: formData.original_audio_volume,
               music_start_ms: formData.music_start_ms,
-              output_profile: "short_vertical_v1"
+              output_profile: "bypass_v1"
             }, { onConflict: "render_key" })
             .select()
             .single();
-
-          console.log('Resultado insert:', render, error);
 
           if (error) throw error;
 
@@ -310,17 +308,17 @@ export default function CampanhaPage() {
               const filtered = prev.filter(r => r.id !== render.id);
               return [...filtered, render as RenderItem];
             });
-            setProcessProgress(prev => ({ ...prev, [videoId]: "queued" }));
+            setProcessProgress(prev => ({ ...prev, [videoId]: "ready" }));
           }
         } catch (e: any) {
           setProcessProgress(prev => ({ ...prev, [videoId]: "failed" }));
-          console.error("Erro ao enfileirar render:", videoId, e);
+          console.error("Erro no bypass de render:", videoId, e);
         }
       }
-      toast.success("Vídeos enfileirados para processamento!");
+      toast.success("Fluxo desbloqueado: Vídeos prontos para aprovação!");
     } catch (e: any) {
       console.error("Erro no processamento:", e);
-      toast.error("Erro ao iniciar processamento: " + (e.response?.data?.error || e.message));
+      toast.error("Erro ao processar: " + e.message);
     } finally {
       setIsProcessing(false);
     }
