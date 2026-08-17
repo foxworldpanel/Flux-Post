@@ -18,7 +18,8 @@ import {
 import { format, addDays } from "date-fns";
 import { socialService, type SocialAccount } from "@/services/social";
 import { contentService } from "@/services/content";
-// Removidos processVideo e loadFFmpeg pois agora usamos a Edge Function render-bridge
+import { FFmpeg } from "@ffmpeg/ffmpeg";
+import { fetchFile, toBlobURL } from "@ffmpeg/util";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type MusicTrack = { id: string; nome: string; artista: string; artist_id: string; storage_path: string | null; };
@@ -81,6 +82,9 @@ export default function CampanhaPage() {
   const [campanhaAtiva, setCampanhaAtiva] = useState<any>(null);
 
   const pollTimerRef = useRef<number | null>(null);
+  const ffmpegRef = useRef<FFmpeg | null>(null);
+  const [ffmpegLoaded, setFfmpegLoaded] = useState(false);
+  const [localProcessingId, setLocalProcessingId] = useState<string | null>(null);
 
   useEffect(() => { 
     fetchData(); 
@@ -322,7 +326,115 @@ export default function CampanhaPage() {
     }
   }
 
-  async function handlePreview(render: RenderItem, title: string) {
+  async function loadFFmpeg() {
+    if (ffmpegRef.current) return ffmpegRef.current;
+    
+    const ffmpeg = new FFmpeg();
+    ffmpeg.on("log", ({ message }) => console.log("[FFmpeg]", message));
+    
+    const baseURL = "https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm";
+    await ffmpeg.load({
+      coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, "text/javascript"),
+      wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, "application/wasm"),
+    });
+    
+    ffmpegRef.current = ffmpeg;
+    setFfmpegLoaded(true);
+    return ffmpeg;
+  }
+
+  async function handleLocalProcess(videoId: string) {
+    const video = biblioteca.find(v => v.id === videoId);
+    const music = musicas.find(m => m.id === formData.music_track_id);
+    if (!video || !music || !formData.music_track_id) return;
+
+    setLocalProcessingId(videoId);
+    setProcessProgress(prev => ({ ...prev, [videoId]: "processing" }));
+    
+    try {
+      const ffmpeg = await loadFFmpeg();
+      const videoUrl = signedUrls[videoId] || await contentService.getSignedUrl(video.storage_path);
+      const musicUrl = await contentService.getSignedUrl(music.storage_path!);
+
+      await ffmpeg.writeFile("video.mp4", await fetchFile(videoUrl));
+      await ffmpeg.writeFile("music.mp3", await fetchFile(musicUrl));
+
+      const musicStartSec = (formData.music_start_ms || 0) / 1000;
+      const musicVol = (formData.music_volume || 80) / 100;
+      const originalVol = (formData.original_audio_volume || 20) / 100;
+
+      // Complex filter for audio mixing
+      const filter = `[0:a]volume=${originalVol}[a0];[1:a]atrim=start=${musicStartSec},adelay=0|0,volume=${musicVol}[a1];[a0][a1]amix=inputs=2:duration=first[aout]`;
+      
+      await ffmpeg.exec([
+        "-i", "video.mp4",
+        "-i", "music.mp3",
+        "-filter_complex", filter,
+        "-map", "0:v",
+        "-map", "[aout]",
+        "-c:v", "copy",
+        "-c:a", "aac",
+        "-shortest",
+        "output.mp4"
+      ]);
+
+      const data = await ffmpeg.readFile("output.mp4");
+      const blob = new Blob([data], { type: "video/mp4" });
+      
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Não autenticado");
+
+      const render_key = [
+        videoId,
+        formData.music_track_id,
+        formData.music_start_ms,
+        formData.music_volume,
+        formData.original_audio_volume,
+        formData.audio_mode,
+        "local_v1"
+      ].join("|");
+
+      const fileName = `${user.id}/${crypto.randomUUID()}.mp4`;
+      const { error: uploadError } = await supabase.storage
+        .from("rendered")
+        .upload(fileName, blob, { contentType: "video/mp4", upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data: render, error: dbError } = await supabase
+        .from("media_renders")
+        .upsert({
+          user_id: user.id,
+          source_content_id: videoId,
+          music_track_id: formData.music_track_id,
+          render_key,
+          status: "ready",
+          storage_path: fileName,
+          audio_mode: formData.audio_mode,
+          music_volume: formData.music_volume,
+          original_audio_volume: formData.original_audio_volume,
+          music_start_ms: formData.music_start_ms,
+          output_profile: "local_v1",
+          completed_at: new Date().toISOString()
+        }, { onConflict: "render_key" })
+        .select()
+        .single();
+
+      if (dbError) throw dbError;
+
+      if (render) {
+        setRenders(prev => [...prev.filter(r => r.id !== render.id), render as RenderItem]);
+        setProcessProgress(prev => ({ ...prev, [videoId]: "ready" }));
+        toast.success("Vídeo processado localmente com sucesso!");
+      }
+    } catch (e: any) {
+      console.error("Local render error:", e);
+      toast.error("Erro no processamento local: " + e.message);
+      setProcessProgress(prev => ({ ...prev, [videoId]: "failed" }));
+    } finally {
+      setLocalProcessingId(null);
+    }
+  }
     if (!render.storage_path) {
       toast.error("Caminho do arquivo não encontrado");
       return;
