@@ -273,6 +273,12 @@ export default function CampanhaPage() {
             "v1"
           ].join("|");
 
+          console.log('Tentando inserir job:', {
+            user_id: user.id,
+            source_content_id: videoId,
+            music_track_id: formData.music_track_id
+          });
+
           const { data: render, error } = await supabase
             .from("media_renders")
             .upsert({
@@ -290,6 +296,8 @@ export default function CampanhaPage() {
             }, { onConflict: "render_key" })
             .select()
             .single();
+
+          console.log('Resultado insert:', render, error);
 
           if (error) throw error;
 
