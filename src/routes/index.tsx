@@ -152,43 +152,38 @@ export default function Index() {
           <h3 className="text-amber-500 font-bold mb-2">Instruções de Desenvolvimento</h3>
           <p className="text-sm text-gray-300 whitespace-pre-line">
             {`Na função handleLocalProcess em campanha.tsx,
-            a música está falhando com 404 porque o 
-            storage_path está sendo usado diretamente 
-            como URL em vez de gerar URL assinada.
-            Substitua a linha de download da música por:
+            o FFmpeg está dando Aborted() e depois 
+            StorageApiError de RLS.
             
-            // Gera URL assinada para a música
-            let musicUrl: string;
-            if (music.storage_path!.startsWith('http')) {
-              musicUrl = music.storage_path!;
-            } else {
-              // Tenta bucket musicas primeiro
-              const { data: musicData, error: musicError } = 
-                await supabase.storage
-                  .from('musicas')
-                  .createSignedUrl(music.storage_path!, 3600);
-              
-              if (musicError || !musicData?.signedUrl) {
-                // Tenta content-library
-                const { data: clData } = await supabase.storage
-                  .from('content-library')
-                  .createSignedUrl(music.storage_path!, 3600);
-                
-                if (!clData?.signedUrl) 
-                  throw new Error('Música não encontrada no storage');
-                musicUrl = clData.signedUrl;
-              } else {
-                musicUrl = musicData.signedUrl;
-              }
-            }
-            console.log('Baixando música:', musicUrl);
-            const musicResponse = await fetch(musicUrl);
-            if (!musicResponse.ok) 
-              throw new Error(\`Falha ao baixar música: \${musicResponse.status}\`);
-            const musicArrayBuffer = await musicResponse.arrayBuffer();
-            const musicUint8 = new Uint8Array(musicArrayBuffer);
-            console.log('Música baixada:', musicUint8.byteLength, 'bytes');
-            await ffmpeg.writeFile("music.mp3", musicUint8);`}
+            1. Corrija o comando FFmpeg para re-encodar
+               o vídeo completamente (não usar -c:v copy):
+            await ffmpeg.exec([
+              "-i", "video.mp4",
+              "-i", "music.mp3",
+              "-map", "0:v:0",
+              "-map", "1:a:0",
+              "-c:v", "libx264",
+              "-c:a", "aac",
+              "-preset", "ultrafast",
+              "-crf", "28",
+              "-shortest",
+              "-y",
+              "output.mp4"
+            ]);
+            
+            2. Corrija o RLS do bucket "rendered" 
+               rodando no Supabase SQL Editor:
+            ALTER TABLE storage.objects DISABLE ROW LEVEL SECURITY;
+            OU crie uma policy para permitir upload:
+            CREATE POLICY "Allow authenticated uploads to rendered"
+            ON storage.objects FOR INSERT
+            TO authenticated
+            WITH CHECK (bucket_id = 'rendered');
+            
+            CREATE POLICY "Allow authenticated reads from rendered"
+            ON storage.objects FOR SELECT
+            TO authenticated
+            USING (bucket_id = 'rendered');`}
           </p>
         </div>
       </div>
