@@ -252,25 +252,78 @@ export default function CampanhaPage() {
   // ─── Process videos (Server-side Enqueue) ──────────────────────────────────
   async function handleProcessAll() {
     if (!formData.music_track_id) 
-      return toast.error("Selecione uma música primeiro");
+      return toast.error("Selecione uma música");
     
-    const musicTrack = musicas.find(
-      m => m.id === formData.music_track_id
-    );
-    if (!musicTrack) 
-      return toast.error("Música não encontrada");
-    if (!musicTrack.storage_path) 
-      return toast.error("Música sem arquivo de áudio");
-
     setIsProcessing(true);
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Não autenticado");
+
       for (const videoId of Array.from(selVideos)) {
-        await handleLocalProcess(videoId);
+        const render_key = [
+          videoId,
+          formData.music_track_id,
+          formData.music_start_ms,
+          formData.music_volume,
+          formData.original_audio_volume,
+          formData.audio_mode,
+          "v1"
+        ].join("|");
+
+        const { data: render, error } = await supabase
+          .from("media_renders")
+          .upsert({
+            user_id: user.id,
+            source_content_id: videoId,
+            music_track_id: formData.music_track_id,
+            render_key,
+            status: "queued",
+            attempts: 0,
+            audio_mode: formData.audio_mode,
+            music_volume: formData.music_volume,
+            original_audio_volume: formData.original_audio_volume,
+            music_start_ms: formData.music_start_ms,
+          }, { onConflict: "render_key" })
+          .select()
+          .single();
+
+        if (error) throw error;
+
+        if (render) {
+          setRenders(prev => [...prev.filter(r => r.id !== render.id), render as RenderItem]);
+          setProcessProgress(prev => ({ ...prev, [videoId]: "queued" }));
+        }
       }
-      toast.success("Processamento concluído!");
+
+      toast.success("Jobs na fila! O worker está processando...");
+      
+      const interval = window.setInterval(async () => {
+        const ids = Array.from(selVideos);
+        const { data: rendersData } = await supabase
+          .from("media_renders")
+          .select("*")
+          .in("source_content_id", ids)
+          .eq("music_track_id", formData.music_track_id);
+
+        if (rendersData) {
+          setRenders(rendersData as RenderItem[]);
+          rendersData.forEach(r => {
+            setProcessProgress(prev => ({ ...prev, [r.source_content_id]: r.status }));
+          });
+
+          const allDone = rendersData.every(r => 
+            r.status === "ready" || r.status === "failed"
+          );
+
+          if (allDone) {
+            window.clearInterval(interval);
+            setIsProcessing(false);
+            toast.success("Processamento concluído!");
+          }
+        }
+      }, 5000);
     } catch (e: any) {
       toast.error("Erro: " + e.message);
-    } finally {
       setIsProcessing(false);
     }
   }
