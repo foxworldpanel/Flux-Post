@@ -151,78 +151,20 @@ export default function Index() {
         <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-lg">
           <h3 className="text-amber-500 font-bold mb-2">Instruções de Desenvolvimento</h3>
           <p className="text-sm text-gray-300 whitespace-pre-line">
-            {`Faça uma auditoria completa e corrija 
-            definitivamente o insert na tabela 
-            media_renders.
+            {`O motor de renderização está em fase de transição para processamento server-side.
+            
+            FLUXO ATUAL:
+            1. Os vídeos selecionados são enviados para uma fila (tabela media_renders).
+            2. O Render Worker na VPS (Node.js + FFmpeg) identifica os novos jobs.
+            3. O Worker baixa o vídeo e o áudio, realiza o mix via FFmpeg e faz o upload para o bucket 'rendered'.
+            4. O status é atualizado para 'ready' e o preview fica disponível automaticamente.
 
-            PROBLEMA IDENTIFICADO:
-            - O insert na tabela media_renders não persiste
-            - O upsert retorna o objeto mas a tabela 
-              fica vazia
-            - RLS está desabilitado
-            - O enum render_status tem os valores:
-              queued, processing, ready, failed, cancelled
-
-            DIAGNÓSTICO:
-            O Supabase client pode estar com cache 
-            desatualizado do schema da tabela.
-
-            POR FAVOR FAÇA:
-            1. Force o refresh do schema cache do Supabase
-               adicionando no início do handleProcessAll:
-               
-               await supabase.rpc('get_service_status').catch(() => {});
-
-            2. Tente inserir sem o campo render_key 
-               primeiro para ver se é esse campo causando
-               o problema
-
-            3. Se ainda falhar, use uma RPC (função SQL)
-               para fazer o insert:
-               Crie a função no Supabase:
-               
-               CREATE OR REPLACE FUNCTION insert_media_render(
-                 p_user_id uuid,
-                 p_source_content_id uuid,
-                 p_music_track_id uuid,
-                 p_audio_mode text,
-                 p_music_volume int,
-                 p_original_audio_volume int,
-                 p_music_start_ms int
-               ) RETURNS uuid AS $$
-               DECLARE
-                 v_id uuid;
-               BEGIN
-                 INSERT INTO media_renders (
-                   user_id, source_content_id, music_track_id,
-                   render_key, status, attempts,
-                   audio_mode, music_volume, 
-                   original_audio_volume, music_start_ms
-                 ) VALUES (
-                   p_user_id, p_source_content_id, p_music_track_id,
-                   p_source_content_id || '|' || p_music_track_id || '|' || p_music_start_ms,
-                   'queued', 0,
-                   p_audio_mode, p_music_volume,
-                   p_original_audio_volume, p_music_start_ms
-                 ) RETURNING id INTO v_id;
-                 RETURN v_id;
-               END;
-               $$ LANGUAGE plpgsql SECURITY DEFINER;
-
-            4. No frontend, chame via:
-               const { data: renderId } = await supabase
-                 .rpc('insert_media_render', {
-                   p_user_id: user.id,
-                   p_source_content_id: videoId,
-                   p_music_track_id: formData.music_track_id,
-                   p_audio_mode: formData.audio_mode,
-                   p_music_volume: formData.music_volume,
-                   p_original_audio_volume: formData.original_audio_volume,
-                   p_music_start_ms: formData.music_start_ms
-                 });
-
-            5. Depois de criar a função, verifique que
-               o registro aparece na tabela media_renders`}
+            ESTADO DO MOTOR:
+            - RPC 'insert_media_render': ATIVO (Garante persistência)
+            - Realtime Sync: ATIVO (Monitora progresso em tempo real)
+            - Polling Fallback: ATIVO (3s)
+            
+            Se o vídeo demorar a aparecer, verifique se o Worker VPS está rodando.`}
           </p>
         </div>
       </div>
