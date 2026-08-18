@@ -151,7 +151,7 @@ export default function Index() {
         <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-lg">
           <h3 className="text-amber-500 font-bold mb-2">Instruções de Desenvolvimento</h3>
           <p className="text-sm text-gray-300 whitespace-pre-line">
-            Na função handleLocalProcess, adicione 
+            {`Na função handleLocalProcess, adicione 
             tratamento de CORS para URLs do Pexels.
             O vídeo do Pexels não pode ser baixado 
             diretamente por CORS no navegador.
@@ -164,19 +164,19 @@ export default function Index() {
             if (isExternalUrl) {
               // Usa a VPS como proxy para baixar o vídeo
               const proxyRes = await fetch(
-                `https://worker.fluxpost.store/proxy?url=${encodeURIComponent(videoUrl)}`
+                \`https://worker.fluxpost.store/proxy?url=\${encodeURIComponent(videoUrl)}\`
               );
-              if (!proxyRes.ok) throw new Error(`Proxy falhou: ${proxyRes.status}`);
+              if (!proxyRes.ok) throw new Error(\`Proxy falhou: \${proxyRes.status}\`);
               const buf = await proxyRes.arrayBuffer();
               videoUint8 = new Uint8Array(buf);
             } else {
               const videoResponse = await fetch(videoUrl);
-              if (!videoResponse.ok) throw new Error(`Falha ao baixar vídeo: ${videoResponse.statusText}`);
+              if (!videoResponse.ok) throw new Error(\`Falha ao baixar vídeo: \${videoResponse.statusText}\`);
               const buf = await videoResponse.arrayBuffer();
               videoUint8 = new Uint8Array(buf);
             }
             console.log('Vídeo baixado:', videoUint8.byteLength, 'bytes');
-            await ffmpeg.writeFile("video.mp4", videoUint8);
+            await ffmpeg.writeFile("video.mp4", videoUint8);`}
           </p>
         </div>
       </div>
