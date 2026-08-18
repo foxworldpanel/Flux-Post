@@ -316,10 +316,25 @@ export default function CampanhaPage() {
       const musicUrl = await contentService.getSignedUrl(music.storage_path!);
 
       console.log('Baixando vídeo:', videoUrl);
-      const videoResponse = await fetch(videoUrl);
-      if (!videoResponse.ok) throw new Error(`Falha ao baixar vídeo: ${videoResponse.statusText}`);
-      const videoArrayBuffer = await videoResponse.arrayBuffer();
-      const videoUint8 = new Uint8Array(videoArrayBuffer);
+      const isExternalUrl = videoUrl.startsWith('https://videos.pexels.com') || 
+                            videoUrl.startsWith('https://www.pexels.com');
+      let videoUint8: Uint8Array;
+
+      if (isExternalUrl) {
+        console.log('Usando proxy para vídeo do Pexels');
+        const proxyRes = await fetch(
+          `https://worker.fluxpost.store/proxy?url=${encodeURIComponent(videoUrl)}`
+        );
+        if (!proxyRes.ok) throw new Error(`Proxy falhou: ${proxyRes.status}`);
+        const buf = await proxyRes.arrayBuffer();
+        videoUint8 = new Uint8Array(buf);
+      } else {
+        const videoResponse = await fetch(videoUrl);
+        if (!videoResponse.ok) throw new Error(`Falha ao baixar vídeo: ${videoResponse.statusText}`);
+        const buf = await videoResponse.arrayBuffer();
+        videoUint8 = new Uint8Array(buf);
+      }
+
       console.log('Vídeo baixado:', videoUint8.byteLength, 'bytes');
       await ffmpeg.writeFile("video.mp4", videoUint8);
 
