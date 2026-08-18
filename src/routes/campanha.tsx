@@ -315,8 +315,21 @@ export default function CampanhaPage() {
       const videoUrl = signedUrls[videoId] || await contentService.getSignedUrl(video.storage_path);
       const musicUrl = await contentService.getSignedUrl(music.storage_path!);
 
-      await ffmpeg.writeFile("video.mp4", await fetchFile(videoUrl));
-      await ffmpeg.writeFile("music.mp3", await fetchFile(musicUrl));
+      console.log('Baixando vídeo:', videoUrl);
+      const videoResponse = await fetch(videoUrl);
+      if (!videoResponse.ok) throw new Error(`Falha ao baixar vídeo: ${videoResponse.statusText}`);
+      const videoArrayBuffer = await videoResponse.arrayBuffer();
+      const videoUint8 = new Uint8Array(videoArrayBuffer);
+      console.log('Vídeo baixado:', videoUint8.byteLength, 'bytes');
+      await ffmpeg.writeFile("video.mp4", videoUint8);
+
+      console.log('Baixando música:', musicUrl);
+      const musicResponse = await fetch(musicUrl);
+      if (!musicResponse.ok) throw new Error(`Falha ao baixar música: ${musicResponse.statusText}`);
+      const musicArrayBuffer = await musicResponse.arrayBuffer();
+      const musicUint8 = new Uint8Array(musicArrayBuffer);
+      console.log('Música baixada:', musicUint8.byteLength, 'bytes');
+      await ffmpeg.writeFile("music.mp3", musicUint8);
 
       try {
         // Tenta modo only_music primeiro (mais simples - mapa direto de áudio)
