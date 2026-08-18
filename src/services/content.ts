@@ -124,7 +124,17 @@ export const contentService = {
     return { videos: json.videos || [], total_results: json.total_results || 0 };
   },
 
-  async importPexelsVideo({ videoId, category, candidateId }: { videoId: number; category: string; candidateId?: string }) {
+  async importPexelsVideo({ 
+    videoId, 
+    category, 
+    candidateId,
+    videoData
+  }: { 
+    videoId: number; 
+    category: string; 
+    candidateId?: string;
+    videoData?: any;
+  }) {
     // Try Edge Function first
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -148,17 +158,19 @@ export const contentService = {
     // Fallback: import directly from Pexels API and save to content_library
     console.log('[CONTENT] Importing directly from Pexels API...');
     
-    // Fetch video details from Pexels
-    let videoData: any;
+    // Fetch video details from Pexels if not provided
+    let finalVideoData = videoData;
     
-    if (PEXELS_API_KEY) {
+    if (!finalVideoData && PEXELS_API_KEY) {
       const res = await fetch(`https://api.pexels.com/videos/videos/${videoId}`, {
         headers: { Authorization: PEXELS_API_KEY }
       });
       if (res.ok) {
-        videoData = await res.json();
+        finalVideoData = await res.json();
       }
     }
+
+    const currentVideoData = finalVideoData;
 
     // Get best video file (prefer HD portrait/vertical)
     const getBestFile = (files: any[]) => {
@@ -171,14 +183,14 @@ export const contentService = {
       return sorted[0];
     };
 
-    const bestFile = videoData?.video_files ? getBestFile(videoData.video_files) : null;
+    const bestFile = currentVideoData?.video_files ? getBestFile(currentVideoData.video_files) : null;
     const videoUrl = bestFile?.link || `https://www.pexels.com/video/${videoId}/`;
-    const thumbnailUrl = videoData?.image || videoData?.video_pictures?.[0]?.picture;
-    const duration = videoData?.duration || 30;
-    const width = bestFile?.width || videoData?.width || 1080;
-    const height = bestFile?.height || videoData?.height || 1920;
+    const thumbnailUrl = currentVideoData?.image || currentVideoData?.video_pictures?.[0]?.picture;
+    const duration = currentVideoData?.duration || 30;
+    const width = bestFile?.width || currentVideoData?.width || 1080;
+    const height = bestFile?.height || currentVideoData?.height || 1920;
     const orientation = height > width ? 'portrait' : width > height ? 'landscape' : 'square';
-    const author = videoData?.user?.name || 'Pexels';
+    const author = currentVideoData?.user?.name || 'Pexels';
 
     // Save to content_library using the video URL as storage_path
     const { data: { user } } = await supabase.auth.getUser();
@@ -188,19 +200,19 @@ export const contentService = {
       .from('content_library')
       .upsert({
         user_id: user.id,
-        title: videoData?.url ? `Pexels Video ${videoId}` : `Video ${videoId}`,
+        title: currentVideoData?.url ? `Pexels Video ${videoId}` : `Video ${videoId}`,
         storage_path: videoUrl,
         thumbnail_url: thumbnailUrl,
         source: 'pexels',
         external_id: String(videoId),
-        original_url: videoData?.url || `https://www.pexels.com/video/${videoId}/`,
+        original_url: currentVideoData?.url || `https://www.pexels.com/video/${videoId}/`,
         duration_seconds: duration,
         category: category,
         orientation: orientation,
         author: author,
         status: 'new',
         niche: category,
-        tags: videoData?.tags?.map((t: any) => t.title) || [],
+        tags: currentVideoData?.tags?.map((t: any) => t.title) || [],
         license_info: 'Pexels License - Free to use',
       }, {
         onConflict: 'external_id,user_id',
