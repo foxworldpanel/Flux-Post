@@ -260,7 +260,11 @@ export default function CampanhaPage() {
       if (!user) throw new Error("Não autenticado");
 
       // 1. Force o refresh do schema cache
-      await (supabase.rpc('get_service_status') as any).catch(() => {});
+      try {
+        await supabase.rpc('get_service_status');
+      } catch (e) {
+        console.log("Schema refresh ignore:", e);
+      }
 
       for (const videoId of Array.from(selVideos)) {
         console.log('[RENDER] Chamando RPC para inserir job:', videoId);
