@@ -312,62 +312,39 @@ export default function CampanhaPage() {
         console.log("[FFmpeg]", message);
       });
 
+      // ─── Download video ───────────────────────────────────────────────────
       const videoUrl = signedUrls[videoId] || await contentService.getSignedUrl(video.storage_path);
-      
-
       console.log('Baixando vídeo:', videoUrl);
-      const isExternalUrl = videoUrl.startsWith('https://videos.pexels.com') || 
-                            videoUrl.startsWith('https://www.pexels.com');
-      let videoUint8: Uint8Array;
-
-      if (isExternalUrl) {
-        console.log('Usando proxy para vídeo do Pexels');
-        const proxyRes = await fetch(
-          `https://worker.fluxpost.store/proxy?url=${encodeURIComponent(videoUrl)}`
-        );
-        if (!proxyRes.ok) throw new Error(`Proxy falhou: ${proxyRes.status}`);
-        const buf = await proxyRes.arrayBuffer();
-        videoUint8 = new Uint8Array(buf);
-      } else {
-        const videoResponse = await fetch(videoUrl);
-        if (!videoResponse.ok) throw new Error(`Falha ao baixar vídeo: ${videoResponse.statusText}`);
-        const buf = await videoResponse.arrayBuffer();
-        videoUint8 = new Uint8Array(buf);
-      }
-
+      const videoResponse = await fetch(videoUrl);
+      if (!videoResponse.ok) throw new Error(`Falha ao baixar vídeo: ${videoResponse.status}`);
+      const videoUint8 = new Uint8Array(await videoResponse.arrayBuffer());
       console.log('Vídeo baixado:', videoUint8.byteLength, 'bytes');
       await ffmpeg.writeFile("video.mp4", videoUint8);
 
-      console.log('Baixando música:', music.storage_path);
+      // ─── Download music (try multiple buckets) ─────────────────────────────
       let musicUrl: string;
-      if (music.storage_path!.startsWith('http')) {
-        musicUrl = music.storage_path!;
+      const musicPath = music.storage_path!;
+      if (musicPath.startsWith('http://') || musicPath.startsWith('https://')) {
+        musicUrl = musicPath;
       } else {
-        // Tenta bucket musicas primeiro
-        const { data: musicData, error: musicError } = 
-          await supabase.storage
-            .from('musicas')
-            .createSignedUrl(music.storage_path!, 3600);
-        
-        if (musicError || !musicData?.signedUrl) {
-          // Tenta content-library
-          const { data: clData } = await supabase.storage
-            .from('content-library')
-            .createSignedUrl(music.storage_path!, 3600);
-          
-          if (!clData?.signedUrl) 
-            throw new Error('Música não encontrada no storage');
-          musicUrl = clData.signedUrl;
+        // Try 'musicas' bucket first
+        const { data: mData } = await supabase.storage.from('musicas').createSignedUrl(musicPath, 3600);
+        if (mData?.signedUrl) {
+          musicUrl = mData.signedUrl;
         } else {
-          musicUrl = musicData.signedUrl;
+          // Try 'content-library' bucket
+          const { data: clData } = await supabase.storage.from('content-library').createSignedUrl(musicPath, 3600);
+          if (clData?.signedUrl) {
+            musicUrl = clData.signedUrl;
+          } else {
+            throw new Error(`Música não encontrada no storage: ${musicPath}`);
+          }
         }
       }
-
-      console.log('Baixando música via URL:', musicUrl);
+      console.log('Baixando música:', musicUrl);
       const musicResponse = await fetch(musicUrl);
-      if (!musicResponse.ok) throw new Error(`Falha ao baixar música: ${musicResponse.statusText}`);
-      const musicArrayBuffer = await musicResponse.arrayBuffer();
-      const musicUint8 = new Uint8Array(musicArrayBuffer);
+      if (!musicResponse.ok) throw new Error(`Falha ao baixar música: ${musicResponse.status} ${musicResponse.statusText}`);
+      const musicUint8 = new Uint8Array(await musicResponse.arrayBuffer());
       console.log('Música baixada:', musicUint8.byteLength, 'bytes');
       await ffmpeg.writeFile("music.mp3", musicUint8);
 
