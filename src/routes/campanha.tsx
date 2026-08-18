@@ -272,31 +272,46 @@ export default function CampanhaPage() {
 
         console.log('[RENDER] Inserindo job:', { user_id: user.id, source_content_id: videoId, music_track_id: formData.music_track_id, render_key });
         
-        const { data: render, error } = await supabase
+        const { data: inserted, error: insertErr } = await supabase
           .from("media_renders")
-          .upsert({
+          .insert({
             user_id: user.id,
             source_content_id: videoId,
             music_track_id: formData.music_track_id,
-            render_key,
+            render_key: render_key,
             status: "queued",
             attempts: 0,
             audio_mode: formData.audio_mode,
             music_volume: formData.music_volume,
             original_audio_volume: formData.original_audio_volume,
             music_start_ms: formData.music_start_ms,
-          }, { onConflict: "render_key" })
+          })
           .select()
           .single();
 
-        console.log('[RENDER] Resultado:', { render, error });
-        if (error) {
-          console.error('[RENDER] Erro ao inserir:', error);
-          throw error;
+        console.log('[INSERT] data:', JSON.stringify(inserted));
+        console.log('[INSERT] error:', JSON.stringify(insertErr));
+
+        if (insertErr) {
+          console.error('[INSERT FALHOU] ' + JSON.stringify(insertErr));
+          // If it's a conflict error, we might want to just select the existing one
+          if (insertErr.code === '23505') {
+            const { data: existing } = await supabase
+              .from("media_renders")
+              .select()
+              .eq("render_key", render_key)
+              .single();
+            if (existing) {
+              setRenders(prev => [...prev.filter(r => r.id !== existing.id), existing as RenderItem]);
+              setProcessProgress(prev => ({ ...prev, [videoId]: existing.status }));
+              continue;
+            }
+          }
+          throw new Error('[INSERT FALHOU] ' + JSON.stringify(insertErr));
         }
 
-        if (render) {
-          setRenders(prev => [...prev.filter(r => r.id !== render.id), render as RenderItem]);
+        if (inserted) {
+          setRenders(prev => [...prev.filter(r => r.id !== inserted.id), inserted as RenderItem]);
           setProcessProgress(prev => ({ ...prev, [videoId]: "queued" }));
         }
       }
