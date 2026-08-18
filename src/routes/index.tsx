@@ -151,28 +151,78 @@ export default function Index() {
         <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-lg">
           <h3 className="text-amber-500 font-bold mb-2">Instruções de Desenvolvimento</h3>
           <p className="text-sm text-gray-300 whitespace-pre-line">
-            {`Na função handleProcessAll em campanha.tsx,
-            adicione um log detalhado após o insert
-            para ver o erro exato:
-            const { data: inserted, error: insertErr } = await supabase
-              .from("media_renders")
-              .insert({
-                user_id: user.id,
-                source_content_id: videoId,
-                music_track_id: formData.music_track_id,
-                render_key: render_key,
-                status: "queued",
-                attempts: 0,
-                audio_mode: formData.audio_mode,
-                music_volume: formData.music_volume,
-                original_audio_volume: formData.original_audio_volume,
-                music_start_ms: formData.music_start_ms,
-              })
-              .select()
-              .single();
-            console.log('[INSERT] data:', JSON.stringify(inserted));
-            console.log('[INSERT] error:', JSON.stringify(insertErr));
-            if (insertErr) throw new Error('[INSERT FALHOU] ' + JSON.stringify(insertErr));`}
+            {`Faça uma auditoria completa e corrija 
+            definitivamente o insert na tabela 
+            media_renders.
+
+            PROBLEMA IDENTIFICADO:
+            - O insert na tabela media_renders não persiste
+            - O upsert retorna o objeto mas a tabela 
+              fica vazia
+            - RLS está desabilitado
+            - O enum render_status tem os valores:
+              queued, processing, ready, failed, cancelled
+
+            DIAGNÓSTICO:
+            O Supabase client pode estar com cache 
+            desatualizado do schema da tabela.
+
+            POR FAVOR FAÇA:
+            1. Force o refresh do schema cache do Supabase
+               adicionando no início do handleProcessAll:
+               
+               await supabase.rpc('get_service_status').catch(() => {});
+
+            2. Tente inserir sem o campo render_key 
+               primeiro para ver se é esse campo causando
+               o problema
+
+            3. Se ainda falhar, use uma RPC (função SQL)
+               para fazer o insert:
+               Crie a função no Supabase:
+               
+               CREATE OR REPLACE FUNCTION insert_media_render(
+                 p_user_id uuid,
+                 p_source_content_id uuid,
+                 p_music_track_id uuid,
+                 p_audio_mode text,
+                 p_music_volume int,
+                 p_original_audio_volume int,
+                 p_music_start_ms int
+               ) RETURNS uuid AS $$
+               DECLARE
+                 v_id uuid;
+               BEGIN
+                 INSERT INTO media_renders (
+                   user_id, source_content_id, music_track_id,
+                   render_key, status, attempts,
+                   audio_mode, music_volume, 
+                   original_audio_volume, music_start_ms
+                 ) VALUES (
+                   p_user_id, p_source_content_id, p_music_track_id,
+                   p_source_content_id || '|' || p_music_track_id || '|' || p_music_start_ms,
+                   'queued', 0,
+                   p_audio_mode, p_music_volume,
+                   p_original_audio_volume, p_music_start_ms
+                 ) RETURNING id INTO v_id;
+                 RETURN v_id;
+               END;
+               $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+            4. No frontend, chame via:
+               const { data: renderId } = await supabase
+                 .rpc('insert_media_render', {
+                   p_user_id: user.id,
+                   p_source_content_id: videoId,
+                   p_music_track_id: formData.music_track_id,
+                   p_audio_mode: formData.audio_mode,
+                   p_music_volume: formData.music_volume,
+                   p_original_audio_volume: formData.original_audio_volume,
+                   p_music_start_ms: formData.music_start_ms
+                 });
+
+            5. Depois de criar a função, verifique que
+               o registro aparece na tabela media_renders`}
           </p>
         </div>
       </div>
