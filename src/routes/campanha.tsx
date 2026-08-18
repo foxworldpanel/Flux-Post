@@ -338,7 +338,32 @@ export default function CampanhaPage() {
       console.log('Vídeo baixado:', videoUint8.byteLength, 'bytes');
       await ffmpeg.writeFile("video.mp4", videoUint8);
 
-      console.log('Baixando música:', musicUrl);
+      console.log('Baixando música:', music.storage_path);
+      let musicUrl: string;
+      if (music.storage_path!.startsWith('http')) {
+        musicUrl = music.storage_path!;
+      } else {
+        // Tenta bucket musicas primeiro
+        const { data: musicData, error: musicError } = 
+          await supabase.storage
+            .from('musicas')
+            .createSignedUrl(music.storage_path!, 3600);
+        
+        if (musicError || !musicData?.signedUrl) {
+          // Tenta content-library
+          const { data: clData } = await supabase.storage
+            .from('content-library')
+            .createSignedUrl(music.storage_path!, 3600);
+          
+          if (!clData?.signedUrl) 
+            throw new Error('Música não encontrada no storage');
+          musicUrl = clData.signedUrl;
+        } else {
+          musicUrl = musicData.signedUrl;
+        }
+      }
+
+      console.log('Baixando música via URL:', musicUrl);
       const musicResponse = await fetch(musicUrl);
       if (!musicResponse.ok) throw new Error(`Falha ao baixar música: ${musicResponse.statusText}`);
       const musicArrayBuffer = await musicResponse.arrayBuffer();
