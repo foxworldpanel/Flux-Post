@@ -373,11 +373,13 @@ export default function GarimpoPage() {
       await contentService.importPexelsVideo({ 
         videoId: vidId, 
         category: item.category || "Outros", 
-        candidateId 
+        candidateId,
+        videoData: item // Pass the full video data for local bypass
       });
       toast.success("Importado com sucesso!");
-      if (candidateId) fetchData();
+      fetchData();
     } catch (err: any) {
+      console.error("Erro ao importar:", err);
       toast.error("Erro: " + err.message);
     } finally {
       setImportingId(null);
