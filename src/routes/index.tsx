@@ -151,39 +151,83 @@ export default function Index() {
         <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-lg">
           <h3 className="text-amber-500 font-bold mb-2">Instruções de Desenvolvimento</h3>
           <p className="text-sm text-gray-300 whitespace-pre-line">
-            {`Na função handleLocalProcess em campanha.tsx,
-            o FFmpeg está dando Aborted() e depois 
-            StorageApiError de RLS.
-            
-            1. Corrija o comando FFmpeg para re-encodar
-               o vídeo completamente (não usar -c:v copy):
-            await ffmpeg.exec([
-              "-i", "video.mp4",
-              "-i", "music.mp3",
-              "-map", "0:v:0",
-              "-map", "1:a:0",
-              "-c:v", "libx264",
-              "-c:a", "aac",
-              "-preset", "ultrafast",
-              "-crf", "28",
-              "-shortest",
-              "-y",
-              "output.mp4"
-            ]);
-            
-            2. Corrija o RLS do bucket "rendered" 
-               rodando no Supabase SQL Editor:
-            ALTER TABLE storage.objects DISABLE ROW LEVEL SECURITY;
-            OU crie uma policy para permitir upload:
-            CREATE POLICY "Allow authenticated uploads to rendered"
-            ON storage.objects FOR INSERT
-            TO authenticated
-            WITH CHECK (bucket_id = 'rendered');
-            
-            CREATE POLICY "Allow authenticated reads from rendered"
-            ON storage.objects FOR SELECT
-            TO authenticated
-            USING (bucket_id = 'rendered');`}
+            {`Na página /campanha, etapa 4, remova 
+            completamente o processamento local com 
+            FFmpeg.wasm do navegador.
+            Substitua handleProcessAll por:
+            async function handleProcessAll() {
+              if (!formData.music_track_id) 
+                return toast.error("Selecione uma música");
+              setIsProcessing(true);
+              try {
+                const { data: { user } } = await supabase.auth.getUser();
+                if (!user) throw new Error("Não autenticado");
+                for (const videoId of Array.from(selVideos)) {
+                  const render_key = [
+                    videoId,
+                    formData.music_track_id,
+                    formData.music_start_ms,
+                    formData.music_volume,
+                    formData.original_audio_volume,
+                    formData.audio_mode,
+                    "v1"
+                  ].join("|");
+                  const { data: render, error } = await supabase
+                    .from("media_renders")
+                    .upsert({
+                      user_id: user.id,
+                      source_content_id: videoId,
+                      music_track_id: formData.music_track_id,
+                      render_key,
+                      status: "queued",
+                      attempts: 0,
+                      audio_mode: formData.audio_mode,
+                      music_volume: formData.music_volume,
+                      original_audio_volume: formData.original_audio_volume,
+                      music_start_ms: formData.music_start_ms,
+                    }, { onConflict: "render_key" })
+                    .select()
+                    .single();
+                  if (error) throw error;
+                  if (render) {
+                    setRenders(prev => [...prev.filter(r => r.id !== render.id), render as RenderItem]);
+                    setProcessProgress(prev => ({ ...prev, [videoId]: "queued" }));
+                  }
+                }
+                toast.success("Jobs na fila! O worker está processando...");
+                
+                // Poll a cada 5 segundos para ver se ficou ready
+                const interval = setInterval(async () => {
+                  const ids = Array.from(selVideos);
+                  const { data: renders } = await supabase
+                    .from("media_renders")
+                    .select("*")
+                    .in("source_content_id", ids)
+                    .eq("music_track_id", formData.music_track_id);
+                  if (renders) {
+                    setRenders(renders as RenderItem[]);
+                    renders.forEach(r => {
+                      setProcessProgress(prev => ({ ...prev, [r.source_content_id]: r.status }));
+                    });
+                    const allDone = renders.every(r => 
+                      r.status === "ready" || r.status === "failed"
+                    );
+                    if (allDone) {
+                      clearInterval(interval);
+                      setIsProcessing(false);
+                      toast.success("Processamento concluído!");
+                    }
+                  }
+                }, 5000);
+              } catch (e: any) {
+                toast.error("Erro: " + e.message);
+                setIsProcessing(false);
+              }
+            }
+            Remove os imports de FFmpeg e fetchFile 
+            que não serão mais necessários.
+            O Docker worker na VPS vai processar o job
+            automaticamente via polling.`}
           </p>
         </div>
       </div>

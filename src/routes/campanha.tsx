@@ -18,8 +18,6 @@ import {
 import { format, addDays } from "date-fns";
 import { socialService, type SocialAccount } from "@/services/social";
 import { contentService } from "@/services/content";
-import { FFmpeg } from "@ffmpeg/ffmpeg";
-import { fetchFile, toBlobURL } from "@ffmpeg/util";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type MusicTrack = { id: string; nome: string; artista: string; artist_id: string; storage_path: string | null; };
@@ -82,8 +80,6 @@ export default function CampanhaPage() {
   const [campanhaAtiva, setCampanhaAtiva] = useState<any>(null);
 
   const pollTimerRef = useRef<number | null>(null);
-  const ffmpegRef = useRef<FFmpeg | null>(null);
-  const [ffmpegLoaded, setFfmpegLoaded] = useState(false);
   const [localProcessingId, setLocalProcessingId] = useState<string | null>(null);
 
   useEffect(() => { 
@@ -256,171 +252,82 @@ export default function CampanhaPage() {
   // ─── Process videos (Server-side Enqueue) ──────────────────────────────────
   async function handleProcessAll() {
     if (!formData.music_track_id) 
-      return toast.error("Selecione uma música primeiro");
+      return toast.error("Selecione uma música");
     
-    const musicTrack = musicas.find(
-      m => m.id === formData.music_track_id
-    );
-    if (!musicTrack) 
-      return toast.error("Música não encontrada");
-    if (!musicTrack.storage_path) 
-      return toast.error("Música sem arquivo de áudio");
-
     setIsProcessing(true);
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Não autenticado");
+
       for (const videoId of Array.from(selVideos)) {
-        await handleLocalProcess(videoId);
+        const render_key = [
+          videoId,
+          formData.music_track_id,
+          formData.music_start_ms,
+          formData.music_volume,
+          formData.original_audio_volume,
+          formData.audio_mode,
+          "v1"
+        ].join("|");
+
+        const { data: render, error } = await supabase
+          .from("media_renders")
+          .upsert({
+            user_id: user.id,
+            source_content_id: videoId,
+            music_track_id: formData.music_track_id,
+            render_key,
+            status: "queued",
+            attempts: 0,
+            audio_mode: formData.audio_mode,
+            music_volume: formData.music_volume,
+            original_audio_volume: formData.original_audio_volume,
+            music_start_ms: formData.music_start_ms,
+          }, { onConflict: "render_key" })
+          .select()
+          .single();
+
+        if (error) throw error;
+
+        if (render) {
+          setRenders(prev => [...prev.filter(r => r.id !== render.id), render as RenderItem]);
+          setProcessProgress(prev => ({ ...prev, [videoId]: "queued" }));
+        }
       }
-      toast.success("Processamento concluído!");
+
+      toast.success("Jobs na fila! O worker está processando...");
+      
+      const interval = window.setInterval(async () => {
+        const ids = Array.from(selVideos);
+        const { data: rendersData } = await supabase
+          .from("media_renders")
+          .select("*")
+          .in("source_content_id", ids)
+          .eq("music_track_id", formData.music_track_id);
+
+        if (rendersData) {
+          setRenders(rendersData as RenderItem[]);
+          rendersData.forEach(r => {
+            setProcessProgress(prev => ({ ...prev, [r.source_content_id]: r.status }));
+          });
+
+          const allDone = rendersData.every(r => 
+            r.status === "ready" || r.status === "failed"
+          );
+
+          if (allDone) {
+            window.clearInterval(interval);
+            setIsProcessing(false);
+            toast.success("Processamento concluído!");
+          }
+        }
+      }, 5000);
     } catch (e: any) {
       toast.error("Erro: " + e.message);
-    } finally {
       setIsProcessing(false);
     }
   }
 
-  async function loadFFmpeg() {
-    if (ffmpegRef.current) return ffmpegRef.current;
-    
-    const ffmpeg = new FFmpeg();
-    ffmpeg.on("log", ({ message }) => console.log("[FFmpeg]", message));
-    
-    const baseURL = "https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm";
-    await ffmpeg.load({
-      coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, "text/javascript"),
-      wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, "application/wasm"),
-    });
-    
-    ffmpegRef.current = ffmpeg;
-    setFfmpegLoaded(true);
-    return ffmpeg;
-  }
-
-  async function handleLocalProcess(videoId: string) {
-    const video = biblioteca.find(v => v.id === videoId);
-    const music = musicas.find(m => m.id === formData.music_track_id);
-    if (!video || !music || !formData.music_track_id) return;
-
-    setLocalProcessingId(videoId);
-    setProcessProgress(prev => ({ ...prev, [videoId]: "processing" }));
-    
-    try {
-      const ffmpeg = await loadFFmpeg();
-      
-      // Adiciona logs detalhados do FFmpeg
-      ffmpeg.on("log", ({ message }) => {
-        console.log("[FFmpeg]", message);
-      });
-
-      // ─── Download video ───────────────────────────────────────────────────
-      const videoUrl = signedUrls[videoId] || await contentService.getSignedUrl(video.storage_path);
-      console.log('Baixando vídeo:', videoUrl);
-      const videoResponse = await fetch(videoUrl);
-      if (!videoResponse.ok) throw new Error(`Falha ao baixar vídeo: ${videoResponse.status}`);
-      const videoUint8 = new Uint8Array(await videoResponse.arrayBuffer());
-      console.log('Vídeo baixado:', videoUint8.byteLength, 'bytes');
-      await ffmpeg.writeFile("video.mp4", videoUint8);
-
-      // ─── Download music (try multiple buckets) ─────────────────────────────
-      let musicUrl: string;
-      const musicPath = music.storage_path!;
-      if (musicPath.startsWith('http://') || musicPath.startsWith('https://')) {
-        musicUrl = musicPath;
-      } else {
-        // Try 'musicas' bucket first
-        const { data: mData } = await supabase.storage.from('musicas').createSignedUrl(musicPath, 3600);
-        if (mData?.signedUrl) {
-          musicUrl = mData.signedUrl;
-        } else {
-          // Try 'content-library' bucket
-          const { data: clData } = await supabase.storage.from('content-library').createSignedUrl(musicPath, 3600);
-          if (clData?.signedUrl) {
-            musicUrl = clData.signedUrl;
-          } else {
-            throw new Error(`Música não encontrada no storage: ${musicPath}`);
-          }
-        }
-      }
-      console.log('Baixando música:', musicUrl);
-      const musicResponse = await fetch(musicUrl);
-      if (!musicResponse.ok) throw new Error(`Falha ao baixar música: ${musicResponse.status} ${musicResponse.statusText}`);
-      const musicUint8 = new Uint8Array(await musicResponse.arrayBuffer());
-      console.log('Música baixada:', musicUint8.byteLength, 'bytes');
-      await ffmpeg.writeFile("music.mp3", musicUint8);
-
-      // Modo de re-encodamento completo para garantir compatibilidade e mixagem de áudio
-      await ffmpeg.exec([
-        "-i", "video.mp4",
-        "-i", "music.mp3",
-        "-map", "0:v:0",
-        "-map", "1:a:0",
-        "-c:v", "libx264",
-        "-c:a", "aac",
-        "-preset", "ultrafast",
-        "-crf", "28",
-        "-shortest",
-        "-y",
-        "output.mp4"
-      ]);
-
-      const data = await ffmpeg.readFile("output.mp4");
-      const blob = new Blob([data as any], { type: "video/mp4" });
-      
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Não autenticado");
-
-      const render_key = [
-        videoId,
-        formData.music_track_id,
-        formData.music_start_ms,
-        formData.music_volume,
-        formData.original_audio_volume,
-        formData.audio_mode,
-        "local_v1"
-      ].join("|");
-
-      const fileName = `${user.id}/${crypto.randomUUID()}.mp4`;
-      const { error: uploadError } = await supabase.storage
-        .from("rendered")
-        .upload(fileName, blob, { contentType: "video/mp4", upsert: true });
-
-      if (uploadError) throw uploadError;
-
-      const { data: render, error: dbError } = await supabase
-        .from("media_renders")
-        .upsert({
-          user_id: user.id,
-          source_content_id: videoId,
-          music_track_id: formData.music_track_id,
-          render_key,
-          status: "ready",
-          storage_path: fileName,
-          audio_mode: formData.audio_mode,
-          music_volume: formData.music_volume,
-          original_audio_volume: formData.original_audio_volume,
-          music_start_ms: formData.music_start_ms,
-          output_profile: "local_v1",
-          completed_at: new Date().toISOString()
-        }, { onConflict: "render_key" })
-        .select()
-        .single();
-
-      if (dbError) throw dbError;
-
-      if (render) {
-        setRenders(prev => [...prev.filter(r => r.id !== render.id), render as RenderItem]);
-        setProcessProgress(prev => ({ ...prev, [videoId]: "ready" }));
-        toast.success("Vídeo processado localmente com sucesso!");
-      }
-    } catch (e: any) {
-      console.error("Local render error:", e);
-      const msg = e?.message || String(e) || "Erro desconhecido";
-      toast.error("Erro FFmpeg: " + msg);
-      setProcessProgress(prev => ({ ...prev, [videoId]: "failed" }));
-    } finally {
-      setLocalProcessingId(null);
-    }
-  }
 
   async function handlePreview(render: RenderItem, title: string) {
     if (!render.storage_path) {
@@ -844,23 +751,6 @@ export default function CampanhaPage() {
                           )}
                         </div>
                         
-                        {(status === "queued" || status === "pending") && (
-                          <div className="flex items-center justify-between pt-1 border-t border-border/10">
-                            <p className="text-[10px] text-muted-foreground italic flex items-center gap-1">
-                              <Clock size={10} /> O worker VPS está demorando? Tente o fallback local.
-                            </p>
-                            <Button 
-                              variant="outline" 
-                              size="sm" 
-                              className="h-6 text-[10px] border-primary/20 text-primary hover:bg-primary/10 gap-1" 
-                              onClick={() => handleLocalProcess(id)}
-                              disabled={localProcessingId !== null}
-                            >
-                              {localProcessingId === id ? <Loader2 size={10} className="animate-spin" /> : <RotateCcw size={10} />}
-                              Processar Local (Browser)
-                            </Button>
-                          </div>
-                        )}
 
                         {status === "failed" && (
                           <div className="flex items-center justify-between pt-1 border-t border-red-500/10">
@@ -868,9 +758,6 @@ export default function CampanhaPage() {
                             <div className="flex gap-2">
                               <Button variant="outline" size="sm" className="h-6 text-[10px] border-red-500/20 text-red-500 hover:bg-red-500/10" onClick={handleProcessAll}>
                                 Tentar novamente
-                              </Button>
-                              <Button variant="outline" size="sm" className="h-6 text-[10px] border-primary/20 text-primary hover:bg-primary/10" onClick={() => handleLocalProcess(id)}>
-                                Fallback Local
                               </Button>
                             </div>
                           </div>
