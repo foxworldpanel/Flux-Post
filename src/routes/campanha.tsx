@@ -306,30 +306,47 @@ export default function CampanhaPage() {
     
     try {
       const ffmpeg = await loadFFmpeg();
+      
+      // Adiciona logs detalhados do FFmpeg
+      ffmpeg.on("log", ({ message }) => {
+        console.log("[FFmpeg]", message);
+      });
+
       const videoUrl = signedUrls[videoId] || await contentService.getSignedUrl(video.storage_path);
       const musicUrl = await contentService.getSignedUrl(music.storage_path!);
 
       await ffmpeg.writeFile("video.mp4", await fetchFile(videoUrl));
       await ffmpeg.writeFile("music.mp3", await fetchFile(musicUrl));
 
-      const musicStartSec = (formData.music_start_ms || 0) / 1000;
-      const musicVol = (formData.music_volume || 80) / 100;
-      const originalVol = (formData.original_audio_volume || 20) / 100;
-
-      // Complex filter for audio mixing
-      const filter = `[0:a]volume=${originalVol}[a0];[1:a]atrim=start=${musicStartSec},adelay=0|0,volume=${musicVol}[a1];[a0][a1]amix=inputs=2:duration=first[aout]`;
-      
-      await ffmpeg.exec([
-        "-i", "video.mp4",
-        "-i", "music.mp3",
-        "-filter_complex", filter,
-        "-map", "0:v",
-        "-map", "[aout]",
-        "-c:v", "copy",
-        "-c:a", "aac",
-        "-shortest",
-        "output.mp4"
-      ]);
+      try {
+        // Tenta modo only_music primeiro (mais simples - mapa direto de áudio)
+        await ffmpeg.exec([
+          "-i", "video.mp4",
+          "-i", "music.mp3",
+          "-map", "0:v",
+          "-map", "1:a",
+          "-c:v", "copy",
+          "-c:a", "aac",
+          "-shortest",
+          "-y",
+          "output.mp4"
+        ]);
+      } catch (execError) {
+        console.warn("Modo simples falhou, tentando modo alternativo:", execError);
+        // Fallback: re-encode video também para garantir compatibilidade
+        await ffmpeg.exec([
+          "-i", "video.mp4",
+          "-i", "music.mp3",
+          "-map", "0:v:0",
+          "-map", "1:a:0",
+          "-c:v", "libx264",
+          "-c:a", "aac",
+          "-preset", "ultrafast",
+          "-shortest",
+          "-y",
+          "output.mp4"
+        ]);
+      }
 
       const data = await ffmpeg.readFile("output.mp4");
       const blob = new Blob([data as any], { type: "video/mp4" });
@@ -382,7 +399,8 @@ export default function CampanhaPage() {
       }
     } catch (e: any) {
       console.error("Local render error:", e);
-      toast.error("Erro no processamento local: " + e.message);
+      const msg = e?.message || String(e) || "Erro desconhecido";
+      toast.error("Erro FFmpeg: " + msg);
       setProcessProgress(prev => ({ ...prev, [videoId]: "failed" }));
     } finally {
       setLocalProcessingId(null);
