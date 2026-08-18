@@ -255,71 +255,25 @@ export default function CampanhaPage() {
   // ─── Process videos ───────────────────────────────────────────────────────
   // ─── Process videos (Server-side Enqueue) ──────────────────────────────────
   async function handleProcessAll() {
-    if (!formData.music_track_id) return toast.error("Selecione uma música primeiro");
-    const musicTrack = musicas.find(m => m.id === formData.music_track_id);
-    if (!musicTrack) return toast.error("Música não encontrada");
+    if (!formData.music_track_id) 
+      return toast.error("Selecione uma música primeiro");
+    
+    const musicTrack = musicas.find(
+      m => m.id === formData.music_track_id
+    );
+    if (!musicTrack) 
+      return toast.error("Música não encontrada");
+    if (!musicTrack.storage_path) 
+      return toast.error("Música sem arquivo de áudio");
 
     setIsProcessing(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Usuário não autenticado");
-
       for (const videoId of Array.from(selVideos)) {
-        const video = biblioteca.find(v => v.id === videoId);
-        if (!video) continue;
-
-        try {
-          const render_key = [
-            videoId,
-            formData.music_track_id,
-            formData.music_start_ms,
-            formData.music_volume,
-            formData.original_audio_volume,
-            formData.audio_mode,
-            "bypass_v1"
-          ].join("|");
-
-          console.log('Executando Bypass de Processamento:', videoId);
-
-          const { data: render, error } = await supabase
-            .from("media_renders")
-            .upsert({
-              user_id: user.id,
-              source_content_id: videoId,
-              music_track_id: formData.music_track_id,
-              render_key,
-              status: "ready",
-              storage_path: video.storage_path, // Usa o vídeo original diretamente
-              completed_at: new Date().toISOString(),
-              attempts: 0,
-              audio_mode: formData.audio_mode,
-              music_volume: formData.music_volume,
-              original_audio_volume: formData.original_audio_volume,
-              music_start_ms: formData.music_start_ms,
-              output_profile: "bypass_v1"
-            }, { onConflict: "render_key" })
-            .select()
-            .single();
-
-
-          if (error) throw error;
-
-          if (render) {
-            setRenders(prev => {
-              const filtered = prev.filter(r => r.id !== render.id);
-              return [...filtered, render as RenderItem];
-            });
-            setProcessProgress(prev => ({ ...prev, [videoId]: "ready" }));
-          }
-        } catch (e: any) {
-          setProcessProgress(prev => ({ ...prev, [videoId]: "failed" }));
-          console.error("Erro no bypass de render:", videoId, e);
-        }
+        await handleLocalProcess(videoId);
       }
-      toast.success("Fluxo desbloqueado: Vídeos prontos para aprovação!");
+      toast.success("Processamento concluído!");
     } catch (e: any) {
-      console.error("Erro no processamento:", e);
-      toast.error("Erro ao processar: " + e.message);
+      toast.error("Erro: " + e.message);
     } finally {
       setIsProcessing(false);
     }
