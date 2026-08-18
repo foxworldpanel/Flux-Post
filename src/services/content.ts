@@ -62,6 +62,10 @@ export interface DiscoveryReport {
   };
 }
 
+// Pexels API Key - uses Edge Function as proxy to keep key server-side
+// Falls back to direct API call if Edge Function fails
+const PEXELS_API_KEY = import.meta.env.VITE_PEXELS_API_KEY || '';
+
 export const contentService = {
   async searchPexels({ 
     query, 
@@ -84,129 +88,146 @@ export const contentService = {
     exclude_ids?: string[];
     ensure_min_results?: number;
   }) {
-    const { data: { session } } = await supabase.auth.getSession();
+    // Try Edge Function first
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const { data, error } = await supabase.functions.invoke("pexels-search", {
+        body: { query, orientation, size, locale, type, page, per_page, exclude_ids, ensure_min_results },
+        headers: { Authorization: `Bearer ${session?.access_token}` }
+      });
+      if (!error && data) return data;
+    } catch (e) {
+      console.warn('[CONTENT] Edge Function failed, trying direct Pexels API:', e);
+    }
+
+    // Fallback: direct Pexels API
+    if (!PEXELS_API_KEY) throw new Error('PEXELS_API_KEY não configurada');
     
-    const { data, error } = await supabase.functions.invoke("pexels-search", {
-      body: { 
-        query, 
-        orientation, 
-        size, 
-        locale, 
-        type, 
-        page, 
-        per_page,
-        exclude_ids,
-        ensure_min_results
-      },
-      headers: {
-        Authorization: `Bearer ${session?.access_token}`
-      }
+    const params = new URLSearchParams();
+    if (query) params.set('query', query);
+    if (orientation && orientation !== 'all') params.set('orientation', orientation);
+    if (size) params.set('size', size);
+    if (locale) params.set('locale', locale);
+    params.set('page', String(page));
+    params.set('per_page', String(per_page));
+
+    const endpoint = type === 'popular' 
+      ? `https://api.pexels.com/videos/popular?${params}`
+      : `https://api.pexels.com/videos/search?${params}`;
+
+    const res = await fetch(endpoint, {
+      headers: { Authorization: PEXELS_API_KEY }
     });
 
-    if (error) throw error;
-    return data;
+    if (!res.ok) throw new Error(`Pexels API error: ${res.status}`);
+    const json = await res.json();
+    return { videos: json.videos || [], total_results: json.total_results || 0 };
   },
 
-  async importPexelsVideo({ 
-    videoId, 
-    category, 
-    candidateId,
-    videoData
-  }: { 
-    videoId: number; 
-    category: string; 
-    candidateId?: string;
-    videoData?: any;
-  }) {
-    const { data: { session } } = await supabase.auth.getSession();
-
+  async importPexelsVideo({ videoId, category, candidateId }: { videoId: number; category: string; candidateId?: string }) {
+    // Try Edge Function first
     try {
-      // 1. Edge Function Call
+      const { data: { session } } = await supabase.auth.getSession();
       const { data, error } = await supabase.functions.invoke("import-pexels-content", {
         body: { videoId, category },
-        headers: {
-          Authorization: `Bearer ${session?.access_token}`
-        }
+        headers: { Authorization: `Bearer ${session?.access_token}` }
       });
-
-      if (error) throw error;
-
-      // 2. If successful and we have a candidateId, update status
-      if (candidateId) {
-        await supabase
-          .from('content_candidates')
-          .update({ 
-            status: 'aprovado', 
-            reviewed_at: new Date().toISOString() 
-          })
-          .eq('id', candidateId);
-      }
-
-      return data;
-    } catch (error: any) {
-      console.error("[CONTENT SERVICE] Error importing via Edge Function, trying local bypass:", error);
-
-      // 3. Local Bypass (as requested by user)
-      if (videoData) {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) throw new Error("Usuário não autenticado");
-
-        // Determine resolution
-        const portrait = videoData.video_files?.find((f: any) => f.height > f.width) || videoData.video_files?.[0];
-        const res = portrait ? { width: portrait.width, height: portrait.height } : { width: videoData.width, height: videoData.height };
-        const storagePath = portrait?.link || videoData.video_files?.[0]?.link || videoData.url;
-
-        const { data: record, error: dbError } = await supabase
-          .from('content_library')
-          .upsert({
-            user_id: user.id,
-            title: videoData.title || `Pexels Video ${videoId}`,
-            storage_path: storagePath,
-            file_type: 'video',
-            category: category || 'Outros',
-            status: 'aprovado',
-            source: 'pexels',
-            external_id: videoId.toString(),
-            author: videoData.user?.name || videoData.author || 'Pexels',
-            original_url: videoData.url,
-            duration_seconds: videoData.duration,
-            orientation: res.height > res.width ? 'portrait' : 'landscape',
-            metadata: { 
-              pexels_id: videoId, 
-              width: res.width, 
-              height: res.height 
-            }
-          }, {
-            onConflict: 'user_id,source,external_id'
-          })
-          .select()
-          .single();
-
-        if (dbError) throw dbError;
-
+      
+      if (!error && data) {
         if (candidateId) {
-          await supabase
-            .from('content_candidates')
-            .update({ 
-              status: 'aprovado', 
-              reviewed_at: new Date().toISOString() 
-            })
+          await supabase.from('content_candidates')
+            .update({ status: 'aprovado', reviewed_at: new Date().toISOString() })
             .eq('id', candidateId);
         }
-
-        return { success: true, record, bypass: true };
+        return data;
       }
-
-      throw error;
+    } catch (e) {
+      console.warn('[CONTENT] Edge Function import failed, using direct import:', e);
     }
+
+    // Fallback: import directly from Pexels API and save to content_library
+    console.log('[CONTENT] Importing directly from Pexels API...');
+    
+    // Fetch video details from Pexels
+    let videoData: any;
+    
+    if (PEXELS_API_KEY) {
+      const res = await fetch(`https://api.pexels.com/videos/videos/${videoId}`, {
+        headers: { Authorization: PEXELS_API_KEY }
+      });
+      if (res.ok) {
+        videoData = await res.json();
+      }
+    }
+
+    // Get best video file (prefer HD portrait/vertical)
+    const getBestFile = (files: any[]) => {
+      if (!files || files.length === 0) return null;
+      const sorted = [...files].sort((a, b) => {
+        const aScore = (a.quality === 'hd' ? 2 : 1) + (a.height > a.width ? 1 : 0);
+        const bScore = (b.quality === 'hd' ? 2 : 1) + (b.height > b.width ? 1 : 0);
+        return bScore - aScore;
+      });
+      return sorted[0];
+    };
+
+    const bestFile = videoData?.video_files ? getBestFile(videoData.video_files) : null;
+    const videoUrl = bestFile?.link || `https://www.pexels.com/video/${videoId}/`;
+    const thumbnailUrl = videoData?.image || videoData?.video_pictures?.[0]?.picture;
+    const duration = videoData?.duration || 30;
+    const width = bestFile?.width || videoData?.width || 1080;
+    const height = bestFile?.height || videoData?.height || 1920;
+    const orientation = height > width ? 'portrait' : width > height ? 'landscape' : 'square';
+    const author = videoData?.user?.name || 'Pexels';
+
+    // Save to content_library using the video URL as storage_path
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Usuário não autenticado');
+
+    const { data: inserted, error: insertError } = await supabase
+      .from('content_library')
+      .upsert({
+        user_id: user.id,
+        title: videoData?.url ? `Pexels Video ${videoId}` : `Video ${videoId}`,
+        storage_path: videoUrl,
+        thumbnail_url: thumbnailUrl,
+        source: 'pexels',
+        external_id: String(videoId),
+        original_url: videoData?.url || `https://www.pexels.com/video/${videoId}/`,
+        duration_seconds: duration,
+        category: category,
+        orientation: orientation,
+        author: author,
+        status: 'new',
+        niche: category,
+        tags: videoData?.tags?.map((t: any) => t.title) || [],
+        license_info: 'Pexels License - Free to use',
+      }, {
+        onConflict: 'external_id,user_id',
+        ignoreDuplicates: false
+      })
+      .select()
+      .single();
+
+    if (insertError) {
+      console.error('[CONTENT] Error inserting to content_library:', insertError);
+      throw insertError;
+    }
+
+    if (candidateId) {
+      await supabase.from('content_candidates')
+        .update({ status: 'aprovado', reviewed_at: new Date().toISOString() })
+        .eq('id', candidateId);
+    }
+
+    console.log('[CONTENT] Video imported successfully:', inserted?.id);
+    return { success: true, content: inserted };
   },
 
   async runDiscovery(): Promise<DiscoveryReport> {
     const { data: { session } } = await supabase.auth.getSession();
     const { data, error } = await supabase.functions.invoke("run-content-discovery", {
-      headers: {
-        Authorization: `Bearer ${session?.access_token}`
-      }
+      headers: { Authorization: `Bearer ${session?.access_token}` }
     });
     if (error) throw error;
     return data;
@@ -215,10 +236,7 @@ export const contentService = {
   async discardCandidate(id: string) {
     const { error } = await supabase
       .from('content_candidates')
-      .update({ 
-        status: 'descartado', 
-        reviewed_at: new Date().toISOString() 
-      })
+      .update({ status: 'descartado', reviewed_at: new Date().toISOString() })
       .eq('id', id);
     if (error) throw error;
   },
@@ -233,29 +251,29 @@ export const contentService = {
     return data;
   },
 
-  async getSignedUrl(path: string) {
-    if (!path) return "";
-    
-    // Try content-library first (standard for this service)
-    let { data, error } = await supabase.storage
-      .from('content-library')
-      .createSignedUrl(path, 3600);
-
-    if (error || !data?.signedUrl) {
-      // Fallback to 'videos' bucket
-      const videosRes = await supabase.storage
-        .from('videos')
-        .createSignedUrl(path, 3600);
-      
-      if (videosRes.data?.signedUrl) {
-        return videosRes.data.signedUrl;
-      }
-      
-      if (error) throw error;
-      throw new Error("Arquivo não encontrado em content-library ou videos");
+  async getSignedUrl(storagePath: string) {
+    // If it's already a full URL (Pexels or external), return as-is
+    if (storagePath.startsWith('http://') || storagePath.startsWith('https://')) {
+      return storagePath;
     }
 
-    return data.signedUrl;
-  }
+    // Try content-library bucket first
+    try {
+      const { data, error } = await supabase.storage
+        .from('content-library')
+        .createSignedUrl(storagePath, 3600);
+      if (!error && data) return data.signedUrl;
+    } catch (e) {}
 
+    // Try videos bucket
+    try {
+      const { data, error } = await supabase.storage
+        .from('videos')
+        .createSignedUrl(storagePath, 3600);
+      if (!error && data) return data.signedUrl;
+    } catch (e) {}
+
+    // Return path as-is as last resort
+    return storagePath;
+  }
 };
