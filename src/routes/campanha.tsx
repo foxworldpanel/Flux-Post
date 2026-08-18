@@ -314,15 +314,6 @@ export default function CampanhaPage() {
           setRenders(prev => [...prev.filter(r => r.id !== inserted.id), inserted as RenderItem]);
           setProcessProgress(prev => ({ ...prev, [videoId]: "queued" }));
         }
-        if (error) {
-          console.error('[RENDER] Erro ao inserir:', error);
-          throw error;
-        }
-
-        if (render) {
-          setRenders(prev => [...prev.filter(r => r.id !== render.id), render as RenderItem]);
-          setProcessProgress(prev => ({ ...prev, [videoId]: "queued" }));
-        }
       }
 
       toast.success("Jobs na fila! O worker está processando...");
