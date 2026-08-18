@@ -313,7 +313,7 @@ export default function CampanhaPage() {
       });
 
       const videoUrl = signedUrls[videoId] || await contentService.getSignedUrl(video.storage_path);
-      const musicUrl = await contentService.getSignedUrl(music.storage_path!);
+      
 
       console.log('Baixando vídeo:', videoUrl);
       const isExternalUrl = videoUrl.startsWith('https://videos.pexels.com') || 
