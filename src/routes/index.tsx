@@ -149,16 +149,34 @@ export default function Index() {
         </div>
 
         <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-lg">
-          <h3 className="text-amber-500 font-bold mb-2">Configuração Necessária</h3>
+          <h3 className="text-amber-500 font-bold mb-2">Instruções de Desenvolvimento</h3>
           <p className="text-sm text-gray-300 whitespace-pre-line">
-            Adicione a variável de ambiente VITE_PEXELS_API_KEY {"\n\n"}
-            no projeto.{"\n\n"}
-            No arquivo .env (ou .env.local), adicione:{"\n\n"}
-            VITE_PEXELS_API_KEY=Ln6B3I57dpKvUgfuEaL2dIlZI9dNejakVbmdrZ9bstLnISUDahdDhRHB{"\n\n"}
-            Substitua "sua_chave_aqui" pela chave real {"\n\n"}
-            da API do Pexels.{"\n\n"}
-            A chave pode ser obtida em:{"\n\n"}
-            https://www.pexels.com/api/
+            Na função handleLocalProcess, adicione 
+            tratamento de CORS para URLs do Pexels.
+            O vídeo do Pexels não pode ser baixado 
+            diretamente por CORS no navegador.
+            Substitua o bloco de download do vídeo por:
+            
+            // Para URLs externas (Pexels), usa a VPS como proxy
+            const isExternalUrl = videoUrl.startsWith('https://videos.pexels.com') || 
+                                  videoUrl.startsWith('https://www.pexels.com');
+            let videoUint8: Uint8Array;
+            if (isExternalUrl) {
+              // Usa a VPS como proxy para baixar o vídeo
+              const proxyRes = await fetch(
+                `https://worker.fluxpost.store/proxy?url=${encodeURIComponent(videoUrl)}`
+              );
+              if (!proxyRes.ok) throw new Error(`Proxy falhou: ${proxyRes.status}`);
+              const buf = await proxyRes.arrayBuffer();
+              videoUint8 = new Uint8Array(buf);
+            } else {
+              const videoResponse = await fetch(videoUrl);
+              if (!videoResponse.ok) throw new Error(`Falha ao baixar vídeo: ${videoResponse.statusText}`);
+              const buf = await videoResponse.arrayBuffer();
+              videoUint8 = new Uint8Array(buf);
+            }
+            console.log('Vídeo baixado:', videoUint8.byteLength, 'bytes');
+            await ffmpeg.writeFile("video.mp4", videoUint8);
           </p>
         </div>
       </div>
