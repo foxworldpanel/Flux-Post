@@ -107,41 +107,98 @@ export const contentService = {
     return data;
   },
 
-  async importPexelsVideo({ videoId, category, candidateId }: { videoId: number; category: string; candidateId?: string }) {
+  async importPexelsVideo({ 
+    videoId, 
+    category, 
+    candidateId,
+    videoData
+  }: { 
+    videoId: number; 
+    category: string; 
+    candidateId?: string;
+    videoData?: any;
+  }) {
     const { data: { session } } = await supabase.auth.getSession();
 
-    const { data, error } = await supabase.functions.invoke("import-pexels-content", {
-      body: { videoId, category },
-      headers: {
-        Authorization: `Bearer ${session?.access_token}`
-      }
-    });
-
-    if (error) {
-      console.error("[CONTENT SERVICE] Error calling Edge Function:", error);
-      
-      if (error.name === 'FunctionsHttpError') {
-        try {
-          const details = await (error as any).context?.json();
-          if (details) throw details;
-        } catch (e) {
-          throw error;
+    try {
+      // 1. Edge Function Call
+      const { data, error } = await supabase.functions.invoke("import-pexels-content", {
+        body: { videoId, category },
+        headers: {
+          Authorization: `Bearer ${session?.access_token}`
         }
+      });
+
+      if (error) throw error;
+
+      // 2. If successful and we have a candidateId, update status
+      if (candidateId) {
+        await supabase
+          .from('content_candidates')
+          .update({ 
+            status: 'aprovado', 
+            reviewed_at: new Date().toISOString() 
+          })
+          .eq('id', candidateId);
       }
+
+      return data;
+    } catch (error: any) {
+      console.error("[CONTENT SERVICE] Error importing via Edge Function, trying local bypass:", error);
+
+      // 3. Local Bypass (as requested by user)
+      if (videoData) {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error("Usuário não autenticado");
+
+        // Determine resolution
+        const portrait = videoData.video_files?.find((f: any) => f.height > f.width) || videoData.video_files?.[0];
+        const res = portrait ? { width: portrait.width, height: portrait.height } : { width: videoData.width, height: videoData.height };
+        const storagePath = portrait?.link || videoData.video_files?.[0]?.link || videoData.url;
+
+        const { data: record, error: dbError } = await supabase
+          .from('content_library')
+          .upsert({
+            user_id: user.id,
+            title: videoData.title || `Pexels Video ${videoId}`,
+            storage_path: storagePath,
+            file_type: 'video',
+            category: category || 'Outros',
+            status: 'aprovado',
+            source: 'pexels',
+            external_id: videoId.toString(),
+            author: videoData.user?.name || videoData.author || 'Pexels',
+            original_url: videoData.url,
+            duration_seconds: videoData.duration,
+            orientation: res.height > res.width ? 'portrait' : 'landscape',
+            metadata: { 
+              pexels_id: videoId, 
+              width: res.width, 
+              height: res.height 
+            }
+          }, {
+            onConflict: 'user_id,source,external_id'
+          })
+          .select()
+          .single();
+
+        if (dbError) throw dbError;
+
+        if (candidateId) {
+          await supabase
+            .from('content_candidates')
+            .update({ 
+              status: 'aprovado', 
+              reviewed_at: new Date().toISOString() 
+            })
+            .eq('id', candidateId);
+        }
+
+        return { success: true, record, bypass: true };
+      }
+
       throw error;
     }
-
-    if (candidateId) {
-      await supabase
-        .from('content_candidates')
-        .update({ 
-          status: 'aprovado', 
-          reviewed_at: new Date().toISOString() 
-        })
-        .eq('id', candidateId);
-    }
-
-    return data;
   },
 
   async runDiscovery(): Promise<DiscoveryReport> {
