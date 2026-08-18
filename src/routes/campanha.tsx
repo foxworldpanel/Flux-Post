@@ -18,8 +18,6 @@ import {
 import { format, addDays } from "date-fns";
 import { socialService, type SocialAccount } from "@/services/social";
 import { contentService } from "@/services/content";
-import { FFmpeg } from "@ffmpeg/ffmpeg";
-import { fetchFile, toBlobURL } from "@ffmpeg/util";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type MusicTrack = { id: string; nome: string; artista: string; artist_id: string; storage_path: string | null; };
@@ -82,8 +80,6 @@ export default function CampanhaPage() {
   const [campanhaAtiva, setCampanhaAtiva] = useState<any>(null);
 
   const pollTimerRef = useRef<number | null>(null);
-  const ffmpegRef = useRef<FFmpeg | null>(null);
-  const [ffmpegLoaded, setFfmpegLoaded] = useState(false);
   const [localProcessingId, setLocalProcessingId] = useState<string | null>(null);
 
   useEffect(() => { 
