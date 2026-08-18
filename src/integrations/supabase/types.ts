@@ -1498,6 +1498,18 @@ export type Database = {
         Returns: string
       }
       heartbeat_render_job: { Args: { job_id: string }; Returns: undefined }
+      insert_media_render: {
+        Args: {
+          p_audio_mode: string
+          p_music_start_ms: number
+          p_music_track_id: string
+          p_music_volume: number
+          p_original_audio_volume: number
+          p_source_content_id: string
+          p_user_id: string
+        }
+        Returns: string
+      }
     }
     Enums: {
       render_status: "queued" | "processing" | "ready" | "failed" | "cancelled"
