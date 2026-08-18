@@ -124,7 +124,17 @@ export const contentService = {
     return { videos: json.videos || [], total_results: json.total_results || 0 };
   },
 
-  async importPexelsVideo({ videoId, category, candidateId }: { videoId: number; category: string; candidateId?: string }) {
+  async importPexelsVideo({ 
+    videoId, 
+    category, 
+    candidateId,
+    videoData
+  }: { 
+    videoId: number; 
+    category: string; 
+    candidateId?: string;
+    videoData?: any;
+  }) {
     // Try Edge Function first
     try {
       const { data: { session } } = await supabase.auth.getSession();
