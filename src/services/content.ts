@@ -158,17 +158,19 @@ export const contentService = {
     // Fallback: import directly from Pexels API and save to content_library
     console.log('[CONTENT] Importing directly from Pexels API...');
     
-    // Fetch video details from Pexels
-    let videoData: any;
+    // Fetch video details from Pexels if not provided
+    let finalVideoData = videoData;
     
-    if (PEXELS_API_KEY) {
+    if (!finalVideoData && PEXELS_API_KEY) {
       const res = await fetch(`https://api.pexels.com/videos/videos/${videoId}`, {
         headers: { Authorization: PEXELS_API_KEY }
       });
       if (res.ok) {
-        videoData = await res.json();
+        finalVideoData = await res.json();
       }
     }
+
+    const currentVideoData = finalVideoData;
 
     // Get best video file (prefer HD portrait/vertical)
     const getBestFile = (files: any[]) => {
