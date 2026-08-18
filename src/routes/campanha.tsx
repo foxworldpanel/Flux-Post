@@ -348,35 +348,20 @@ export default function CampanhaPage() {
       console.log('Música baixada:', musicUint8.byteLength, 'bytes');
       await ffmpeg.writeFile("music.mp3", musicUint8);
 
-      try {
-        // Tenta modo only_music primeiro (mais simples - mapa direto de áudio)
-        await ffmpeg.exec([
-          "-i", "video.mp4",
-          "-i", "music.mp3",
-          "-map", "0:v",
-          "-map", "1:a",
-          "-c:v", "copy",
-          "-c:a", "aac",
-          "-shortest",
-          "-y",
-          "output.mp4"
-        ]);
-      } catch (execError) {
-        console.warn("Modo simples falhou, tentando modo alternativo:", execError);
-        // Fallback: re-encode video também para garantir compatibilidade
-        await ffmpeg.exec([
-          "-i", "video.mp4",
-          "-i", "music.mp3",
-          "-map", "0:v:0",
-          "-map", "1:a:0",
-          "-c:v", "libx264",
-          "-c:a", "aac",
-          "-preset", "ultrafast",
-          "-shortest",
-          "-y",
-          "output.mp4"
-        ]);
-      }
+      // Modo de re-encodamento completo para garantir compatibilidade e mixagem de áudio
+      await ffmpeg.exec([
+        "-i", "video.mp4",
+        "-i", "music.mp3",
+        "-map", "0:v:0",
+        "-map", "1:a:0",
+        "-c:v", "libx264",
+        "-c:a", "aac",
+        "-preset", "ultrafast",
+        "-crf", "28",
+        "-shortest",
+        "-y",
+        "output.mp4"
+      ]);
 
       const data = await ffmpeg.readFile("output.mp4");
       const blob = new Blob([data as any], { type: "video/mp4" });
