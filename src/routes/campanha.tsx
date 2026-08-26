@@ -259,18 +259,21 @@ export default function CampanhaPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Não autenticado");
 
-      // 1. Force o refresh do schema cache
-      try {
-        await supabase.rpc('get_service_status');
-      } catch (e) {
-        console.log("Schema refresh ignore:", e);
-      }
-
       for (const videoId of Array.from(selVideos)) {
-        console.log('[RENDER] Chamando RPC para inserir job:', videoId);
+        const render_key = [
+          videoId,
+          formData.music_track_id,
+          formData.music_start_ms,
+          formData.music_volume,
+          formData.original_audio_volume,
+          formData.audio_mode,
+          "v1"
+        ].join("|");
+
+        console.log('[RENDER] Inserindo job via RPC:', { user_id: user.id, source_content_id: videoId, music_track_id: formData.music_track_id });
         
-        // Usando a RPC conforme instruído no diagnóstico
-        const { data: renderId, error: rpcErr } = await supabase
+        // Usa RPC SECURITY DEFINER para garantir o insert
+        const { data: renderId, error: rpcError } = await supabase
           .rpc('insert_media_render', {
             p_user_id: user.id,
             p_source_content_id: videoId,
@@ -278,57 +281,30 @@ export default function CampanhaPage() {
             p_audio_mode: formData.audio_mode,
             p_music_volume: formData.music_volume,
             p_original_audio_volume: formData.original_audio_volume,
-            p_music_start_ms: formData.music_start_ms
+            p_music_start_ms: formData.music_start_ms,
           });
 
-        if (rpcErr) {
-          console.error('[RPC INSERT FALHOU]', rpcErr);
-          // Fallback para insert direto se a RPC ainda não existir ou falhar
-          const render_key = [
-            videoId,
-            formData.music_track_id,
-            formData.music_start_ms,
-            "v1"
-          ].join("|");
+        console.log('[RENDER] RPC resultado:', { renderId, rpcError });
+        
+        if (rpcError) {
+          console.error('[RENDER] RPC erro:', rpcError);
+          throw new Error('Falha ao criar job: ' + rpcError.message);
+        }
 
-          const { data: inserted, error: insertErr } = await supabase
-            .from("media_renders")
-            .insert({
-              user_id: user.id,
-              source_content_id: videoId,
-              music_track_id: formData.music_track_id,
-              render_key: render_key,
-              status: "queued",
-              attempts: 0,
-              audio_mode: formData.audio_mode,
-              music_volume: formData.music_volume,
-              original_audio_volume: formData.original_audio_volume,
-              music_start_ms: formData.music_start_ms,
-            })
-            .select()
-            .single();
+        const render = { 
+          id: renderId, 
+          source_content_id: videoId,
+          music_track_id: formData.music_track_id,
+          status: 'queued' as const,
+          storage_path: null,
+          is_approved: false
+        };
+        
+        const error = null;
 
-          if (insertErr && insertErr.code !== '23505') {
-             throw new Error('[INSERT FALHOU] ' + JSON.stringify(insertErr));
-          }
-          
-          if (inserted) {
-            setRenders(prev => [...prev.filter(r => r.id !== inserted.id), inserted as RenderItem]);
-            setProcessProgress(prev => ({ ...prev, [videoId]: "queued" }));
-          }
-        } else if (renderId) {
-          console.log('[RPC INSERT SUCESSO] ID:', renderId);
-          // Buscar o objeto completo após inserir via RPC para atualizar o estado local
-          const { data: fullRender } = await supabase
-            .from("media_renders")
-            .select("*")
-            .eq("id", renderId)
-            .single();
-            
-          if (fullRender) {
-            setRenders(prev => [...prev.filter(r => r.id !== fullRender.id), fullRender as RenderItem]);
-            setProcessProgress(prev => ({ ...prev, [videoId]: "queued" }));
-          }
+        if (render) {
+          setRenders(prev => [...prev.filter(r => r.id !== render.id), render as RenderItem]);
+          setProcessProgress(prev => ({ ...prev, [videoId]: "queued" }));
         }
       }
 
