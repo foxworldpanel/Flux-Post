@@ -187,7 +187,45 @@ export default function CampanhaPage() {
       setSocialAccounts(accountsRes || []);
       setRenders(rendersRes.data || []);
 
-      if (campRes.data?.[0]) setCampanhaAtiva(campRes.data[0]);
+      if (campRes.data?.[0]) {
+        const activeCampaign = campRes.data[0];
+
+        const { data: campaignPublications, error: publicationsError } = await supabase
+          .from("publications")
+          .select("id, status")
+          .eq("campaign_id", activeCampaign.id);
+
+        if (publicationsError) {
+          console.error("Erro ao verificar publicações da campanha:", publicationsError);
+          setCampanhaAtiva(activeCampaign);
+        } else {
+          const publications = campaignPublications || [];
+          const allPublished =
+            publications.length > 0 &&
+            publications.every(pub => pub.status === "published");
+
+          if (allPublished) {
+            await Promise.all([
+              supabase
+                .from("campanhas")
+                .update({ status: "concluido" })
+                .eq("id", activeCampaign.id),
+
+              supabase
+                .from("music_tracks")
+                .update({ campanha_ativa: false })
+                .eq("id", activeCampaign.music_track_id)
+            ]);
+
+            setCampanhaAtiva(null);
+            toast.success("Campanha concluída! Todas as publicações foram realizadas.");
+          } else {
+            setCampanhaAtiva(activeCampaign);
+          }
+        }
+      } else {
+        setCampanhaAtiva(null);
+      }
 
       // Sync progress state from initial renders
       if (rendersRes.data) {
