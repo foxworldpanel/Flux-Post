@@ -24,10 +24,11 @@ export interface PostPeerMediaItem {
 
 export interface PostPeerPlatformResult {
   platform: string;
-  accountId: string;
-  status: string;
+  accountId?: string;
+  status?: string;
+  success?: boolean;
   postId?: string;
-  postUrl?: string;
+  platformPostUrl?: string;
   error?: string;
 }
 
@@ -44,7 +45,8 @@ export interface PostPeerCreatePostRequest {
 }
 
 export interface PostPeerCreatePostResponse {
-  id: string;
+  success: boolean;
+  postId: string;
   status: string;
   platforms: PostPeerPlatformResult[];
   publishedAt?: string;

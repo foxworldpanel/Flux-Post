@@ -334,7 +334,7 @@ serve(async (req) => {
 
     const response = await postpeer.createPost(payload);
 
-    if (!response?.id) {
+    if (!response?.postId) {
       throw new Error("PostPeer returned no post ID");
     }
 
@@ -344,15 +344,15 @@ serve(async (req) => {
         : "processing";
 
     const updatePayload: Record<string, unknown> = {
-      provider_post_id: response.id,
+      provider_post_id: response.postId,
       status: providerStatus,
       updated_at: new Date().toISOString()
     };
 
     const platformResult = response.platforms?.[0];
 
-    if (platformResult?.postUrl) {
-      updatePayload.post_url = platformResult.postUrl;
+    if (platformResult?.platformPostUrl) {
+      updatePayload.post_url = platformResult.platformPostUrl;
     }
 
     if (platformResult?.error) {
