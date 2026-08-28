@@ -3,152 +3,488 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type, x-cron-secret",
 };
 
-const DISPATCHER_BUILD = "v10-canonical-fix";
+const DISPATCHER_BUILD = "v11-postpeer-final";
+
+const jsonResponse = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), {
+    status,
+    headers: {
+      ...corsHeaders,
+      "Content-Type": "application/json"
+    }
+  });
 
 serve(async (req) => {
   const startedAt = new Date().toISOString();
   const executionId = crypto.randomUUID();
 
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders, status: 204 });
+    return new Response("ok", {
+      headers: corsHeaders,
+      status: 204
+    });
   }
 
   try {
-    const cronSecret = req.headers.get("x-cron-secret");
-    if (cronSecret !== "v4-dispatcher-secret-internal") {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), { 
-        status: 401, 
-        headers: { ...corsHeaders, "Content-Type": "application/json" } 
-      });
+    const expectedCronSecret =
+      Deno.env.get("CAMPAIGN_DISPATCHER_SECRET") ?? "";
+
+    const receivedCronSecret =
+      req.headers.get("x-cron-secret") ?? "";
+
+    if (
+      !expectedCronSecret ||
+      receivedCronSecret !== expectedCronSecret
+    ) {
+      return jsonResponse({ error: "Unauthorized" }, 401);
     }
 
-    const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+    const supabaseUrl =
+      Deno.env.get("SUPABASE_URL") ?? "";
 
-    console.log(`[campaign-dispatcher][${executionId}] Iniciando ciclo ${DISPATCHER_BUILD}...`);
+    const serviceRoleKey =
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 
-    // 1. Health Update
+    if (!supabaseUrl || !serviceRoleKey) {
+      return jsonResponse(
+        { error: "Server configuration missing" },
+        500
+      );
+    }
+
+    const supabaseAdmin = createClient(
+      supabaseUrl,
+      serviceRoleKey
+    );
+
+    console.log(
+      `[campaign-dispatcher][${executionId}] Start ${DISPATCHER_BUILD}`
+    );
+
     await supabaseAdmin
       .from("server_cron_state")
-      .upsert({ 
-        id: '00000000-0000-0000-0000-000000000001',
+      .upsert({
+        id: "00000000-0000-0000-0000-000000000001",
         last_run_at: startedAt,
-        last_success_at: startedAt,
-        executor_type: 'edge_function_dispatcher',
+        executor_type: "edge_function_dispatcher",
         last_error: null
-      }, { onConflict: 'id' });
+      }, {
+        onConflict: "id"
+      });
 
-    // 2. Buscar publicações elegíveis
-    const { data: publications, error: fetchError } = await supabaseAdmin
+    /*
+     * Apenas publicações cujo horário já chegou.
+     * ready_to_post também entra para recuperar execuções
+     * interrompidas entre render e envio.
+     */
+    const {
+      data: publications,
+      error: fetchError
+    } = await supabaseAdmin
       .from("publications")
       .select("*")
-      .in("status", ["agendado", "pending", "scheduled", "waiting_render"])
+      .in("status", [
+        "agendado",
+        "pending",
+        "scheduled",
+        "waiting_render",
+        "ready_to_post"
+      ])
       .lte("scheduled_for", startedAt)
-      .limit(10);
+      .is("provider_post_id", null)
+      .order("scheduled_for", {
+        ascending: true
+      })
+      .limit(20);
 
     if (fetchError) {
-       return new Response(JSON.stringify({ error: "Fetch error: " + fetchError.message, details: fetchError }), { 
-        status: 500, 
-        headers: { ...corsHeaders, "Content-Type": "application/json" } 
-      });
+      throw new Error(
+        `Fetch publications failed: ${fetchError.message}`
+      );
     }
 
-    let processedCount = 0;
-    const results = [];
+    const results: any[] = [];
+    let publishedCount = 0;
+    let waitingCount = 0;
+    let failedCount = 0;
 
-    for (const pub of (publications || [])) {
-      if (pub.music_track_id) {
-        const renderOptions = pub.render_options || {};
-        const renderKey = renderOptions.render_key; 
-        
-        if (!renderKey) {
-          console.error(`[campaign-dispatcher][${executionId}] Publicação ${pub.id} sem render_key!`);
+    const invokePostPeer = async (
+      publicationId: string
+    ) => {
+      const response = await fetch(
+        `${supabaseUrl}/functions/v1/postpeer-post-create`,
+        {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${serviceRoleKey}`,
+            "apikey": serviceRoleKey,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            publicationId
+          })
+        }
+      );
+
+      const text = await response.text();
+
+      let body: any = null;
+
+      try {
+        body = text ? JSON.parse(text) : {};
+      } catch {
+        body = { raw: text };
+      }
+
+      if (!response.ok) {
+        throw new Error(
+          `postpeer-post-create ${response.status}: ${
+            body?.error || text || "Unknown error"
+          }`
+        );
+      }
+
+      return body;
+    };
+
+    for (const pub of publications || []) {
+      try {
+        /*
+         * Segurança adicional contra reenvio.
+         */
+        if (pub.provider_post_id) {
+          results.push({
+            id: pub.id,
+            status: "already_sent"
+          });
+
           continue;
         }
 
-        const { data: existingRender } = await supabaseAdmin
-          .from("media_renders")
-          .select("id, status")
-          .eq("render_key", renderKey)
-          .maybeSingle();
+        /*
+         * PUBLICAÇÃO COM MÚSICA
+         */
+        if (pub.music_track_id) {
+          const renderOptions =
+            pub.render_options || {};
 
-        if (existingRender?.status === "ready") {
-          const { data: claimedPub } = await supabaseAdmin
-            .from("publications")
-            .update({ 
-              status: 'ready_to_post',
-              media_render_id: existingRender.id
-            })
-            .eq('id', pub.id)
-            .select()
-            .single();
+          const renderKey =
+            renderOptions.render_key;
 
-          if (claimedPub) {
-            processedCount++;
-            results.push({ id: pub.id, status: 'ready_to_post' });
+          /*
+           * Primeiro tenta pelo media_render_id já associado.
+           */
+          let existingRender: any = null;
+
+          if (pub.media_render_id) {
+            const {
+              data: renderById
+            } = await supabaseAdmin
+              .from("media_renders")
+              .select("id,status,storage_path")
+              .eq("id", pub.media_render_id)
+              .maybeSingle();
+
+            existingRender = renderById;
           }
-        } else if (!existingRender) {
-          // Criar media_render se não existir (backfill)
-          const { data: newRender, error: renderError } = await supabaseAdmin
-            .from("media_renders")
-            .insert({
-              user_id: pub.user_id,
-              source_content_id: pub.content_id,
-              music_track_id: pub.music_track_id,
-              render_key: renderKey,
-              render_options: renderOptions,
-              status: 'queued',
-              audio_mode: renderOptions.audioMode || 'music_plus_original',
-              music_start_ms: renderOptions.musicStartMs || 0,
-              music_volume: renderOptions.musicVolume || 80,
-              original_audio_volume: renderOptions.originalAudioVolume || 20
-            })
-            .select()
-            .single();
 
-          if (newRender) {
+          /*
+           * Compatibilidade com campanhas antigas:
+           * procura também pelo render_key.
+           */
+          if (!existingRender && renderKey) {
+            const {
+              data: renderByKey
+            } = await supabaseAdmin
+              .from("media_renders")
+              .select("id,status,storage_path")
+              .eq("render_key", renderKey)
+              .maybeSingle();
+
+            existingRender = renderByKey;
+          }
+
+          /*
+           * Render pronto: associa à publicação
+           * e segue para postagem.
+           */
+          if (
+            existingRender?.status === "ready" &&
+            existingRender?.storage_path
+          ) {
             await supabaseAdmin
               .from("publications")
-              .update({ status: 'waiting_render', media_render_id: newRender.id })
-              .eq('id', pub.id);
-            
-            results.push({ id: pub.id, status: 'waiting_render', render_id: newRender.id });
+              .update({
+                status: "ready_to_post",
+                media_render_id:
+                  existingRender.id
+              })
+              .eq("id", pub.id);
+
+          } else if (
+            existingRender?.status === "failed"
+          ) {
+            await supabaseAdmin
+              .from("publications")
+              .update({
+                status: "failed",
+                last_error:
+                  "Media render failed before publication",
+                updated_at:
+                  new Date().toISOString()
+              })
+              .eq("id", pub.id);
+
+            failedCount++;
+
+            results.push({
+              id: pub.id,
+              status: "failed",
+              reason: "render_failed"
+            });
+
+            continue;
+
+          } else if (existingRender) {
+            await supabaseAdmin
+              .from("publications")
+              .update({
+                status: "waiting_render",
+                media_render_id:
+                  existingRender.id
+              })
+              .eq("id", pub.id);
+
+            waitingCount++;
+
+            results.push({
+              id: pub.id,
+              status: "waiting_render",
+              render_id:
+                existingRender.id
+            });
+
+            continue;
+
           } else {
-            console.error(`[campaign-dispatcher] Erro ao criar render para ${pub.id}:`, renderError);
+            /*
+             * Não existe render ainda.
+             * Para criar precisamos do render_key.
+             */
+            if (!renderKey) {
+              await supabaseAdmin
+                .from("publications")
+                .update({
+                  status: "failed",
+                  last_error:
+                    "Missing render_key for music publication",
+                  updated_at:
+                    new Date().toISOString()
+                })
+                .eq("id", pub.id);
+
+              failedCount++;
+
+              results.push({
+                id: pub.id,
+                status: "failed",
+                reason: "missing_render_key"
+              });
+
+              continue;
+            }
+
+            const {
+              data: newRender,
+              error: renderError
+            } = await supabaseAdmin
+              .from("media_renders")
+              .insert({
+                user_id:
+                  pub.user_id,
+                source_content_id:
+                  pub.content_id,
+                music_track_id:
+                  pub.music_track_id,
+                render_key:
+                  renderKey,
+                render_options:
+                  renderOptions,
+                status:
+                  "queued",
+                audio_mode:
+                  renderOptions.audioMode ||
+                  "music_plus_original",
+                music_start_ms:
+                  renderOptions.musicStartMs || 0,
+                music_volume:
+                  renderOptions.musicVolume ?? 80,
+                original_audio_volume:
+                  renderOptions.originalAudioVolume ?? 20
+              })
+              .select("id,status")
+              .single();
+
+            if (renderError || !newRender) {
+              throw new Error(
+                `Render creation failed: ${
+                  renderError?.message ||
+                  "unknown error"
+                }`
+              );
+            }
+
+            await supabaseAdmin
+              .from("publications")
+              .update({
+                status: "waiting_render",
+                media_render_id:
+                  newRender.id
+              })
+              .eq("id", pub.id);
+
+            waitingCount++;
+
+            results.push({
+              id: pub.id,
+              status: "waiting_render",
+              render_id:
+                newRender.id
+            });
+
+            continue;
           }
-        } else {
-          // Render existe mas não está ready (queued/processing/failed)
-          await supabaseAdmin
-            .from("publications")
-            .update({ status: 'waiting_render', media_render_id: existingRender.id })
-            .eq('id', pub.id);
-          
-          results.push({ id: pub.id, status: 'waiting_render', render_id: existingRender.id });
         }
+
+        /*
+         * Aqui chegamos em dois casos:
+         *
+         * 1. publicação sem música;
+         * 2. publicação com render READY.
+         *
+         * Como o horário já chegou, publicamos AGORA.
+         */
+        await supabaseAdmin
+          .from("publications")
+          .update({
+            status: "publishing",
+            updated_at:
+              new Date().toISOString()
+          })
+          .eq("id", pub.id)
+          .is("provider_post_id", null);
+
+        const postResult =
+          await invokePostPeer(pub.id);
+
+        publishedCount++;
+
+        results.push({
+          id: pub.id,
+          status:
+            postResult?.status ||
+            "submitted",
+          provider_post_id:
+            postResult?.postId ||
+            null
+        });
+
+      } catch (err: any) {
+        const message =
+          err?.message || String(err);
+
+        console.error(
+          `[campaign-dispatcher][${executionId}] ${pub.id}:`,
+          message
+        );
+
+        /*
+         * Não marcamos automaticamente como failed se
+         * existir a possibilidade do PostPeer ter criado
+         * o post e a resposta ter sido interrompida.
+         */
+        await supabaseAdmin
+          .from("publications")
+          .update({
+            last_error: message,
+            updated_at:
+              new Date().toISOString()
+          })
+          .eq("id", pub.id);
+
+        failedCount++;
+
+        results.push({
+          id: pub.id,
+          status: "error",
+          error: message
+        });
       }
     }
 
-    console.log(`[campaign-dispatcher][${executionId}] Ciclo finalizado. Processados: ${processedCount}/${publications?.length || 0}`);
+    const finishedAt =
+      new Date().toISOString();
 
-    return new Response(JSON.stringify({ 
-      status: "ok", 
-      executionId, 
-      processed: processedCount, 
-      total: publications?.length || 0,
+    await supabaseAdmin
+      .from("server_cron_state")
+      .upsert({
+        id: "00000000-0000-0000-0000-000000000001",
+        last_run_at: startedAt,
+        last_success_at: finishedAt,
+        executor_type:
+          "edge_function_dispatcher",
+        last_error: null
+      }, {
+        onConflict: "id"
+      });
+
+    console.log(
+      `[campaign-dispatcher][${executionId}] Finished`,
+      {
+        total:
+          publications?.length || 0,
+        published:
+          publishedCount,
+        waiting:
+          waitingCount,
+        failed:
+          failedCount
+      }
+    );
+
+    return jsonResponse({
+      status: "ok",
+      build: DISPATCHER_BUILD,
+      executionId,
+      total:
+        publications?.length || 0,
+      published:
+        publishedCount,
+      waiting_render:
+        waitingCount,
+      failed:
+        failedCount,
       results
-    }), { 
-      headers: { ...corsHeaders, "Content-Type": "application/json" } 
     });
 
   } catch (err: any) {
-    console.error(`[campaign-dispatcher][${executionId}] Fatal Error:`, err);
-    return new Response(JSON.stringify({ error: err.message }), { 
-      status: 500, 
-      headers: { ...corsHeaders, "Content-Type": "application/json" } 
-    });
+    const message =
+      err?.message || String(err);
+
+    console.error(
+      `[campaign-dispatcher][${executionId}] Fatal:`,
+      message
+    );
+
+    return jsonResponse({
+      status: "error",
+      build: DISPATCHER_BUILD,
+      executionId,
+      error: message
+    }, 500);
   }
 });

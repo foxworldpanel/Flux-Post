@@ -125,12 +125,25 @@ export const socialService = {
 
     if (error) throw error;
 
-    const { data: funcData, error: funcError } = await supabase.functions.invoke('postpeer-post-create', {
-      body: { publicationId: data.id }
-    });
+      // Agendado: o campaign-dispatcher será o único responsável pelo envio.
+      if (payload.scheduled_for) {
+        return {
+          publication: data,
+          providerResponse: null
+        };
+      }
 
-    if (funcError) throw funcError;
-    return { publication: data, providerResponse: funcData };
+      // Imediato: envia ao PostPeer agora.
+      const { data: funcData, error: funcError } = await supabase.functions.invoke('postpeer-post-create', {
+        body: { publicationId: data.id }
+      });
+
+      if (funcError) throw funcError;
+
+      return {
+        publication: data,
+        providerResponse: funcData
+      };
   },
 
   async syncPostStatuses() {

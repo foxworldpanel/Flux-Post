@@ -414,6 +414,21 @@ export default function CampanhaPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Não autenticado");
 
+      const selectedVideoIds = Array.from(selVideos);
+      const selectedAccountIds = Array.from(selAccounts);
+
+      if (!selectedVideoIds.length) throw new Error("Selecione pelo menos um vídeo");
+      if (!selectedAccountIds.length) throw new Error("Selecione pelo menos uma conta");
+
+      const selectedAccounts = socialAccounts.filter(a =>
+        selectedAccountIds.includes(a.id)
+      );
+
+      if (!selectedAccounts.length) {
+        throw new Error("Nenhuma conta social válida selecionada");
+      }
+
+      // 1. Criar campanha
       const { data: camp, error } = await supabase.from("campanhas").insert({
         user_id: user.id,
         nome: formData.nome,
@@ -430,21 +445,133 @@ export default function CampanhaPage() {
 
       if (error) throw error;
 
-      // Link videos
-      await supabase.from("campaign_contents").insert(
-        Array.from(selVideos).map(id => ({ campaign_id: camp.id, content_id: id }))
+      // 2. Vincular vídeos
+      const { error: contentsError } = await supabase
+        .from("campaign_contents")
+        .insert(
+          selectedVideoIds.map(id => ({
+            campaign_id: camp.id,
+            content_id: id
+          }))
+        );
+
+      if (contentsError) throw contentsError;
+
+      // 3. Vincular contas sociais
+      const { error: accountsError } = await supabase
+        .from("campaign_social_accounts")
+        .insert(
+          selectedAccountIds.map(id => ({
+            campaign_id: camp.id,
+            social_account_id: id
+          }))
+        );
+
+      if (accountsError) throw accountsError;
+
+      // 4. Preparar os renders aprovados/prontos
+      const readyRenders = renders.filter(r =>
+        selectedVideoIds.includes(r.source_content_id) &&
+        r.music_track_id === formData.music_track_id &&
+        r.status === "ready" &&
+        r.is_approved &&
+        !!r.storage_path
       );
 
-      // Link accounts
-      await supabase.from("campaign_social_accounts").insert(
-        Array.from(selAccounts).map(id => ({ campaign_id: camp.id, social_account_id: id }))
+      if (!readyRenders.length) {
+        throw new Error("Nenhum vídeo processado e aprovado disponível");
+      }
+
+      // 5. Gerar agenda da campanha
+      const publications: any[] = [];
+
+      const startDate = new Date(`${formData.data_inicio}T00:00:00`);
+      const endDate = new Date(`${formData.data_fim}T00:00:00`);
+
+      let videoIndex = 0;
+
+      for (
+        let currentDate = new Date(startDate);
+        currentDate <= endDate;
+        currentDate = addDays(currentDate, 1)
+      ) {
+        const postsPerDay = Math.max(1, Number(formData.posts_por_dia) || 1);
+        const startHour = parseInt(formData.hora_inicio);
+        const endHour = parseInt(formData.hora_fim);
+
+        const windowMinutes = Math.max(
+          0,
+          (endHour - startHour) * 60
+        );
+
+        const spacing =
+          postsPerDay > 1
+            ? Math.floor(windowMinutes / (postsPerDay - 1))
+            : 0;
+
+        for (let postIndex = 0; postIndex < postsPerDay; postIndex++) {
+          const render = readyRenders[videoIndex % readyRenders.length];
+
+          const scheduled = new Date(currentDate);
+          scheduled.setHours(startHour, 0, 0, 0);
+
+          if (postsPerDay === 1) {
+            scheduled.setMinutes(Math.floor(windowMinutes / 2));
+          } else {
+            scheduled.setMinutes(spacing * postIndex);
+          }
+
+          // Cada horário é criado para todas as contas selecionadas
+          for (const account of selectedAccounts) {
+            publications.push({
+              campaign_id: camp.id,
+              content_id: render.source_content_id,
+              music_track_id: formData.music_track_id,
+              social_account_id: account.id,
+              platform: account.platform,
+              scheduled_for: scheduled.toISOString(),
+              status: "scheduled",
+              user_id: user.id,
+              media_render_id: render.id,
+              timezone: "America/Sao_Paulo",
+              metadata: {
+                campaign_name: formData.nome,
+                audio_mode: formData.audio_mode,
+                music_start_ms: formData.music_start_ms,
+                music_volume: formData.music_volume,
+                original_audio_volume: formData.original_audio_volume
+              }
+            });
+          }
+
+          videoIndex++;
+        }
+      }
+
+      if (!publications.length) {
+        throw new Error("Não foi possível gerar a agenda da campanha");
+      }
+
+      // 6. Criar publications
+      const { error: publicationsError } = await supabase
+        .from("publications")
+        .insert(publications);
+
+      if (publicationsError) throw publicationsError;
+
+      // 7. Marcar música como utilizada em campanha
+      await supabase
+        .from("music_tracks")
+        .update({ campanha_ativa: true })
+        .eq("id", formData.music_track_id);
+
+      toast.success(
+        `Campanha iniciada! ${publications.length} publicações agendadas.`
       );
 
-      await supabase.from("music_tracks").update({ campanha_ativa: true }).eq("id", formData.music_track_id);
-
-      toast.success("Campanha iniciada com sucesso!");
-      fetchData();
+      await fetchData();
     } catch (e: any) {
+      console.error("Erro ao iniciar campanha:", e);
       toast.error("Erro ao iniciar: " + e.message);
     } finally {
       setSaving(false);

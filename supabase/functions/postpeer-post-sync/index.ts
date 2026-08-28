@@ -1,82 +1,208 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { 
-  corsHeaders, 
-  PostPeerClient 
+import {
+  corsHeaders,
+  PostPeerClient
 } from "../_shared/social-helpers.ts";
+
+const jsonResponse = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders, status: 204 });
   }
 
+  if (req.method !== "POST") {
+    return jsonResponse({ error: "Method not allowed" }, 405);
+  }
+
   try {
+    const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+    const postpeerApiKey = Deno.env.get("POSTPEER_API_KEY") ?? "";
+
+    if (!supabaseUrl || !anonKey || !serviceRoleKey || !postpeerApiKey) {
+      console.error("[postpeer-post-sync] Missing server configuration");
+      return jsonResponse({ error: "Server configuration missing" }, 500);
+    }
+
+    const authHeader = req.headers.get("Authorization") ?? "";
+
+    if (!authHeader.startsWith("Bearer ")) {
+      return jsonResponse({ error: "Unauthorized" }, 401);
+    }
+
+    const bearerToken = authHeader.slice(7).trim();
+    const isServiceRole = bearerToken === serviceRoleKey;
+
+    let userId: string | null = null;
+
+    if (!isServiceRole) {
+      const supabaseUser = createClient(
+        supabaseUrl,
+        anonKey,
+        {
+          global: {
+            headers: { Authorization: authHeader }
+          }
+        }
+      );
+
+      const {
+        data: { user },
+        error: authError
+      } = await supabaseUser.auth.getUser();
+
+      if (authError || !user) {
+        return jsonResponse({ error: "Unauthorized" }, 401);
+      }
+
+      userId = user.id;
+    }
+
     const supabaseAdmin = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
+      supabaseUrl,
+      serviceRoleKey
     );
 
-    const postpeer = new PostPeerClient(Deno.env.get("POSTPEER_API_KEY") || "");
+    const postpeer = new PostPeerClient(postpeerApiKey);
 
-    // Buscar publicações que não estão em estado final (published/failed)
-    const { data: pubs, error: fetchError } = await supabaseAdmin
+    /*
+     * Somente posts que já existem no PostPeer
+     * e ainda não chegaram a estado final.
+     */
+    let query = supabaseAdmin
       .from("publications")
-      .select("id, provider_post_id, status")
+      .select(`
+        id,
+        user_id,
+        provider_post_id,
+        status,
+        social_accounts!inner (
+          provider
+        )
+      `)
+      .eq("social_accounts.provider", "postpeer")
       .not("provider_post_id", "is", null)
-      .not("status", "in", '("published","failed","cancelled")');
+      .not("status", "in", '("published","failed","cancelled")')
+      .limit(100);
 
-    if (fetchError) throw fetchError;
+    if (!isServiceRole) {
+      query = query.eq("user_id", userId!);
+    }
+
+    const {
+      data: pubs,
+      error: fetchError
+    } = await query;
+
+    if (fetchError) {
+      throw fetchError;
+    }
+
     if (!pubs || pubs.length === 0) {
-      return new Response(JSON.stringify({ message: "No publications to sync" }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-        status: 200,
+      return jsonResponse({
+        success: true,
+        checked: 0,
+        synced: [],
+        message: "No publications to sync"
       });
     }
 
-    const results = [];
+    const results: any[] = [];
 
     for (const pub of pubs) {
       try {
-        const postData = await postpeer.getPost(pub.provider_post_id);
-        const newStatus = postData.status.toLowerCase();
+        if (!pub.provider_post_id) continue;
 
-        if (newStatus !== pub.status) {
-          const updateData: any = {
-            status: newStatus,
-            updated_at: new Date().toISOString()
-          };
+        const postData = await postpeer.getPost(
+          pub.provider_post_id
+        );
 
-          if (postData.platforms?.[0]?.postUrl) {
-            updateData.post_url = postData.platforms[0].postUrl;
-          }
+        const newStatus =
+          typeof postData?.status === "string"
+            ? postData.status.toLowerCase()
+            : pub.status;
 
-          if (postData.publishedAt) {
-            updateData.published_at = postData.publishedAt;
-          }
+        const updateData: Record<string, unknown> = {
+          updated_at: new Date().toISOString()
+        };
 
-          await supabaseAdmin
-            .from("publications")
-            .update(updateData)
-            .eq("id", pub.id);
-          
-          results.push({ id: pub.id, old: pub.status, new: newStatus });
+        if (newStatus && newStatus !== pub.status) {
+          updateData.status = newStatus;
         }
-      } catch (e) {
-        console.error(`Failed to sync post ${pub.provider_post_id}:`, e.message);
+
+        const platformResult = postData?.platforms?.[0];
+
+        if (platformResult?.postUrl) {
+          updateData.post_url = platformResult.postUrl;
+        }
+
+        if (platformResult?.error) {
+          updateData.status = "failed";
+          updateData.last_error =
+            typeof platformResult.error === "string"
+              ? platformResult.error
+              : JSON.stringify(platformResult.error);
+        }
+
+        if (postData?.publishedAt) {
+          updateData.published_at = postData.publishedAt;
+        }
+
+        const {
+          error: updateError
+        } = await supabaseAdmin
+          .from("publications")
+          .update(updateData)
+          .eq("id", pub.id);
+
+        if (updateError) {
+          throw updateError;
+        }
+
+        results.push({
+          id: pub.id,
+          provider_post_id: pub.provider_post_id,
+          old_status: pub.status,
+          new_status: updateData.status ?? pub.status,
+          success: true
+        });
+
+      } catch (err: any) {
+        console.error(
+          `[postpeer-post-sync] Failed ${pub.id}:`,
+          err?.message || String(err)
+        );
+
+        results.push({
+          id: pub.id,
+          provider_post_id: pub.provider_post_id,
+          success: false,
+          error: err?.message || String(err)
+        });
       }
     }
 
-    return new Response(JSON.stringify({ success: true, synced: results }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-      status: 200,
+    return jsonResponse({
+      success: true,
+      checked: pubs.length,
+      synced: results
     });
 
   } catch (err: any) {
-    console.error("[postpeer-post-sync] Error:", err.message);
-    return new Response(JSON.stringify({ error: err.message }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    console.error(
+      "[postpeer-post-sync] Error:",
+      err?.message || String(err)
+    );
+
+    return jsonResponse({
+      error: err?.message || "Internal server error"
+    }, 500);
   }
 });

@@ -1,151 +1,344 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { 
-  corsHeaders, 
-  PostPeerClient 
+import {
+  corsHeaders,
+  PostPeerClient
 } from "../_shared/social-helpers.ts";
+
+const jsonResponse = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders, status: 204 });
   }
 
+  if (req.method !== "POST") {
+    return jsonResponse({ error: "Method not allowed" }, 405);
+  }
+
   try {
-    const supabaseAdmin = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
-    );
+    const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+    const postpeerApiKey = Deno.env.get("POSTPEER_API_KEY") ?? "";
 
-    let user: any = null;
-    const authHeader = req.headers.get("Authorization");
-    
-    if (authHeader) {
-      const supabaseClient = createClient(
-        Deno.env.get("SUPABASE_URL") ?? "",
-        Deno.env.get("SUPABASE_ANON_KEY") ?? "",
-        { global: { headers: { Authorization: authHeader } } }
+    if (!supabaseUrl || !anonKey || !serviceRoleKey || !postpeerApiKey) {
+      console.error("[postpeer-post-create] Missing server configuration");
+      return jsonResponse({ error: "Server configuration missing" }, 500);
+    }
+
+    const authHeader = req.headers.get("Authorization") ?? "";
+    if (!authHeader.startsWith("Bearer ")) {
+      return jsonResponse({ error: "Unauthorized" }, 401);
+    }
+
+    /*
+     * Chamadas internas feitas com Service Role são permitidas.
+     * Chamadas do frontend precisam pertencer ao dono da publicação.
+     */
+    const bearerToken = authHeader.slice(7).trim();
+    const isServiceRole = bearerToken === serviceRoleKey;
+
+    let userId: string | null = null;
+
+    if (!isServiceRole) {
+      const supabaseUser = createClient(
+        supabaseUrl,
+        anonKey,
+        {
+          global: {
+            headers: { Authorization: authHeader }
+          }
+        }
       );
-      const { data: { user: authedUser } } = await supabaseClient.auth.getUser();
-      user = authedUser;
+
+      const {
+        data: { user },
+        error: authError
+      } = await supabaseUser.auth.getUser();
+
+      if (authError || !user) {
+        return jsonResponse({ error: "Unauthorized" }, 401);
+      }
+
+      userId = user.id;
     }
 
-    // Se invocado pelo Dispatcher via Service Role, ignoramos a trava de user.id se o payload for validado
-    const isServiceRole = authHeader?.includes(Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "never-match-this-string");
+    let body: any;
 
+    try {
+      body = await req.json();
+    } catch {
+      return jsonResponse({ error: "Invalid JSON body" }, 400);
+    }
 
-    const { publicationId } = await req.json();
+    const publicationId = body?.publicationId;
+
     if (!publicationId) {
-      return new Response(JSON.stringify({ error: "publicationId is required" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse({ error: "publicationId is required" }, 400);
     }
 
     const supabaseAdmin = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
+      supabaseUrl,
+      serviceRoleKey
     );
 
-    // 1. Fetch Publication data
-    const { data: pub, error: pubError } = await supabaseAdmin
+    let publicationQuery = supabaseAdmin
       .from("publications")
       .select(`
         *,
-        social_accounts(platform, provider_connection_id, provider_profile_id),
-        content_library(storage_path),
-        media_renders(storage_path)
+        social_accounts (
+          id,
+          platform,
+          provider,
+          provider_connection_id,
+          provider_profile_id,
+          connection_status
+        ),
+        content_library (
+          id,
+          storage_path
+        ),
+        media_renders (
+          id,
+          storage_path,
+          status
+        )
       `)
-      .eq("id", publicationId)
-      .filter("user_id", isServiceRole ? "neq" : "eq", isServiceRole ? "00000000-0000-0000-0000-000000000000" : (user?.id || "00000000-0000-0000-0000-000000000000"))
-      .single();
+      .eq("id", publicationId);
+
+    if (!isServiceRole) {
+      publicationQuery = publicationQuery.eq("user_id", userId!);
+    }
+
+    const {
+      data: pub,
+      error: pubError
+    } = await publicationQuery.single();
 
     if (pubError || !pub) {
-      return new Response(JSON.stringify({ error: "Publication not found or unauthorized" }), {
-        status: 404,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      console.error(
+        "[postpeer-post-create] Publication lookup failed:",
+        pubError?.message
+      );
+
+      return jsonResponse(
+        { error: "Publication not found or unauthorized" },
+        404
+      );
     }
 
     if (pub.provider_post_id) {
-       return new Response(JSON.stringify({ error: "Post already exists on provider", provider_post_id: pub.provider_post_id }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse({
+        error: "Post already exists on provider",
+        provider_post_id: pub.provider_post_id
+      }, 409);
     }
 
-    // 2. Prepare Media URL (Signed URL for PostPeer to download)
-    // Usamos 24 horas para garantir que o PostPeer consiga processar, mesmo se houver delay na fila deles
-    const mediaPath = pub.media_renders?.storage_path || pub.content_library.storage_path;
-    const bucketName = pub.media_renders?.storage_path ? "rendered" : "content-library";
+    const account = pub.social_accounts;
 
-    const { data: signedUrlData, error: signedUrlError } = await supabaseAdmin
+    if (!account) {
+      return jsonResponse(
+        { error: "Social account not found for publication" },
+        400
+      );
+    }
+
+    if (account.provider !== "postpeer") {
+      return jsonResponse(
+        { error: "Social account is not connected through PostPeer" },
+        400
+      );
+    }
+
+    if (!account.provider_connection_id) {
+      return jsonResponse(
+        { error: "PostPeer integration ID is missing" },
+        400
+      );
+    }
+
+    const platform = pub.platform || account.platform;
+
+    if (!platform) {
+      return jsonResponse(
+        { error: "Publication platform is missing" },
+        400
+      );
+    }
+
+    /*
+     * Preferimos sempre o render final.
+     * Se não houver render associado, usamos o conteúdo original.
+     */
+    const renderPath = pub.media_renders?.storage_path ?? null;
+    const contentPath = pub.content_library?.storage_path ?? null;
+
+    const mediaPath = renderPath || contentPath;
+    const bucketName = renderPath
+      ? "rendered"
+      : "content-library";
+
+    if (!mediaPath) {
+      return jsonResponse(
+        { error: "Publication has no media available" },
+        400
+      );
+    }
+
+    if (pub.media_render_id && !renderPath) {
+      return jsonResponse(
+        { error: "Rendered media is not ready" },
+        409
+      );
+    }
+
+    const {
+      data: signedUrlData,
+      error: signedUrlError
+    } = await supabaseAdmin
       .storage
       .from(bucketName)
       .createSignedUrl(mediaPath, 86400);
 
     if (signedUrlError || !signedUrlData?.signedUrl) {
-       throw new Error(`Failed to generate signed URL: ${signedUrlError?.message}`);
+      console.error(
+        "[postpeer-post-create] Signed URL failed:",
+        signedUrlError?.message
+      );
+
+      return jsonResponse(
+        { error: "Failed to prepare media for publishing" },
+        500
+      );
     }
 
-    // 3. PostPeer API call
-    const postpeer = new PostPeerClient(Deno.env.get("POSTPEER_API_KEY") || "");
-    
+    const postpeer = new PostPeerClient(postpeerApiKey);
+
+    const publishNow =
+      pub.status === "publishing" ||
+      !pub.scheduled_for;
+
     const payload = {
       platforms: [{
-        platform: pub.platform || pub.social_accounts?.platform,
-        accountId: pub.social_accounts.provider_connection_id // IMPORTANTE: Integration ID
+        platform,
+        accountId: account.provider_connection_id
       }],
-      content: pub.caption || "", // Alterado de { caption: ... } para string conforme contrato V1
+      content: pub.caption || "",
       mediaItems: [{
         url: signedUrlData.signedUrl,
         type: "VIDEO" as const
       }],
       timezone: pub.timezone || "America/Sao_Paulo",
-      publishNow: pub.status === 'publishing' || !pub.scheduled_for,
-      scheduledFor: pub.scheduled_for || undefined
+      publishNow,
+      scheduledFor: publishNow
+        ? undefined
+        : pub.scheduled_for
     };
 
-    console.log("[postpeer-post-create] Payload:", JSON.stringify(payload, null, 2));
+    /*
+     * Não logamos a signed URL completa.
+     */
+    console.log(
+      "[postpeer-post-create] Sending publication",
+      {
+        publicationId,
+        platform,
+        accountId: account.provider_connection_id,
+        bucketName,
+        publishNow,
+        scheduledFor: payload.scheduledFor ?? null
+      }
+    );
 
     const response = await postpeer.createPost(payload);
-    console.log("[postpeer-post-create] Response:", JSON.stringify(response, null, 2));
 
-    // 4. Persist Result
-    const updatePayload: any = {
+    if (!response?.id) {
+      throw new Error("PostPeer returned no post ID");
+    }
+
+    const providerStatus =
+      typeof response.status === "string"
+        ? response.status.toLowerCase()
+        : "processing";
+
+    const updatePayload: Record<string, unknown> = {
       provider_post_id: response.id,
-      status: response.status.toLowerCase(), // PostPeer retorna status
+      status: providerStatus,
       updated_at: new Date().toISOString()
     };
 
-    if (response.platforms?.[0]?.postUrl) {
-      updatePayload.post_url = response.platforms[0].postUrl;
-    }
-    
-    if (response.platforms?.[0]?.error) {
-      updatePayload.status = 'failed';
-      updatePayload.last_error = response.platforms[0].error;
+    const platformResult = response.platforms?.[0];
+
+    if (platformResult?.postUrl) {
+      updatePayload.post_url = platformResult.postUrl;
     }
 
-    if (response.platforms?.[0]?.postId) {
-      console.log("[postpeer-post-create] Platform Post ID:", response.platforms[0].postId);
+    if (platformResult?.error) {
+      updatePayload.status = "failed";
+      updatePayload.last_error =
+        typeof platformResult.error === "string"
+          ? platformResult.error
+          : JSON.stringify(platformResult.error);
     }
 
-    await supabaseAdmin
+    if (response.publishedAt) {
+      updatePayload.published_at = response.publishedAt;
+    }
+
+    const {
+      error: updateError
+    } = await supabaseAdmin
       .from("publications")
       .update(updatePayload)
       .eq("id", publicationId);
 
-    return new Response(JSON.stringify({ success: true, postId: response.id, status: updatePayload.status }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-      status: 200,
+    if (updateError) {
+      /*
+       * Importante:
+       * o post já pode existir no PostPeer neste ponto.
+       * Não tentamos criar novamente automaticamente.
+       */
+      console.error(
+        "[postpeer-post-create] Provider created but DB update failed:",
+        updateError.message,
+        "provider_post_id:",
+        response.id
+      );
+
+      return jsonResponse({
+        error: "Post created on provider but local update failed",
+        provider_post_id: response.id
+      }, 500);
+    }
+
+    console.log(
+      "[postpeer-post-create] Created successfully",
+      {
+        publicationId,
+        providerPostId: response.id,
+        status: updatePayload.status
+      }
+    );
+
+    return jsonResponse({
+      success: true,
+      postId: response.id,
+      status: updatePayload.status
     });
 
   } catch (err: any) {
-    console.error("[postpeer-post-create] Error:", err.message);
-    return new Response(JSON.stringify({ error: err.message }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    console.error(
+      "[postpeer-post-create] Error:",
+      err?.message || String(err)
+    );
+
+    return jsonResponse({
+      error: err?.message || "Internal server error"
+    }, 500);
   }
 });
