@@ -36,6 +36,15 @@ export interface PostPeerCreatePostRequest {
   platforms: {
     platform: string;
     accountId: string; // Integration ID
+    platformSpecificData?: {
+      title?: string;
+      visibility?: "public" | "private" | "unlisted";
+      tags?: string[];
+      madeForKids?: boolean;
+      containsSyntheticMedia?: boolean;
+      categoryId?: string;
+      firstComment?: string;
+    };
   }[];
   content: string;
   mediaItems: PostPeerMediaItem[];

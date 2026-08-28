@@ -427,6 +427,51 @@ serve(async (req) => {
       }
     }
 
+    /*
+     * Sincroniza posts já enviados ao PostPeer.
+     * Essa etapa confirma o status real nas redes sociais e,
+     * quando todas as publicações de um conteúdo estiverem published,
+     * permite ao postpeer-post-sync finalizar/limpar a mídia.
+     *
+     * Falha no sync não interrompe o dispatcher.
+     */
+    try {
+      const syncResponse = await fetch(
+        `${supabaseUrl}/functions/v1/postpeer-post-sync`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${serviceRoleKey}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            source: "campaign-dispatcher",
+            executionId
+          })
+        }
+      );
+
+      const syncText = await syncResponse.text();
+
+      if (!syncResponse.ok) {
+        console.error(
+          `[campaign-dispatcher][${executionId}] PostPeer sync failed:`,
+          syncResponse.status,
+          syncText
+        );
+      } else {
+        console.log(
+          `[campaign-dispatcher][${executionId}] PostPeer sync completed:`,
+          syncText
+        );
+      }
+    } catch (syncError: any) {
+      console.error(
+        `[campaign-dispatcher][${executionId}] PostPeer sync exception:`,
+        syncError?.message || String(syncError)
+      );
+    }
+
     const finishedAt =
       new Date().toISOString();
 

@@ -83,6 +83,8 @@ serve(async (req) => {
         user_id,
         provider_post_id,
         status,
+        content_id,
+        media_render_id,
         social_accounts!inner (
           provider
         )
@@ -164,6 +166,122 @@ serve(async (req) => {
 
         if (updateError) {
           throw updateError;
+        }
+
+        /*
+         * Limpeza segura:
+         * somente depois que esta publicação foi realmente confirmada
+         * como published pelo provider.
+         */
+        const finalStatus =
+          typeof updateData.status === "string"
+            ? updateData.status
+            : pub.status;
+
+        if (finalStatus === "published" && pub.content_id) {
+          const { data: relatedPublications, error: relatedError } =
+            await supabaseAdmin
+              .from("publications")
+              .select("id,status")
+              .eq("content_id", pub.content_id);
+
+          if (relatedError) {
+            console.error(
+              "[postpeer-post-sync] Failed checking related publications:",
+              relatedError.message
+            );
+          } else {
+            const allPublished =
+              (relatedPublications?.length || 0) > 0 &&
+              relatedPublications!.every(
+                related => related.status === "published"
+              );
+
+            if (allPublished) {
+              const now = new Date().toISOString();
+
+              const { data: content } = await supabaseAdmin
+                .from("content_library")
+                .select("id,storage_path,status,use_count,first_used_at")
+                .eq("id", pub.content_id)
+                .maybeSingle();
+
+              if (content && content.status !== "used") {
+                // Apaga somente arquivo físico local do original.
+                // URLs externas (Pexels etc.) nunca são removidas.
+                if (
+                  content.storage_path &&
+                  !/^https?:\/\//i.test(content.storage_path)
+                ) {
+                  const { error: originalRemoveError } =
+                    await supabaseAdmin.storage
+                      .from("content-library")
+                      .remove([content.storage_path]);
+
+                  if (originalRemoveError) {
+                    console.error(
+                      "[postpeer-post-sync] Original cleanup failed:",
+                      originalRemoveError.message
+                    );
+                  }
+                }
+
+                // Pode haver mais de um render relacionado ao mesmo conteúdo.
+                const { data: contentRenders } = await supabaseAdmin
+                  .from("media_renders")
+                  .select("id,storage_path")
+                  .eq("source_content_id", pub.content_id);
+
+                const renderPaths = Array.from(
+                  new Set(
+                    (contentRenders || [])
+                      .map(render => render.storage_path)
+                      .filter(
+                        (path): path is string =>
+                          !!path && !/^https?:\/\//i.test(path)
+                      )
+                  )
+                );
+
+                if (renderPaths.length) {
+                  const { error: renderRemoveError } =
+                    await supabaseAdmin.storage
+                      .from("rendered")
+                      .remove(renderPaths);
+
+                  if (renderRemoveError) {
+                    console.error(
+                      "[postpeer-post-sync] Render cleanup failed:",
+                      renderRemoveError.message
+                    );
+                  }
+                }
+
+                const { error: contentUpdateError } = await supabaseAdmin
+                  .from("content_library")
+                  .update({
+                    status: "used",
+                    use_count: (content.use_count || 0) + 1,
+                    first_used_at: content.first_used_at || now,
+                    last_used_at: now,
+                    updated_at: now
+                  })
+                  .eq("id", pub.content_id);
+
+                if (contentUpdateError) {
+                  console.error(
+                    "[postpeer-post-sync] Failed marking content used:",
+                    contentUpdateError.message
+                  );
+                } else {
+                  console.log(
+                    "[postpeer-post-sync] Content finalized and physical media cleaned:",
+                    pub.content_id
+                  );
+                }
+              }
+            }
+          }
         }
 
         results.push({

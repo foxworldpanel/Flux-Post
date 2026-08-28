@@ -300,11 +300,33 @@ serve(async (req) => {
       pub.status === "publishing" ||
       !pub.scheduled_for;
 
+    const normalizedPlatform = platform.toLowerCase();
+
+    const youtubeTitle =
+      (pub.caption || "Flux Post")
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, 100) || "Flux Post";
+
+    const platformConfig =
+      normalizedPlatform === "youtube"
+        ? {
+            platform,
+            accountId: account.provider_connection_id,
+            platformSpecificData: {
+              title: youtubeTitle,
+              visibility: "public" as const,
+              categoryId: "10",
+              madeForKids: false
+            }
+          }
+        : {
+            platform,
+            accountId: account.provider_connection_id
+          };
+
     const payload = {
-      platforms: [{
-        platform,
-        accountId: account.provider_connection_id
-      }],
+      platforms: [platformConfig],
       content: pub.caption || "",
       mediaItems: [{
         url: signedUrlData.signedUrl,
@@ -338,10 +360,20 @@ serve(async (req) => {
       throw new Error("PostPeer returned no post ID");
     }
 
-    const providerStatus =
+    const rawProviderStatus =
       typeof response.status === "string"
         ? response.status.toLowerCase()
         : "processing";
+
+    // Segurança: criar o post no PostPeer não significa que a rede social
+    // já confirmou a publicação. Somente consideramos "published" aqui
+    // quando o próprio provider já devolve publishedAt.
+    const providerStatus =
+      rawProviderStatus === "failed" || rawProviderStatus === "cancelled"
+        ? rawProviderStatus
+        : response.publishedAt
+          ? "published"
+          : "processing";
 
     const updatePayload: Record<string, unknown> = {
       provider_post_id: response.postId,
@@ -384,12 +416,12 @@ serve(async (req) => {
         "[postpeer-post-create] Provider created but DB update failed:",
         updateError.message,
         "provider_post_id:",
-        response.id
+        response.postId
       );
 
       return jsonResponse({
         error: "Post created on provider but local update failed",
-        provider_post_id: response.id
+        provider_post_id: response.postId
       }, 500);
     }
 
@@ -397,14 +429,14 @@ serve(async (req) => {
       "[postpeer-post-create] Created successfully",
       {
         publicationId,
-        providerPostId: response.id,
+        providerPostId: response.postId,
         status: updatePayload.status
       }
     );
 
     return jsonResponse({
       success: true,
-      postId: response.id,
+      postId: response.postId,
       status: updatePayload.status
     });
 

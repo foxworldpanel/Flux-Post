@@ -176,7 +176,11 @@ export default function CampanhaPage() {
 
       const [tracksRes, libraryRes, accountsRes, campRes, rendersRes] = await Promise.all([
         supabase.from("music_tracks").select("id, nome, artista, artist_id, storage_path"),
-        supabase.from("content_library").select("id, title, storage_path, duration_seconds").order("created_at", { ascending: false }),
+        supabase
+          .from("content_library")
+          .select("id, title, storage_path, duration_seconds")
+          .not("status", "in", '("reserved","used")')
+          .order("created_at", { ascending: false }),
         socialService.getConnectedAccounts(),
         supabase.from("campanhas").select("*").in("status", ["ativo", "pausado"]).order("data_inicio", { ascending: false }).limit(1),
         supabase.from("media_renders").select("*").eq("user_id", user.id)
@@ -466,6 +470,30 @@ export default function CampanhaPage() {
         throw new Error("Nenhuma conta social válida selecionada");
       }
 
+      // Buscar origem/metadados dos vídeos para gravar no histórico permanente
+      const { data: selectedContents, error: selectedContentsError } = await supabase
+        .from("content_library")
+        .select("id, title, source, external_id, original_url, thumbnail_url, author, duration_seconds, status")
+        .in("id", selectedVideoIds);
+
+      if (selectedContentsError) throw selectedContentsError;
+
+      if (!selectedContents || selectedContents.length !== selectedVideoIds.length) {
+        throw new Error("Não foi possível carregar todos os vídeos selecionados");
+      }
+
+      const unavailableContent = selectedContents.find(content =>
+        ["reserved", "used"].includes(content.status)
+      );
+
+      if (unavailableContent) {
+        throw new Error("Um dos vídeos selecionados já está reservado ou utilizado");
+      }
+
+      const contentById = new Map(
+        selectedContents.map(content => [content.id, content])
+      );
+
       // 1. Criar campanha
       const { data: camp, error } = await supabase.from("campanhas").insert({
         user_id: user.id,
@@ -572,12 +600,23 @@ export default function CampanhaPage() {
               user_id: user.id,
               media_render_id: render.id,
               timezone: "America/Sao_Paulo",
+              source_provider: contentById.get(render.source_content_id)?.source || null,
+              source_external_id: contentById.get(render.source_content_id)?.external_id || null,
               metadata: {
                 campaign_name: formData.nome,
                 audio_mode: formData.audio_mode,
                 music_start_ms: formData.music_start_ms,
                 music_volume: formData.music_volume,
-                original_audio_volume: formData.original_audio_volume
+                original_audio_volume: formData.original_audio_volume,
+                source: {
+                  provider: contentById.get(render.source_content_id)?.source || null,
+                  external_id: contentById.get(render.source_content_id)?.external_id || null,
+                  title: contentById.get(render.source_content_id)?.title || null,
+                  original_url: contentById.get(render.source_content_id)?.original_url || null,
+                  thumbnail_url: contentById.get(render.source_content_id)?.thumbnail_url || null,
+                  author: contentById.get(render.source_content_id)?.author || null,
+                  duration_seconds: contentById.get(render.source_content_id)?.duration_seconds || null
+                }
               }
             });
           }
@@ -597,7 +636,19 @@ export default function CampanhaPage() {
 
       if (publicationsError) throw publicationsError;
 
-      // 7. Marcar música como utilizada em campanha
+      // 7. Reservar os vídeos utilizados para impedir reutilização
+      const usedContentIds = Array.from(
+        new Set(publications.map(publication => publication.content_id))
+      );
+
+      const { error: reserveError } = await supabase
+        .from("content_library")
+        .update({ status: "reserved" })
+        .in("id", usedContentIds);
+
+      if (reserveError) throw reserveError;
+
+      // 8. Marcar música como utilizada em campanha
       await supabase
         .from("music_tracks")
         .update({ campanha_ativa: true })
@@ -1037,7 +1088,12 @@ export default function CampanhaPage() {
                           <Users size={16} className="text-muted-foreground" />
                         </div>
                         <div className="flex-1">
-                          <p className="text-sm font-medium text-foreground">{acc.account_name}</p>
+                          <p className="text-sm font-medium text-foreground">
+                            {acc.account_name}
+                            {acc.username && (
+                              <span className="text-muted-foreground font-normal"> — @{acc.username.replace(/^@/, "")}</span>
+                            )}
+                          </p>
                           <p className="text-xs text-muted-foreground capitalize">{acc.platform}</p>
                         </div>
                         <div className={`w-2 h-2 rounded-full ${acc.connection_status === "conectada" ? "bg-emerald-500" : "bg-red-500"}`} />
