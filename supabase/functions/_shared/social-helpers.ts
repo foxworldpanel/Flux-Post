@@ -19,7 +19,7 @@ export interface PostPeerIntegration {
 
 export interface PostPeerMediaItem {
   url: string;
-  type: 'VIDEO' | 'IMAGE';
+  type: 'video' | 'image' | 'gif';
 }
 
 export interface PostPeerPlatformResult {

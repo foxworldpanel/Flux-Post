@@ -122,6 +122,7 @@ serve(async (req) => {
           headers: {
             "Authorization": `Bearer ${serviceRoleKey}`,
             "apikey": serviceRoleKey,
+            "x-internal-secret": expectedCronSecret,
             "Content-Type": "application/json"
           },
           body: JSON.stringify({

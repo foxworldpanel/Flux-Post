@@ -41,7 +41,19 @@ serve(async (req) => {
      * Chamadas do frontend precisam pertencer ao dono da publicação.
      */
     const bearerToken = authHeader.slice(7).trim();
-    const isServiceRole = bearerToken === serviceRoleKey;
+
+    const expectedInternalSecret =
+      Deno.env.get("CAMPAIGN_DISPATCHER_SECRET") ?? "";
+
+    const receivedInternalSecret =
+      req.headers.get("x-internal-secret") ?? "";
+
+    const isInternalCall =
+      !!expectedInternalSecret &&
+      receivedInternalSecret === expectedInternalSecret;
+
+    const isServiceRole =
+      bearerToken === serviceRoleKey || isInternalCall;
 
     let userId: string | null = null;
 
@@ -87,28 +99,13 @@ serve(async (req) => {
       serviceRoleKey
     );
 
+    /*
+     * Busca a publicação primeiro, sem relacionamentos embutidos.
+     * Isso evita falhas de relacionamento/FK no PostgREST.
+     */
     let publicationQuery = supabaseAdmin
       .from("publications")
-      .select(`
-        *,
-        social_accounts (
-          id,
-          platform,
-          provider,
-          provider_connection_id,
-          provider_profile_id,
-          connection_status
-        ),
-        content_library (
-          id,
-          storage_path
-        ),
-        media_renders (
-          id,
-          storage_path,
-          status
-        )
-      `)
+      .select("*")
       .eq("id", publicationId);
 
     if (!isServiceRole) {
@@ -118,18 +115,100 @@ serve(async (req) => {
     const {
       data: pub,
       error: pubError
-    } = await publicationQuery.single();
+    } = await publicationQuery.maybeSingle();
 
-    if (pubError || !pub) {
+    if (pubError) {
       console.error(
-        "[postpeer-post-create] Publication lookup failed:",
-        pubError?.message
+        "[postpeer-post-create] Publication query error:",
+        pubError.message
       );
 
+      return jsonResponse({
+        error: "Publication lookup failed",
+        detail: pubError.message
+      }, 500);
+    }
+
+    if (!pub) {
       return jsonResponse(
         { error: "Publication not found or unauthorized" },
         404
       );
+    }
+
+    const {
+      data: account,
+      error: accountError
+    } = await supabaseAdmin
+      .from("social_accounts")
+      .select("id,platform,provider,provider_connection_id,provider_profile_id,connection_status")
+      .eq("id", pub.social_account_id)
+      .maybeSingle();
+
+    if (accountError) {
+      console.error(
+        "[postpeer-post-create] Social account query error:",
+        accountError.message
+      );
+
+      return jsonResponse({
+        error: "Social account lookup failed",
+        detail: accountError.message
+      }, 500);
+    }
+
+    let content: any = null;
+
+    if (pub.content_id) {
+      const {
+        data,
+        error
+      } = await supabaseAdmin
+        .from("content_library")
+        .select("id,storage_path")
+        .eq("id", pub.content_id)
+        .maybeSingle();
+
+      if (error) {
+        console.error(
+          "[postpeer-post-create] Content query error:",
+          error.message
+        );
+
+        return jsonResponse({
+          error: "Content lookup failed",
+          detail: error.message
+        }, 500);
+      }
+
+      content = data;
+    }
+
+    let render: any = null;
+
+    if (pub.media_render_id) {
+      const {
+        data,
+        error
+      } = await supabaseAdmin
+        .from("media_renders")
+        .select("id,storage_path,status")
+        .eq("id", pub.media_render_id)
+        .maybeSingle();
+
+      if (error) {
+        console.error(
+          "[postpeer-post-create] Render query error:",
+          error.message
+        );
+
+        return jsonResponse({
+          error: "Render lookup failed",
+          detail: error.message
+        }, 500);
+      }
+
+      render = data;
     }
 
     if (pub.provider_post_id) {
@@ -138,8 +217,6 @@ serve(async (req) => {
         provider_post_id: pub.provider_post_id
       }, 409);
     }
-
-    const account = pub.social_accounts;
 
     if (!account) {
       return jsonResponse(
@@ -175,8 +252,8 @@ serve(async (req) => {
      * Preferimos sempre o render final.
      * Se não houver render associado, usamos o conteúdo original.
      */
-    const renderPath = pub.media_renders?.storage_path ?? null;
-    const contentPath = pub.content_library?.storage_path ?? null;
+    const renderPath = render?.storage_path ?? null;
+    const contentPath = content?.storage_path ?? null;
 
     const mediaPath = renderPath || contentPath;
     const bucketName = renderPath
@@ -231,7 +308,7 @@ serve(async (req) => {
       content: pub.caption || "",
       mediaItems: [{
         url: signedUrlData.signedUrl,
-        type: "VIDEO" as const
+        type: "video" as const
       }],
       timezone: pub.timezone || "America/Sao_Paulo",
       publishNow,
