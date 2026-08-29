@@ -839,7 +839,9 @@ export default function CampanhaPage() {
               <div className="space-y-5">
                 <div>
                   <h2 className="text-lg font-semibold text-foreground">Configurações gerais</h2>
-                  <p className="text-sm text-muted-foreground">Nome, datas e ritmo de postagem.</p>
+                  <p className="text-sm text-muted-foreground">
+                    Defina o período e a quantidade. Os horários são distribuídos automaticamente pelo Smart Scheduler.
+                  </p>
                 </div>
                 <div className="space-y-2">
                   <Label>Nome da campanha</Label>
@@ -858,7 +860,7 @@ export default function CampanhaPage() {
                 </div>
                 <div className="grid grid-cols-3 gap-4">
                   <div className="space-y-2">
-                    <Label>Posts por dia</Label>
+                    <Label>Posts por dia (por conta)</Label>
                     <Select value={String(formData.posts_por_dia)} onValueChange={v => setFormData(p => ({ ...p, posts_por_dia: +v }))}>
                       <SelectTrigger className="bg-muted/50 border-border"><SelectValue /></SelectTrigger>
                       <SelectContent>{[1,2,3].map(n => <SelectItem key={n} value={String(n)}>{n}x/dia</SelectItem>)}</SelectContent>
