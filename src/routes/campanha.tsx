@@ -577,27 +577,52 @@ export default function CampanhaPage() {
         // Evita disparar várias contas no mesmo minuto
         accountStaggerMinutes: 7,
 
-        // V1: distribuição automática em três períodos
-        windows: [
-          {
-            period: "morning",
-            startHour: 9,
-            endHour: 12,
-            enabled: true,
-          },
-          {
-            period: "afternoon",
-            startHour: 13,
-            endHour: 17,
-            enabled: true,
-          },
-          {
-            period: "evening",
-            startHour: 18,
-            endHour: 21,
-            enabled: true,
-          },
-        ],
+        // Smart Scheduler:
+        // o usuário define apenas início/fim.
+        // O engine divide automaticamente o período em
+        // manhã, tarde e noite.
+        windows: (() => {
+          const startHour =
+            parseInt(formData.hora_inicio, 10) || 9;
+
+          const endHour =
+            parseInt(formData.hora_fim, 10) || 21;
+
+          if (endHour <= startHour) {
+            throw new Error(
+              "O horário final deve ser maior que o horário inicial"
+            );
+          }
+
+          const totalHours = endHour - startHour;
+
+          const firstEnd =
+            startHour + Math.floor(totalHours / 3);
+
+          const secondEnd =
+            startHour + Math.floor((totalHours * 2) / 3);
+
+          return [
+            {
+              period: "morning" as const,
+              startHour,
+              endHour: firstEnd,
+              enabled: true,
+            },
+            {
+              period: "afternoon" as const,
+              startHour: firstEnd,
+              endHour: secondEnd,
+              enabled: true,
+            },
+            {
+              period: "evening" as const,
+              startHour: secondEnd,
+              endHour,
+              enabled: true,
+            },
+          ];
+        })(),
       });
 
       const renderByContentId = new Map(
