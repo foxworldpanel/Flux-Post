@@ -815,6 +815,7 @@ export default function CampanhaPage() {
         }
 
         const sourceContent = contentById.get(slot.contentId);
+        const editorialCopy = getEditorialCopy(slot.contentId);
 
         return {
           campaign_id: camp.id,
@@ -822,6 +823,8 @@ export default function CampanhaPage() {
           music_track_id: formData.music_track_id,
           social_account_id: slot.accountId,
           platform: slot.platform,
+          caption: editorialCopy.caption.trim() || null,
+          hashtags: editorialCopy.hashtags.trim() || null,
           scheduled_for: slot.scheduledFor,
           status: "scheduled",
           user_id: user.id,
