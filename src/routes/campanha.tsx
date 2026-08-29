@@ -245,6 +245,9 @@ export default function CampanhaPage() {
   // Active campaign
   const [campanhaAtiva, setCampanhaAtiva] = useState<any>(null);
 
+  // Persistent campaign draft
+  const [draftCampaignId, setDraftCampaignId] = useState<string | null>(null);
+
   const pollTimerRef = useRef<number | null>(null);
   const [localProcessingId, setLocalProcessingId] = useState<string | null>(null);
 
@@ -340,7 +343,7 @@ export default function CampanhaPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const [tracksRes, libraryRes, accountsRes, campRes, rendersRes] = await Promise.all([
+      const [tracksRes, libraryRes, accountsRes, campRes, rendersRes, draftRes] = await Promise.all([
         supabase.from("music_tracks").select("id, nome, artista, artist_id, storage_path"),
         supabase
           .from("content_library")
@@ -349,13 +352,115 @@ export default function CampanhaPage() {
           .order("created_at", { ascending: false }),
         socialService.getConnectedAccounts(),
         supabase.from("campanhas").select("*").in("status", ["ativo", "pausado"]).order("data_inicio", { ascending: false }).limit(1),
-        supabase.from("media_renders").select("*").eq("user_id", user.id)
+        supabase.from("media_renders").select("*").eq("user_id", user.id),
+        supabase
+          .from("campanhas")
+          .select("*")
+          .eq("user_id", user.id)
+          .eq("status", "rascunho")
+          .order("criado_em", { ascending: false })
+          .limit(1)
       ]);
 
       setMusicas(tracksRes.data || []);
       setBiblioteca(libraryRes.data || []);
       setSocialAccounts(accountsRes || []);
       setRenders(rendersRes.data || []);
+
+      // Restore latest campaign draft
+      const draft = draftRes.data?.[0];
+
+      if (draft) {
+        setDraftCampaignId(draft.id);
+
+        setFormData(prev => ({
+          ...prev,
+          nome: draft.nome || "",
+          music_track_id: draft.music_track_id || "",
+          posts_por_dia: draft.posts_por_dia ?? prev.posts_por_dia,
+          intervalo_min: draft.intervalo_min ?? prev.intervalo_min,
+          intervalo_max: draft.intervalo_max ?? prev.intervalo_max,
+          data_inicio: draft.data_inicio || prev.data_inicio,
+          data_fim: draft.data_fim || prev.data_fim,
+          hora_inicio:
+            typeof draft.hora_inicio === "number"
+              ? `${String(draft.hora_inicio).padStart(2, "0")}:00`
+              : draft.hora_inicio || prev.hora_inicio,
+          hora_fim:
+            typeof draft.hora_fim === "number"
+              ? `${String(draft.hora_fim).padStart(2, "0")}:00`
+              : draft.hora_fim || prev.hora_fim,
+          audio_mode: draft.audio_mode || prev.audio_mode,
+          music_volume: draft.music_volume ?? prev.music_volume,
+          original_audio_volume:
+            draft.original_audio_volume ?? prev.original_audio_volume,
+          music_start_ms: draft.music_start_ms ?? prev.music_start_ms,
+        }));
+
+        const [draftContentsRes, draftAccountsRes] = await Promise.all([
+          supabase
+            .from("campaign_contents")
+            .select(
+              "content_id, position, caption, hashtags, editorial_status"
+            )
+            .eq("campaign_id", draft.id)
+            .order("position", { ascending: true }),
+
+          supabase
+            .from("campaign_social_accounts")
+            .select("social_account_id")
+            .eq("campaign_id", draft.id),
+        ]);
+
+        if (draftContentsRes.error) {
+          console.error(
+            "Erro ao carregar conteúdos do rascunho:",
+            draftContentsRes.error
+          );
+        } else {
+          const draftContents = draftContentsRes.data || [];
+          const ids = draftContents.map(item => item.content_id);
+
+          setSelVideos(new Set(ids));
+          setContentQueue(ids);
+
+          const restoredCopies: Record<string, EditorialCopy> = {};
+
+          draftContents.forEach(item => {
+            restoredCopies[item.content_id] = {
+              caption: item.caption || "",
+              hashtags: item.hashtags || "",
+              aiStatus:
+                item.caption || item.hashtags
+                  ? item.editorial_status === "generated"
+                    ? "generated"
+                    : "edited"
+                  : "idle",
+            };
+          });
+
+          setEditorialCopies(restoredCopies);
+        }
+
+        if (draftAccountsRes.error) {
+          console.error(
+            "Erro ao carregar contas do rascunho:",
+            draftAccountsRes.error
+          );
+        } else {
+          setSelAccounts(
+            new Set(
+              (draftAccountsRes.data || []).map(
+                item => item.social_account_id
+              )
+            )
+          );
+        }
+
+        console.log("[CAMPAIGN DRAFT] Restaurado:", draft.id);
+      } else {
+        setDraftCampaignId(null);
+      }
 
       if (campRes.data?.[0]) {
         const activeCampaign = campRes.data[0];
@@ -616,6 +721,135 @@ export default function CampanhaPage() {
     if (!error) setRenders(prev => prev.map(r => r.id === renderId ? { ...r, is_approved: !current } : r));
   }
 
+  async function saveDraft(showToast = true): Promise<string> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error("Não autenticado");
+
+    if (!formData.nome.trim()) {
+      throw new Error("Informe o nome da campanha antes de salvar o rascunho");
+    }
+
+    const campaignData = {
+      user_id: user.id,
+      nome: formData.nome.trim(),
+      music_track_id: formData.music_track_id || null,
+      posts_por_dia: formData.posts_por_dia,
+      hora_inicio: parseInt(formData.hora_inicio),
+      hora_fim: parseInt(formData.hora_fim),
+      intervalo_min: formData.intervalo_min,
+      intervalo_max: formData.intervalo_max,
+      data_inicio: formData.data_inicio,
+      data_fim: formData.data_fim,
+      audio_mode: formData.audio_mode,
+      music_volume: formData.music_volume,
+      original_audio_volume: formData.original_audio_volume,
+      music_start_ms: formData.music_start_ms,
+      status: "rascunho",
+    };
+
+    let campaignId = draftCampaignId;
+
+    if (campaignId) {
+      const { error } = await supabase
+        .from("campanhas")
+        .update(campaignData)
+        .eq("id", campaignId)
+        .eq("user_id", user.id)
+        .eq("status", "rascunho");
+
+      if (error) throw error;
+    } else {
+      const { data: draft, error } = await supabase
+        .from("campanhas")
+        .insert(campaignData)
+        .select("id")
+        .single();
+
+      if (error) throw error;
+      if (!draft?.id) throw new Error("Não foi possível criar o rascunho");
+
+      campaignId = draft.id;
+      setDraftCampaignId(campaignId);
+    }
+
+    // Sincronizar conteúdos e preservar a ordem editorial
+    const { error: deleteContentsError } = await supabase
+      .from("campaign_contents")
+      .delete()
+      .eq("campaign_id", campaignId);
+
+    if (deleteContentsError) throw deleteContentsError;
+
+    if (contentQueue.length) {
+      const { error: contentsError } = await supabase
+        .from("campaign_contents")
+        .insert(
+          contentQueue.map((contentId, index) => {
+            const copy = getEditorialCopy(contentId);
+
+            const isApproved = renders.some(
+              render =>
+                render.source_content_id === contentId &&
+                render.music_track_id === formData.music_track_id &&
+                render.status === "ready" &&
+                render.is_approved
+            );
+
+            return {
+              campaign_id: campaignId,
+              content_id: contentId,
+              position: index + 1,
+              caption: copy.caption.trim() || null,
+              hashtags: copy.hashtags.trim() || null,
+              editorial_status: isApproved
+                ? "approved"
+                : copy.aiStatus === "generated"
+                ? "generated"
+                : copy.aiStatus === "edited"
+                ? "edited"
+                : "pending",
+              approved_at: isApproved
+                ? new Date().toISOString()
+                : null,
+            };
+          })
+        );
+
+      if (contentsError) throw contentsError;
+    }
+
+    // Sincronizar contas selecionadas
+    const { error: deleteAccountsError } = await supabase
+      .from("campaign_social_accounts")
+      .delete()
+      .eq("campaign_id", campaignId);
+
+    if (deleteAccountsError) throw deleteAccountsError;
+
+    const accountIds = Array.from(selAccounts);
+
+    if (accountIds.length) {
+      const { error: accountsError } = await supabase
+        .from("campaign_social_accounts")
+        .insert(
+          accountIds.map(accountId => ({
+            campaign_id: campaignId,
+            social_account_id: accountId,
+          }))
+        );
+
+      if (accountsError) throw accountsError;
+    }
+
+    if (showToast) {
+      toast.success("Rascunho salvo.");
+    }
+
+    console.log("[CAMPAIGN DRAFT] Salvo:", campaignId);
+
+    return campaignId;
+  }
+
   async function handleLaunch() {
     setSaving(true);
     try {
@@ -661,8 +895,8 @@ export default function CampanhaPage() {
         selectedContents.map(content => [content.id, content])
       );
 
-      // 1. Criar campanha
-      const { data: camp, error } = await supabase.from("campanhas").insert({
+      // 1. Ativar o rascunho existente ou criar uma nova campanha
+      const campaignPayload = {
         user_id: user.id,
         nome: formData.nome,
         music_track_id: formData.music_track_id,
@@ -673,10 +907,53 @@ export default function CampanhaPage() {
         intervalo_max: formData.intervalo_max,
         data_inicio: formData.data_inicio,
         data_fim: formData.data_fim,
+        audio_mode: formData.audio_mode,
+        music_volume: formData.music_volume,
+        original_audio_volume: formData.original_audio_volume,
+        music_start_ms: formData.music_start_ms,
         status: "ativo",
-      }).select().single();
+      };
 
-      if (error) throw error;
+      let camp: any;
+
+      if (draftCampaignId) {
+        const { data, error } = await supabase
+          .from("campanhas")
+          .update(campaignPayload)
+          .eq("id", draftCampaignId)
+          .eq("user_id", user.id)
+          .eq("status", "rascunho")
+          .select()
+          .single();
+
+        if (error) throw error;
+        camp = data;
+
+        // O rascunho já pode possuir vínculos.
+        // Recriamos abaixo usando o estado final da interface.
+        const [deleteContentsRes, deleteAccountsRes] = await Promise.all([
+          supabase
+            .from("campaign_contents")
+            .delete()
+            .eq("campaign_id", camp.id),
+          supabase
+            .from("campaign_social_accounts")
+            .delete()
+            .eq("campaign_id", camp.id),
+        ]);
+
+        if (deleteContentsRes.error) throw deleteContentsRes.error;
+        if (deleteAccountsRes.error) throw deleteAccountsRes.error;
+      } else {
+        const { data, error } = await supabase
+          .from("campanhas")
+          .insert(campaignPayload)
+          .select()
+          .single();
+
+        if (error) throw error;
+        camp = data;
+      }
 
       // 2. Vincular vídeos
       const { error: contentsError } = await supabase
@@ -926,6 +1203,9 @@ export default function CampanhaPage() {
         .from("music_tracks")
         .update({ campanha_ativa: true })
         .eq("id", formData.music_track_id);
+
+      // A campanha foi lançada com sucesso e não é mais um rascunho
+      setDraftCampaignId(null);
 
       toast.success(
         `Campanha iniciada! ${publications.length} publicações agendadas.`
@@ -1607,10 +1887,30 @@ export default function CampanhaPage() {
           <Button variant="outline" className="gap-2 border-border" onClick={() => setStep(s => Math.max(1, s - 1))} disabled={step === 1}>
             <ChevronLeft size={16} /> Voltar
           </Button>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             {stepBlockMessage() && (
               <span className="text-xs text-muted-foreground">{stepBlockMessage()}</span>
             )}
+
+            <Button
+              type="button"
+              variant="outline"
+              className="gap-2 border-primary/30 text-primary"
+              disabled={saving || !formData.nome.trim()}
+              onClick={async () => {
+                setSaving(true);
+                try {
+                  await saveDraft(true);
+                } catch (e: any) {
+                  console.error("Erro ao salvar rascunho:", e);
+                  toast.error("Erro ao salvar rascunho: " + e.message);
+                } finally {
+                  setSaving(false);
+                }
+              }}
+            >
+              {saving ? "Salvando..." : draftCampaignId ? "Salvar alterações" : "Salvar rascunho"}
+            </Button>
           </div>
           {step < 6 && (
             <Button className="gap-2 bg-primary hover:bg-primary/90 text-white" onClick={() => setStep(s => Math.min(6, s + 1))} disabled={!canAdvance()}>
