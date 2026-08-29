@@ -684,7 +684,13 @@ export default function CampanhaPage() {
         .insert(
           selectedVideoIds.map((id, index) => {
             const editorialCopy = getEditorialCopy(id);
-            const isApproved = approvedVideos.has(id);
+            const isApproved = renders.some(
+              r =>
+                r.source_content_id === id &&
+                r.music_track_id === formData.music_track_id &&
+                r.status === "ready" &&
+                r.is_approved
+            );
 
             return {
               campaign_id: camp.id,
