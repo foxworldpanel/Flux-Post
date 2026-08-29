@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
@@ -13,7 +14,8 @@ import { toast } from "sonner";
 import {
   Check, X, Loader2, Play, Music as MusicIcon, Video, CheckCircle2,
   AlertCircle, RotateCcw, RefreshCw, ChevronRight, ChevronLeft,
-  Calendar, Clock, Users, Megaphone, Eye, ThumbsUp, ThumbsDown, Zap
+  Calendar, Clock, Users, Megaphone, Eye, ThumbsUp, ThumbsDown, Zap,
+  Sparkles
 } from "lucide-react";
 import { format, addDays } from "date-fns";
 import { socialService, type SocialAccount } from "@/services/social";
@@ -24,6 +26,12 @@ import { generateSmartCampaignPlan } from "@/services/smart-campaign-engine";
 type MusicTrack = { id: string; nome: string; artista: string; artist_id: string; storage_path: string | null; };
 type VideoItem = { id: string; title: string; storage_path: string; duration_seconds?: number; };
 type RenderItem = { id: string; source_content_id: string; music_track_id: string; status: string; storage_path: string | null; is_approved?: boolean; error_message?: string | null; };
+
+type EditorialCopy = {
+  caption: string;
+  hashtags: string;
+  aiStatus: "idle" | "generating" | "generated" | "edited";
+};
 
 const STEPS = [
   { num: 1, label: "Configurar", icon: Calendar },
@@ -68,6 +76,39 @@ export default function CampanhaPage() {
 
   // Content Queue — ordem editorial explícita dos conteúdos
   const [contentQueue, setContentQueue] = useState<string[]>([]);
+
+  // Copy editorial — posteriormente preenchida pela Claude
+  const [editorialCopies, setEditorialCopies] = useState<Record<string, EditorialCopy>>({});
+
+  const getEditorialCopy = (contentId: string): EditorialCopy =>
+    editorialCopies[contentId] || {
+      caption: "",
+      hashtags: "",
+      aiStatus: "idle",
+    };
+
+  const updateEditorialCopy = (
+    contentId: string,
+    field: "caption" | "hashtags",
+    value: string
+  ) => {
+    setEditorialCopies(prev => {
+      const current = prev[contentId] || {
+        caption: "",
+        hashtags: "",
+        aiStatus: "idle" as const,
+      };
+
+      return {
+        ...prev,
+        [contentId]: {
+          ...current,
+          [field]: value,
+          aiStatus: "edited",
+        },
+      };
+    });
+  };
 
   const toggleVideoSelection = (videoId: string) => {
     setSelVideos(prev => {
@@ -1166,49 +1207,223 @@ export default function CampanhaPage() {
               </div>
             )}
 
-            {/* STEP 5 — Aprovar */}
+            {/* STEP 5 — Revisão Editorial */}
             {step === 5 && (
               <div className="space-y-5">
                 <div>
-                  <h2 className="text-lg font-semibold text-foreground">Revisar e aprovar</h2>
-                  <p className="text-sm text-muted-foreground">Assista cada vídeo antes de agendar. Só os aprovados serão postados.</p>
+                  <div className="flex items-center gap-2">
+                    <Sparkles size={18} className="text-primary" />
+                    <h2 className="text-lg font-semibold text-foreground">
+                      Revisão Editorial
+                    </h2>
+                  </div>
+
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Revise o vídeo, a legenda e as hashtags antes de aprovar.
+                    A versão aprovada será usada na publicação.
+                  </p>
                 </div>
-                <div className="space-y-4">
+
+                <div className="space-y-5">
                   {contentQueue.map((id, idx) => {
                     const video = biblioteca.find(v => v.id === id);
-                    const render = renders.find(r => r.source_content_id === id && r.music_track_id === formData.music_track_id);
+
+                    const render = renders.find(
+                      r =>
+                        r.source_content_id === id &&
+                        r.music_track_id === formData.music_track_id
+                    );
+
                     if (!render) return null;
+
+                    const copy = getEditorialCopy(id);
+
                     return (
-                      <div key={id} className="flex gap-4 p-4 rounded-xl border border-border bg-muted/30">
-                        <div className="w-20 aspect-[9/16] rounded-lg overflow-hidden bg-muted flex-shrink-0 flex items-center justify-center cursor-pointer relative group"
-                          onClick={() => handlePreview(render, video?.title || `Vídeo ${idx + 1}`)}>
-                          <Play size={24} className="text-white/70" />
-                          <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <Eye size={18} className="text-white" />
+                      <div
+                        key={id}
+                        className="rounded-xl border border-border bg-muted/20 overflow-hidden"
+                      >
+                        {/* Cabeçalho editorial */}
+                        <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/30">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold">
+                              {String(idx + 1).padStart(2, "0")}
+                            </div>
+
+                            <div>
+                              <p className="text-sm font-semibold text-foreground">
+                                {video?.title || `Vídeo ${idx + 1}`}
+                              </p>
+
+                              <p className="text-[11px] text-muted-foreground">
+                                Posição editorial #{String(idx + 1).padStart(2, "0")}
+                              </p>
+                            </div>
                           </div>
+
+                          <Badge
+                            variant="outline"
+                            className={
+                              render.is_approved
+                                ? "border-emerald-500/30 text-emerald-500"
+                                : "border-border text-muted-foreground"
+                            }
+                          >
+                            {render.is_approved ? "Aprovado" : "Aguardando aprovação"}
+                          </Badge>
                         </div>
-                        <div className="flex-1">
-                          <p className="text-sm font-semibold text-foreground mb-1">{video?.title || `Vídeo ${idx + 1}`}</p>
-                          <p className="text-xs text-muted-foreground mb-3">Trilha: {selectedMusic?.nome}</p>
-                          <div className="flex gap-2">
-                            <Button size="sm" onClick={() => handleToggleApprove(render.id, !!render.is_approved)}
-                              className={`gap-1 h-8 text-xs ${render.is_approved ? "bg-emerald-500/20 text-emerald-500 border border-emerald-500/30 hover:bg-emerald-500/30" : "bg-muted border border-border text-muted-foreground hover:text-foreground"}`}>
-                              <ThumbsUp size={12} /> {render.is_approved ? "Aprovado" : "Aprovar"}
-                            </Button>
-                            {render.is_approved && (
-                              <Button size="sm" variant="outline" onClick={() => handleToggleApprove(render.id, true)}
-                                className="gap-1 h-8 text-xs border-border text-muted-foreground">
-                                <ThumbsDown size={12} /> Rejeitar
+
+                        <div className="p-4 flex flex-col lg:flex-row gap-5">
+                          {/* Preview */}
+                          <div className="lg:w-40 flex-shrink-0">
+                            <div
+                              className="w-full aspect-[9/16] rounded-xl overflow-hidden bg-muted flex items-center justify-center cursor-pointer relative group border border-border"
+                              onClick={() =>
+                                handlePreview(
+                                  render,
+                                  video?.title || `Vídeo ${idx + 1}`
+                                )
+                              }
+                            >
+                              <Play size={30} className="text-white/70" />
+
+                              <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <Eye size={22} className="text-white" />
+                              </div>
+                            </div>
+
+                            <div className="mt-3 space-y-1">
+                              <p className="text-[11px] text-muted-foreground">
+                                Música
+                              </p>
+
+                              <p className="text-xs font-medium text-foreground truncate">
+                                {selectedMusic?.nome || "Sem música"}
+                              </p>
+
+                              {selectedMusic?.artista && (
+                                <p className="text-[11px] text-muted-foreground truncate">
+                                  {selectedMusic.artista}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Copy */}
+                          <div className="flex-1 min-w-0 space-y-4">
+                            <div>
+                              <div className="flex items-center justify-between mb-2">
+                                <Label className="text-xs font-semibold">
+                                  Legenda
+                                </Label>
+
+                                <span className="text-[10px] text-muted-foreground">
+                                  {copy.caption.length} caracteres
+                                </span>
+                              </div>
+
+                              <Textarea
+                                value={copy.caption}
+                                onChange={e =>
+                                  updateEditorialCopy(
+                                    id,
+                                    "caption",
+                                    e.target.value
+                                  )
+                                }
+                                placeholder="A legenda gerada pela Claude aparecerá aqui. Você também pode escrever manualmente."
+                                className="min-h-[110px] resize-y"
+                              />
+                            </div>
+
+                            <div>
+                              <div className="flex items-center justify-between mb-2">
+                                <Label className="text-xs font-semibold">
+                                  Hashtags
+                                </Label>
+
+                                {copy.aiStatus === "edited" && (
+                                  <Badge
+                                    variant="outline"
+                                    className="text-[9px] h-5"
+                                  >
+                                    Editado manualmente
+                                  </Badge>
+                                )}
+                              </div>
+
+                              <Textarea
+                                value={copy.hashtags}
+                                onChange={e =>
+                                  updateEditorialCopy(
+                                    id,
+                                    "hashtags",
+                                    e.target.value
+                                  )
+                                }
+                                placeholder="#musica #artista #reels"
+                                className="min-h-[70px] resize-y"
+                              />
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-2 pt-1">
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                disabled
+                                className="gap-2 h-8 text-xs"
+                                title="A integração com Claude será ativada na próxima etapa"
+                              >
+                                <Sparkles size={13} />
+                                Gerar com Claude
                               </Button>
-                            )}
+
+                              <Button
+                                size="sm"
+                                onClick={() =>
+                                  handleToggleApprove(
+                                    render.id,
+                                    !!render.is_approved
+                                  )
+                                }
+                                className={`gap-1 h-8 text-xs ${
+                                  render.is_approved
+                                    ? "bg-emerald-500/20 text-emerald-500 border border-emerald-500/30 hover:bg-emerald-500/30"
+                                    : ""
+                                }`}
+                              >
+                                <ThumbsUp size={12} />
+                                {render.is_approved
+                                  ? "Conteúdo aprovado"
+                                  : "Aprovar conteúdo"}
+                              </Button>
+
+                              {render.is_approved && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() =>
+                                    handleToggleApprove(render.id, true)
+                                  }
+                                  className="gap-1 h-8 text-xs border-border text-muted-foreground"
+                                >
+                                  <ThumbsDown size={12} />
+                                  Rejeitar
+                                </Button>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </div>
                     );
                   })}
                 </div>
+
                 <div className="text-sm text-muted-foreground text-center">
-                  {approvedRenders.length} de {selVideos.size} aprovado{approvedRenders.length !== 1 ? "s" : ""}
+                  {approvedRenders.length} de {selVideos.size} conteúdo
+                  {selVideos.size !== 1 ? "s" : ""} aprovado
+                  {approvedRenders.length !== 1 ? "s" : ""}
                 </div>
               </div>
             )}
