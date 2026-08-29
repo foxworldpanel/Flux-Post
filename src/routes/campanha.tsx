@@ -18,6 +18,7 @@ import {
 import { format, addDays } from "date-fns";
 import { socialService, type SocialAccount } from "@/services/social";
 import { contentService } from "@/services/content";
+import { generateSmartCampaignPlan } from "@/services/smart-campaign-engine";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type MusicTrack = { id: string; nome: string; artista: string; artist_id: string; storage_path: string | null; };
@@ -548,82 +549,129 @@ export default function CampanhaPage() {
         throw new Error("Nenhum vídeo processado e aprovado disponível");
       }
 
-      // 5. Gerar agenda da campanha
-      const publications: any[] = [];
+      // 5. Smart Campaign Engine V1
+      // Agenda inteligente + Creative Rotation + stagger entre contas
 
-      const startDate = new Date(`${formData.data_inicio}T00:00:00`);
-      const endDate = new Date(`${formData.data_fim}T00:00:00`);
+      const smartPlan = generateSmartCampaignPlan({
+        postsPerDay: Math.max(
+          1,
+          Number(formData.posts_por_dia) || 1
+        ),
+        startDate: formData.data_inicio,
+        endDate: formData.data_fim,
 
-      let videoIndex = 0;
+        accounts: selectedAccounts.map(account => ({
+          id: account.id,
+          platform: account.platform,
+        })),
 
-      for (
-        let currentDate = new Date(startDate);
-        currentDate <= endDate;
-        currentDate = addDays(currentDate, 1)
-      ) {
-        const postsPerDay = Math.max(1, Number(formData.posts_por_dia) || 1);
-        const startHour = parseInt(formData.hora_inicio);
-        const endHour = parseInt(formData.hora_fim);
+        contents: readyRenders.map(render => ({
+          id: render.source_content_id,
+        })),
 
-        const windowMinutes = Math.max(
-          0,
-          (endHour - startHour) * 60
-        );
+        minIntervalMinutes: Math.max(
+          1,
+          Number(formData.intervalo_min) || 60
+        ),
 
-        const spacing =
-          postsPerDay > 1
-            ? Math.floor(windowMinutes / (postsPerDay - 1))
-            : 0;
+        // Evita disparar várias contas no mesmo minuto
+        accountStaggerMinutes: 7,
 
-        for (let postIndex = 0; postIndex < postsPerDay; postIndex++) {
-          const render = readyRenders[videoIndex % readyRenders.length];
+        // V1: distribuição automática em três períodos
+        windows: [
+          {
+            period: "morning",
+            startHour: 9,
+            endHour: 12,
+            enabled: true,
+          },
+          {
+            period: "afternoon",
+            startHour: 13,
+            endHour: 17,
+            enabled: true,
+          },
+          {
+            period: "evening",
+            startHour: 18,
+            endHour: 21,
+            enabled: true,
+          },
+        ],
+      });
 
-          const scheduled = new Date(currentDate);
-          scheduled.setHours(startHour, 0, 0, 0);
+      const renderByContentId = new Map(
+        readyRenders.map(render => [
+          render.source_content_id,
+          render,
+        ])
+      );
 
-          if (postsPerDay === 1) {
-            scheduled.setMinutes(Math.floor(windowMinutes / 2));
-          } else {
-            scheduled.setMinutes(spacing * postIndex);
-          }
+      const publications: any[] = smartPlan.map(slot => {
+        const render = renderByContentId.get(slot.contentId);
 
-          // Cada horário é criado para todas as contas selecionadas
-          for (const account of selectedAccounts) {
-            publications.push({
-              campaign_id: camp.id,
-              content_id: render.source_content_id,
-              music_track_id: formData.music_track_id,
-              social_account_id: account.id,
-              platform: account.platform,
-              scheduled_for: scheduled.toISOString(),
-              status: "scheduled",
-              user_id: user.id,
-              media_render_id: render.id,
-              timezone: "America/Sao_Paulo",
-              source_provider: contentById.get(render.source_content_id)?.source || null,
-              source_external_id: contentById.get(render.source_content_id)?.external_id || null,
-              metadata: {
-                campaign_name: formData.nome,
-                audio_mode: formData.audio_mode,
-                music_start_ms: formData.music_start_ms,
-                music_volume: formData.music_volume,
-                original_audio_volume: formData.original_audio_volume,
-                source: {
-                  provider: contentById.get(render.source_content_id)?.source || null,
-                  external_id: contentById.get(render.source_content_id)?.external_id || null,
-                  title: contentById.get(render.source_content_id)?.title || null,
-                  original_url: contentById.get(render.source_content_id)?.original_url || null,
-                  thumbnail_url: contentById.get(render.source_content_id)?.thumbnail_url || null,
-                  author: contentById.get(render.source_content_id)?.author || null,
-                  duration_seconds: contentById.get(render.source_content_id)?.duration_seconds || null
-                }
-              }
-            });
-          }
-
-          videoIndex++;
+        if (!render) {
+          throw new Error(
+            `Render não encontrado para o conteúdo ${slot.contentId}`
+          );
         }
-      }
+
+        const sourceContent = contentById.get(slot.contentId);
+
+        return {
+          campaign_id: camp.id,
+          content_id: slot.contentId,
+          music_track_id: formData.music_track_id,
+          social_account_id: slot.accountId,
+          platform: slot.platform,
+          scheduled_for: slot.scheduledFor,
+          status: "scheduled",
+          user_id: user.id,
+          media_render_id: render.id,
+          timezone: "America/Sao_Paulo",
+
+          source_provider:
+            sourceContent?.source || null,
+
+          source_external_id:
+            sourceContent?.external_id || null,
+
+          metadata: {
+            campaign_name: formData.nome,
+
+            smart_campaign: {
+              version: "v1",
+              day_period: slot.dayPeriod,
+              sequence: slot.sequence,
+              creative_rotation: true,
+              account_stagger_minutes: 7,
+            },
+
+            audio_mode: formData.audio_mode,
+            music_start_ms: formData.music_start_ms,
+            music_volume: formData.music_volume,
+            original_audio_volume:
+              formData.original_audio_volume,
+
+            source: {
+              provider:
+                sourceContent?.source || null,
+              external_id:
+                sourceContent?.external_id || null,
+              title:
+                sourceContent?.title || null,
+              original_url:
+                sourceContent?.original_url || null,
+              thumbnail_url:
+                sourceContent?.thumbnail_url || null,
+              author:
+                sourceContent?.author || null,
+              duration_seconds:
+                sourceContent?.duration_seconds || null,
+            },
+          },
+        };
+      });
 
       if (!publications.length) {
         throw new Error("Não foi possível gerar a agenda da campanha");
