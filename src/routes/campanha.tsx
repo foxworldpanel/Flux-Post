@@ -682,10 +682,28 @@ export default function CampanhaPage() {
       const { error: contentsError } = await supabase
         .from("campaign_contents")
         .insert(
-          selectedVideoIds.map(id => ({
-            campaign_id: camp.id,
-            content_id: id
-          }))
+          selectedVideoIds.map((id, index) => {
+            const editorialCopy = getEditorialCopy(id);
+            const isApproved = approvedVideos.has(id);
+
+            return {
+              campaign_id: camp.id,
+              content_id: id,
+              position: index + 1,
+              caption: editorialCopy.caption.trim() || null,
+              hashtags: editorialCopy.hashtags.trim() || null,
+              editorial_status: isApproved
+                ? "approved"
+                : editorialCopy.aiStatus === "generated"
+                ? "generated"
+                : editorialCopy.aiStatus === "edited"
+                ? "edited"
+                : "pending",
+              approved_at: isApproved
+                ? new Date().toISOString()
+                : null,
+            };
+          })
         );
 
       if (contentsError) throw contentsError;
