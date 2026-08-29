@@ -65,6 +65,60 @@ export default function CampanhaPage() {
 
   // Selections
   const [selVideos, setSelVideos] = useState<Set<string>>(new Set());
+
+  // Content Queue — ordem editorial explícita dos conteúdos
+  const [contentQueue, setContentQueue] = useState<string[]>([]);
+
+  const toggleVideoSelection = (videoId: string) => {
+    setSelVideos(prev => {
+      const next = new Set(prev);
+
+      if (next.has(videoId)) {
+        next.delete(videoId);
+        setContentQueue(queue => queue.filter(id => id !== videoId));
+      } else {
+        next.add(videoId);
+        setContentQueue(queue =>
+          queue.includes(videoId) ? queue : [...queue, videoId]
+        );
+      }
+
+      return next;
+    });
+  };
+
+  const selectAllVideos = () => {
+    if (selVideos.size === biblioteca.length) {
+      setSelVideos(new Set());
+      setContentQueue([]);
+      return;
+    }
+
+    const ids = biblioteca.map(video => video.id);
+    setSelVideos(new Set(ids));
+    setContentQueue(ids);
+  };
+
+  const moveContentInQueue = (
+    videoId: string,
+    direction: "up" | "down"
+  ) => {
+    setContentQueue(queue => {
+      const index = queue.indexOf(videoId);
+      if (index === -1) return queue;
+
+      const target =
+        direction === "up" ? index - 1 : index + 1;
+
+      if (target < 0 || target >= queue.length) return queue;
+
+      const next = [...queue];
+      [next[index], next[target]] =
+        [next[target], next[index]];
+
+      return next;
+    });
+  };
   const [selAccounts, setSelAccounts] = useState<Set<string>>(new Set());
 
   // Processing
@@ -302,7 +356,7 @@ export default function CampanhaPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Não autenticado");
 
-      for (const videoId of Array.from(selVideos)) {
+      for (const videoId of contentQueue) {
         const render_key = [
           videoId,
           formData.music_track_id,
@@ -457,7 +511,8 @@ export default function CampanhaPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Não autenticado");
 
-      const selectedVideoIds = Array.from(selVideos);
+      // A Content Queue é a fonte oficial da ordem editorial
+      const selectedVideoIds = [...contentQueue];
       const selectedAccountIds = Array.from(selAccounts);
 
       if (!selectedVideoIds.length) throw new Error("Selecione pelo menos um vídeo");
@@ -565,9 +620,16 @@ export default function CampanhaPage() {
           platform: account.platform,
         })),
 
-        contents: readyRenders.map(render => ({
-          id: render.source_content_id,
-        })),
+        contents: contentQueue
+          .map(contentId =>
+            readyRenders.find(
+              render => render.source_content_id === contentId
+            )
+          )
+          .filter(Boolean)
+          .map(render => ({
+            id: render!.source_content_id,
+          })),
 
         minIntervalMinutes: Math.max(
           1,
@@ -936,7 +998,7 @@ export default function CampanhaPage() {
                     <p className="text-sm text-muted-foreground">{selVideos.size} selecionado{selVideos.size !== 1 ? "s" : ""}</p>
                   </div>
                   <Button variant="outline" size="sm" className="text-xs border-border"
-                    onClick={() => setSelVideos(selVideos.size === biblioteca.length ? new Set() : new Set(biblioteca.map(v => v.id)))}>
+                    onClick={selectAllVideos}>
                     {selVideos.size === biblioteca.length ? "Desmarcar todos" : "Selecionar todos"}
                   </Button>
                 </div>
@@ -947,11 +1009,7 @@ export default function CampanhaPage() {
                   {biblioteca.map(v => {
                     const sel = selVideos.has(v.id);
                     return (
-                      <div key={v.id} onClick={() => {
-                        const next = new Set(selVideos);
-                        sel ? next.delete(v.id) : next.add(v.id);
-                        setSelVideos(next);
-                      }} className={`relative aspect-[9/16] rounded-lg overflow-hidden border-2 cursor-pointer transition-all ${sel ? "border-primary" : "border-transparent hover:border-border"}`}>
+                      <div key={v.id} onClick={() => toggleVideoSelection(v.id)} className={`relative aspect-[9/16] rounded-lg overflow-hidden border-2 cursor-pointer transition-all ${sel ? "border-primary" : "border-transparent hover:border-border"}`}>
                         {signedUrls[v.id] ? (
                           <video src={signedUrls[v.id]} className="w-full h-full object-cover" />
                         ) : (
@@ -965,9 +1023,41 @@ export default function CampanhaPage() {
                           </span>
                         )}
                         {sel && (
-                          <div className="absolute top-1 right-1 w-5 h-5 rounded-full bg-primary flex items-center justify-center">
-                            <Check size={12} className="text-white" />
-                          </div>
+                          <>
+                            <div className="absolute top-1 right-1 w-6 h-6 rounded-full bg-primary flex items-center justify-center">
+                              <span className="text-[10px] font-bold text-white">
+                                {contentQueue.indexOf(v.id) + 1}
+                              </span>
+                            </div>
+
+                            <div
+                              className="absolute bottom-1 right-1 flex flex-col gap-1"
+                              onClick={e => e.stopPropagation()}
+                            >
+                              <button
+                                type="button"
+                                disabled={contentQueue.indexOf(v.id) === 0}
+                                onClick={() => moveContentInQueue(v.id, "up")}
+                                className="w-6 h-6 rounded bg-black/70 text-white text-xs disabled:opacity-30"
+                                title="Mover para cima"
+                              >
+                                ↑
+                              </button>
+
+                              <button
+                                type="button"
+                                disabled={
+                                  contentQueue.indexOf(v.id) ===
+                                  contentQueue.length - 1
+                                }
+                                onClick={() => moveContentInQueue(v.id, "down")}
+                                className="w-6 h-6 rounded bg-black/70 text-white text-xs disabled:opacity-30"
+                                title="Mover para baixo"
+                              >
+                                ↓
+                              </button>
+                            </div>
+                          </>
                         )}
                       </div>
                     );
@@ -991,7 +1081,7 @@ export default function CampanhaPage() {
                   </Button>
                 </div>
                 <div className="space-y-4">
-                  {Array.from(selVideos).map((id, idx) => {
+                  {contentQueue.map((id, idx) => {
                     const video = biblioteca.find(v => v.id === id);
                     const render = getRender(id);
                     const status = render?.status || "pending";
@@ -1084,7 +1174,7 @@ export default function CampanhaPage() {
                   <p className="text-sm text-muted-foreground">Assista cada vídeo antes de agendar. Só os aprovados serão postados.</p>
                 </div>
                 <div className="space-y-4">
-                  {Array.from(selVideos).map((id, idx) => {
+                  {contentQueue.map((id, idx) => {
                     const video = biblioteca.find(v => v.id === id);
                     const render = renders.find(r => r.source_content_id === id && r.music_track_id === formData.music_track_id);
                     if (!render) return null;
