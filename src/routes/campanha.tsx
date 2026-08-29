@@ -110,6 +110,76 @@ export default function CampanhaPage() {
     });
   };
 
+  const generateEditorialCopy = async (
+    contentId: string,
+    contentTitle: string
+  ) => {
+    const current = getEditorialCopy(contentId);
+
+    setEditorialCopies(prev => ({
+      ...prev,
+      [contentId]: {
+        ...current,
+        aiStatus: "generating",
+      },
+    }));
+
+    try {
+      const { data, error } = await supabase.functions.invoke(
+        "campaign-copy-generator",
+        {
+          body: {
+            contentId,
+            contentTitle,
+            platform: "generic",
+            music: {
+              title: selectedMusic?.nome || "",
+              artist: selectedMusic?.artista || "",
+            },
+            regenerate:
+              current.aiStatus === "generated" ||
+              current.aiStatus === "edited",
+            previousCaption: current.caption,
+            previousHashtags: current.hashtags,
+          },
+        }
+      );
+
+      if (error) {
+        throw error;
+      }
+
+      if (!data?.success || !data?.copy) {
+        throw new Error(data?.error || "Claude não retornou uma copy válida.");
+      }
+
+      setEditorialCopies(prev => ({
+        ...prev,
+        [contentId]: {
+          caption: data.copy.caption || "",
+          hashtags: data.copy.hashtags || "",
+          aiStatus: "generated",
+        },
+      }));
+
+      toast.success("Legenda e hashtags geradas com Claude.");
+    } catch (error: any) {
+      console.error("[CLAUDE COPY]", error);
+
+      setEditorialCopies(prev => ({
+        ...prev,
+        [contentId]: {
+          ...current,
+          aiStatus: current.caption || current.hashtags ? "edited" : "idle",
+        },
+      }));
+
+      toast.error(
+        error?.message || "Não foi possível gerar a legenda com Claude."
+      );
+    }
+  };
+
   const toggleVideoSelection = (videoId: string) => {
     setSelVideos(prev => {
       const next = new Set(prev);
@@ -1371,12 +1441,23 @@ export default function CampanhaPage() {
                                 type="button"
                                 size="sm"
                                 variant="outline"
-                                disabled
+                                disabled={copy.aiStatus === "generating"}
+                                onClick={() =>
+                                  generateEditorialCopy(video.id, video.title)
+                                }
                                 className="gap-2 h-8 text-xs"
-                                title="A integração com Claude será ativada na próxima etapa"
                               >
-                                <Sparkles size={13} />
-                                Gerar com Claude
+                                {copy.aiStatus === "generating" ? (
+                                  <Loader2 size={13} className="animate-spin" />
+                                ) : (
+                                  <Sparkles size={13} />
+                                )}
+                                {copy.aiStatus === "generating"
+                                  ? "Gerando..."
+                                  : copy.aiStatus === "generated" ||
+                                    copy.aiStatus === "edited"
+                                  ? "Gerar outra versão"
+                                  : "Gerar com Claude"}
                               </Button>
 
                               <Button
