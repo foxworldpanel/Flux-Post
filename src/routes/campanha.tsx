@@ -1409,118 +1409,7 @@ export default function CampanhaPage() {
         selectedContents.map(content => [content.id, content])
       );
 
-      // 1. Ativar o rascunho existente ou criar uma nova campanha
-      const campaignPayload = {
-        user_id: user.id,
-        nome: formData.nome,
-        artist_id: formData.artist_id || null,
-        music_track_id: formData.music_track_id,
-        posts_por_dia: formData.posts_por_dia,
-        hora_inicio: parseInt(formData.hora_inicio, 10),
-        hora_fim: parseInt(formData.hora_fim, 10),
-        daily_start_time: formData.hora_inicio,
-        daily_end_time: formData.hora_fim,
-        schedule_mode: formData.schedule_mode,
-        intervalo_min: formData.intervalo_min,
-        intervalo_max: formData.intervalo_max,
-        data_inicio: formData.data_inicio,
-        data_fim: formData.data_fim,
-        audio_mode: formData.audio_mode,
-        music_volume: formData.music_volume,
-        original_audio_volume: formData.original_audio_volume,
-        music_start_ms: formData.music_start_ms,
-        status: "ativo",
-      };
-
-      let camp: any;
-
-      if (draftCampaignId) {
-        const { data, error } = await supabase
-          .from("campanhas")
-          .update(campaignPayload)
-          .eq("id", draftCampaignId)
-          .eq("user_id", user.id)
-          .eq("status", "rascunho")
-          .select()
-          .single();
-
-        if (error) throw error;
-        camp = data;
-
-        // O rascunho já pode possuir vínculos.
-        // Recriamos abaixo usando o estado final da interface.
-        const [deleteContentsRes, deleteAccountsRes] = await Promise.all([
-          supabase
-            .from("campaign_contents")
-            .delete()
-            .eq("campaign_id", camp.id),
-          supabase
-            .from("campaign_social_accounts")
-            .delete()
-            .eq("campaign_id", camp.id),
-        ]);
-
-        if (deleteContentsRes.error) throw deleteContentsRes.error;
-        if (deleteAccountsRes.error) throw deleteAccountsRes.error;
-      } else {
-        const { data, error } = await supabase
-          .from("campanhas")
-          .insert(campaignPayload)
-          .select()
-          .single();
-
-        if (error) throw error;
-        camp = data;
-      }
-
-      // 2. Vincular vídeos
-      const { error: contentsError } = await supabase
-        .from("campaign_contents")
-        .insert(
-          selectedVideoIds.map((id, index) => {
-            const editorialCopy = getEditorialCopy(id);
-            const isApproved = renders.some(
-              r =>
-                r.source_content_id === id &&
-                r.music_track_id === formData.music_track_id &&
-                r.status === "ready" &&
-                r.is_approved
-            );
-
-            return {
-              campaign_id: camp.id,
-              content_id: id,
-              position: index + 1,
-              caption: editorialCopy.caption.trim() || null,
-              hashtags: mergeArtistHashtags(editorialCopy.hashtags) || null,
-              editorial_status: isApproved
-                ? "approved"
-                : editorialCopy.aiStatus === "generated"
-                ? "generated"
-                : editorialCopy.aiStatus === "edited"
-                ? "edited"
-                : "pending",
-              approved_at: isApproved
-                ? new Date().toISOString()
-                : null,
-            };
-          })
-        );
-
-      if (contentsError) throw contentsError;
-
-      // 3. Vincular contas sociais
-      const { error: accountsError } = await supabase
-        .from("campaign_social_accounts")
-        .insert(
-          selectedAccountIds.map(id => ({
-            campaign_id: camp.id,
-            social_account_id: id
-          }))
-        );
-
-      if (accountsError) throw accountsError;
-
+      // Validar renders antes de qualquer alteração definitiva da campanha
       // 4. Preparar os renders aprovados/prontos
       const readyRenders = renders.filter(r =>
         selectedVideoIds.includes(r.source_content_id) &&
@@ -1534,6 +1423,8 @@ export default function CampanhaPage() {
         throw new Error("Nenhum vídeo processado e aprovado disponível");
       }
 
+
+      // Validar agenda e conflitos antes de alterar a campanha no banco
       // 5. Smart Campaign Engine V2
       // Usa exatamente a agenda revisada no Step 6.
       // Se o preview estiver inválido ou desatualizado,
@@ -1586,14 +1477,37 @@ export default function CampanhaPage() {
         throw new Error("Agenda gerada sem horários válidos");
       }
 
+      const conflictIntervalMinutes = Math.max(
+        1,
+        Number(formData.intervalo_min) || 60
+      );
+
+      // A busca de conflitos precisa cobrir todo o período possível
+      // da campanha, inclusive horários deslocados pelo resolvedor.
+      const campaignScheduleStart = new Date(
+        `${formData.data_inicio}T${formData.hora_inicio}:00-03:00`
+      ).getTime();
+
+      const campaignScheduleEnd = new Date(
+        `${formData.data_fim}T${formData.hora_fim}:00-03:00`
+      ).getTime();
+
+      if (
+        !Number.isFinite(campaignScheduleStart) ||
+        !Number.isFinite(campaignScheduleEnd) ||
+        campaignScheduleEnd < campaignScheduleStart
+      ) {
+        throw new Error("Período da campanha inválido");
+      }
+
       const scheduleStart = new Date(
-        Math.min(...scheduleTimes) -
-          Math.max(1, Number(formData.intervalo_min) || 60) * 60_000
+        campaignScheduleStart -
+          conflictIntervalMinutes * 60_000
       ).toISOString();
 
       const scheduleEnd = new Date(
-        Math.max(...scheduleTimes) +
-          24 * 60 * 60_000
+        campaignScheduleEnd +
+          conflictIntervalMinutes * 60_000
       ).toISOString();
 
       const { data: occupiedPublications, error: occupiedError } =
@@ -1732,6 +1646,119 @@ export default function CampanhaPage() {
           new Date(a.scheduledFor).getTime() -
           new Date(b.scheduledFor).getTime()
       );
+
+
+      // 1. Ativar o rascunho existente ou criar uma nova campanha
+      const campaignPayload = {
+        user_id: user.id,
+        nome: formData.nome,
+        artist_id: formData.artist_id || null,
+        music_track_id: formData.music_track_id,
+        posts_por_dia: formData.posts_por_dia,
+        hora_inicio: parseInt(formData.hora_inicio, 10),
+        hora_fim: parseInt(formData.hora_fim, 10),
+        daily_start_time: formData.hora_inicio,
+        daily_end_time: formData.hora_fim,
+        schedule_mode: formData.schedule_mode,
+        intervalo_min: formData.intervalo_min,
+        intervalo_max: formData.intervalo_max,
+        data_inicio: formData.data_inicio,
+        data_fim: formData.data_fim,
+        audio_mode: formData.audio_mode,
+        music_volume: formData.music_volume,
+        original_audio_volume: formData.original_audio_volume,
+        music_start_ms: formData.music_start_ms,
+        status: "ativo",
+      };
+
+      let camp: any;
+
+      if (draftCampaignId) {
+        const { data, error } = await supabase
+          .from("campanhas")
+          .update(campaignPayload)
+          .eq("id", draftCampaignId)
+          .eq("user_id", user.id)
+          .eq("status", "rascunho")
+          .select()
+          .single();
+
+        if (error) throw error;
+        camp = data;
+
+        // O rascunho já pode possuir vínculos.
+        // Recriamos abaixo usando o estado final da interface.
+        const [deleteContentsRes, deleteAccountsRes] = await Promise.all([
+          supabase
+            .from("campaign_contents")
+            .delete()
+            .eq("campaign_id", camp.id),
+          supabase
+            .from("campaign_social_accounts")
+            .delete()
+            .eq("campaign_id", camp.id),
+        ]);
+
+        if (deleteContentsRes.error) throw deleteContentsRes.error;
+        if (deleteAccountsRes.error) throw deleteAccountsRes.error;
+      } else {
+        const { data, error } = await supabase
+          .from("campanhas")
+          .insert(campaignPayload)
+          .select()
+          .single();
+
+        if (error) throw error;
+        camp = data;
+      }
+
+      // 2. Vincular vídeos
+      const { error: contentsError } = await supabase
+        .from("campaign_contents")
+        .insert(
+          selectedVideoIds.map((id, index) => {
+            const editorialCopy = getEditorialCopy(id);
+            const isApproved = renders.some(
+              r =>
+                r.source_content_id === id &&
+                r.music_track_id === formData.music_track_id &&
+                r.status === "ready" &&
+                r.is_approved
+            );
+
+            return {
+              campaign_id: camp.id,
+              content_id: id,
+              position: index + 1,
+              caption: editorialCopy.caption.trim() || null,
+              hashtags: mergeArtistHashtags(editorialCopy.hashtags) || null,
+              editorial_status: isApproved
+                ? "approved"
+                : editorialCopy.aiStatus === "generated"
+                ? "generated"
+                : editorialCopy.aiStatus === "edited"
+                ? "edited"
+                : "pending",
+              approved_at: isApproved
+                ? new Date().toISOString()
+                : null,
+            };
+          })
+        );
+
+      if (contentsError) throw contentsError;
+
+      // 3. Vincular contas sociais
+      const { error: accountsError } = await supabase
+        .from("campaign_social_accounts")
+        .insert(
+          selectedAccountIds.map(id => ({
+            campaign_id: camp.id,
+            social_account_id: id
+          }))
+        );
+
+      if (accountsError) throw accountsError;
 
       const publications: any[] = resolvedSmartPlan.map(slot => {
         const render = renderByContentId.get(slot.contentId);
