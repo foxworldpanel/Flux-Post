@@ -903,6 +903,29 @@ export default function CampanhaPage() {
 
     const [, year, month, day, hour, minute] = match;
 
+    const selectedDate = `${year}-${month}-${day}`;
+    const selectedTime = `${hour}:${minute}`;
+
+    if (
+      selectedDate < formData.data_inicio ||
+      selectedDate > formData.data_fim
+    ) {
+      toast.error(
+        `Escolha uma data entre ${formData.data_inicio} e ${formData.data_fim}.`
+      );
+      return;
+    }
+
+    if (
+      selectedTime < formData.hora_inicio ||
+      selectedTime > formData.hora_fim
+    ) {
+      toast.error(
+        `Escolha um horário entre ${formData.hora_inicio} e ${formData.hora_fim}.`
+      );
+      return;
+    }
+
     // Campanhas atualmente operam em America/Sao_Paulo (UTC-03).
     const scheduledFor =
       `${year}-${month}-${day}T${hour}:${minute}:00-03:00`;
@@ -1595,28 +1618,120 @@ export default function CampanhaPage() {
         );
       }
 
-      const resolvedSmartPlan =
-        resolveSmartCampaignConflicts(smartPlan, {
-          occupiedSlots: (occupiedPublications || [])
-            .filter(
-              publication =>
-                publication.social_account_id &&
-                publication.scheduled_for
-            )
-            .map(publication => ({
-              accountId: publication.social_account_id,
-              scheduledFor: publication.scheduled_for,
+      const minScheduleInterval = Math.max(
+        1,
+        Number(formData.intervalo_min) || 60
+      );
+
+      const occupiedSlots = (occupiedPublications || [])
+        .filter(
+          publication =>
+            publication.social_account_id &&
+            publication.scheduled_for
+        )
+        .map(publication => ({
+          accountId: publication.social_account_id,
+          scheduledFor: publication.scheduled_for,
+        }));
+
+      // Horários definidos manualmente são imutáveis.
+      // No modo Manual todos os slots são fixos.
+      // No Híbrido apenas os horários editados pelo usuário são fixos.
+      const fixedSlots = smartPlan.filter(
+        slot =>
+          formData.schedule_mode === "manual" ||
+          Boolean(slot.manuallyEdited)
+      );
+
+      const movableSlots = smartPlan.filter(
+        slot => !fixedSlots.includes(slot)
+      );
+
+      const fixedOccupiedByAccount = new Map<string, number[]>();
+
+      const addFixedOccupied = (
+        accountId: string,
+        scheduledFor: string
+      ) => {
+        const timestamp = new Date(scheduledFor).getTime();
+
+        if (!Number.isFinite(timestamp)) {
+          throw new Error(
+            "Existe um horário manual inválido na agenda."
+          );
+        }
+
+        const list =
+          fixedOccupiedByAccount.get(accountId) || [];
+
+        list.push(timestamp);
+        fixedOccupiedByAccount.set(accountId, list);
+      };
+
+      occupiedSlots.forEach(slot => {
+        addFixedOccupied(slot.accountId, slot.scheduledFor);
+      });
+
+      const minScheduleIntervalMs =
+        minScheduleInterval * 60_000;
+
+      // Valida primeiro os horários que o usuário definiu.
+      // Se houver conflito, não movemos silenciosamente.
+      for (const slot of [...fixedSlots].sort(
+        (a, b) =>
+          new Date(a.scheduledFor).getTime() -
+          new Date(b.scheduledFor).getTime()
+      )) {
+        const timestamp =
+          new Date(slot.scheduledFor).getTime();
+
+        const occupied =
+          fixedOccupiedByAccount.get(slot.accountId) || [];
+
+        const hasConflict = occupied.some(
+          existing =>
+            Math.abs(timestamp - existing) <
+            minScheduleIntervalMs
+        );
+
+        if (hasConflict) {
+          throw new Error(
+            "Um horário definido manualmente conflita com outra publicação dessa conta. Ajuste o horário na agenda antes de iniciar a campanha."
+          );
+        }
+
+        addFixedOccupied(
+          slot.accountId,
+          slot.scheduledFor
+        );
+      }
+
+      // Somente horários automáticos podem ser deslocados.
+      const resolvedMovableSlots =
+        resolveSmartCampaignConflicts(movableSlots, {
+          occupiedSlots: [
+            ...occupiedSlots,
+            ...fixedSlots.map(slot => ({
+              accountId: slot.accountId,
+              scheduledFor: slot.scheduledFor,
             })),
-          minIntervalMinutes: Math.max(
-            1,
-            Number(formData.intervalo_min) || 60
-          ),
+          ],
+          minIntervalMinutes: minScheduleInterval,
           shiftStepMinutes: 5,
           startDate: formData.data_inicio,
           endDate: formData.data_fim,
           dailyStartTime: formData.hora_inicio,
           dailyEndTime: formData.hora_fim,
         });
+
+      const resolvedSmartPlan = [
+        ...fixedSlots,
+        ...resolvedMovableSlots,
+      ].sort(
+        (a, b) =>
+          new Date(a.scheduledFor).getTime() -
+          new Date(b.scheduledFor).getTime()
+      );
 
       const publications: any[] = resolvedSmartPlan.map(slot => {
         const render = renderByContentId.get(slot.contentId);
@@ -2566,8 +2681,8 @@ export default function CampanhaPage() {
                                           event.target.value
                                         )
                                       }
-                                      min={`${formData.data_inicio}T00:00`}
-                                      max={`${formData.data_fim}T23:59`}
+                                      min={`${formData.data_inicio}T${formData.hora_inicio}`}
+                                      max={`${formData.data_fim}T${formData.hora_fim}`}
                                       className="h-8 text-xs"
                                     />
 
