@@ -368,3 +368,192 @@ export function generateSmartCampaignPlan(
       new Date(b.scheduledFor).getTime()
   );
 }
+
+export interface SmartOccupiedSlot {
+  accountId: string;
+  scheduledFor: string;
+}
+
+export interface SmartConflictResolutionConfig {
+  /** Horários já ocupados por outras campanhas. */
+  occupiedSlots: SmartOccupiedSlot[];
+
+  /** Distância mínima entre publicações da mesma conta. */
+  minIntervalMinutes: number;
+
+  /** Quantos minutos avançar a cada tentativa de resolução. */
+  shiftStepMinutes?: number;
+
+  /** Limite de segurança para evitar loop infinito. */
+  maxAttempts?: number;
+
+  /** Limites permitidos para deslocamento automático. */
+  startDate?: string;
+  endDate?: string;
+  dailyStartTime?: string;
+  dailyEndTime?: string;
+}
+
+/**
+ * Resolve conflitos entre campanhas na mesma conta social.
+ *
+ * A agenda original não é alterada quando não existe conflito.
+ * Quando existe, o novo slot é deslocado para frente até encontrar
+ * um horário que respeite o intervalo mínimo em relação:
+ *
+ * 1. às publicações já existentes;
+ * 2. aos slots da própria nova campanha já resolvidos.
+ */
+export function resolveSmartCampaignConflicts<
+  T extends SmartPublicationSlot
+>(
+  slots: T[],
+  config: SmartConflictResolutionConfig
+): T[] {
+  const minIntervalMs =
+    Math.max(1, config.minIntervalMinutes) * 60_000;
+
+  const shiftStepMs =
+    Math.max(
+      1,
+      config.shiftStepMinutes ??
+        Math.min(15, Math.max(5, config.minIntervalMinutes))
+    ) * 60_000;
+
+  const maxAttempts = Math.max(
+    1,
+    config.maxAttempts ?? 500
+  );
+
+  const occupiedByAccount = new Map<string, number[]>();
+
+  const addOccupied = (
+    accountId: string,
+    scheduledFor: string
+  ) => {
+    const timestamp = new Date(scheduledFor).getTime();
+
+    if (!Number.isFinite(timestamp)) return;
+
+    const list =
+      occupiedByAccount.get(accountId) || [];
+
+    list.push(timestamp);
+    occupiedByAccount.set(accountId, list);
+  };
+
+  config.occupiedSlots.forEach(slot => {
+    addOccupied(slot.accountId, slot.scheduledFor);
+  });
+
+  const sortedSlots = [...slots].sort(
+    (a, b) =>
+      new Date(a.scheduledFor).getTime() -
+      new Date(b.scheduledFor).getTime()
+  );
+
+  const resolved: T[] = [];
+
+  for (const slot of sortedSlots) {
+    let candidate =
+      new Date(slot.scheduledFor).getTime();
+
+    if (!Number.isFinite(candidate)) {
+      throw new Error(
+        "Smart Campaign: horário inválido durante resolução de conflitos"
+      );
+    }
+
+    let attempts = 0;
+
+    while (attempts < maxAttempts) {
+      const occupied =
+        occupiedByAccount.get(slot.accountId) || [];
+
+      const hasConflict = occupied.some(
+        existing =>
+          Math.abs(candidate - existing) <
+          minIntervalMs
+      );
+
+      if (!hasConflict) break;
+
+      candidate += shiftStepMs;
+      attempts++;
+
+      // Mantém o deslocamento dentro da janela diária da campanha.
+      if (
+        config.startDate &&
+        config.endDate &&
+        config.dailyStartTime &&
+        config.dailyEndTime
+      ) {
+        const candidateDate = new Date(candidate);
+
+        const saoPauloParts =
+          new Intl.DateTimeFormat("en-CA", {
+            timeZone: "America/Sao_Paulo",
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit",
+            hour: "2-digit",
+            minute: "2-digit",
+            hourCycle: "h23",
+          }).formatToParts(candidateDate);
+
+        const getPart = (type: string) =>
+          saoPauloParts.find(part => part.type === type)?.value || "";
+
+        const localDate =
+          `${getPart("year")}-${getPart("month")}-${getPart("day")}`;
+
+        const localTime =
+          `${getPart("hour")}:${getPart("minute")}`;
+
+        if (localTime > config.dailyEndTime) {
+          const current = parseDate(localDate);
+          const next = addCalendarDays(current, 1);
+
+          const nextDate =
+            `${String(next.year).padStart(4, "0")}-` +
+            `${String(next.month).padStart(2, "0")}-` +
+            `${String(next.day).padStart(2, "0")}`;
+
+          if (nextDate > config.endDate) {
+            throw new Error(
+              `Smart Campaign: agenda cheia para a conta ${slot.accountId} dentro do período configurado`
+            );
+          }
+
+          candidate = new Date(
+            `${nextDate}T${config.dailyStartTime}:00-03:00`
+          ).getTime();
+        }
+      }
+    }
+
+    if (attempts >= maxAttempts) {
+      throw new Error(
+        `Smart Campaign: não foi possível encontrar horário livre para a conta ${slot.accountId}`
+      );
+    }
+
+    const resolvedSlot = {
+      ...slot,
+      scheduledFor: new Date(candidate).toISOString(),
+    } as T;
+
+    resolved.push(resolvedSlot);
+
+    addOccupied(
+      resolvedSlot.accountId,
+      resolvedSlot.scheduledFor
+    );
+  }
+
+  return resolved.sort(
+    (a, b) =>
+      new Date(a.scheduledFor).getTime() -
+      new Date(b.scheduledFor).getTime()
+  );
+}

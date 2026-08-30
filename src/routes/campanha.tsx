@@ -20,7 +20,10 @@ import {
 import { format, addDays } from "date-fns";
 import { socialService, type SocialAccount } from "@/services/social";
 import { contentService } from "@/services/content";
-import { generateSmartCampaignPlan } from "@/services/smart-campaign-engine";
+import {
+  generateSmartCampaignPlan,
+  resolveSmartCampaignConflicts,
+} from "@/services/smart-campaign-engine";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type Artist = {
@@ -1550,7 +1553,72 @@ export default function CampanhaPage() {
         ])
       );
 
-      const publications: any[] = smartPlan.map(slot => {
+      // 5.1 Resolver conflitos com outras campanhas
+      // Busca apenas publicações que ainda ocupam espaço na agenda.
+      const scheduleTimes = smartPlan
+        .map(slot => new Date(slot.scheduledFor).getTime())
+        .filter(Number.isFinite);
+
+      if (!scheduleTimes.length) {
+        throw new Error("Agenda gerada sem horários válidos");
+      }
+
+      const scheduleStart = new Date(
+        Math.min(...scheduleTimes) -
+          Math.max(1, Number(formData.intervalo_min) || 60) * 60_000
+      ).toISOString();
+
+      const scheduleEnd = new Date(
+        Math.max(...scheduleTimes) +
+          24 * 60 * 60_000
+      ).toISOString();
+
+      const { data: occupiedPublications, error: occupiedError } =
+        await supabase
+          .from("publications")
+          .select("social_account_id, scheduled_for, status")
+          .in("social_account_id", selectedAccountIds)
+          .in("status", [
+            "scheduled",
+            "queued",
+            "waiting_render",
+            "ready_to_post",
+            "publishing",
+          ])
+          .gte("scheduled_for", scheduleStart)
+          .lte("scheduled_for", scheduleEnd);
+
+      if (occupiedError) {
+        throw new Error(
+          "Não foi possível verificar conflitos de agenda: " +
+            occupiedError.message
+        );
+      }
+
+      const resolvedSmartPlan =
+        resolveSmartCampaignConflicts(smartPlan, {
+          occupiedSlots: (occupiedPublications || [])
+            .filter(
+              publication =>
+                publication.social_account_id &&
+                publication.scheduled_for
+            )
+            .map(publication => ({
+              accountId: publication.social_account_id,
+              scheduledFor: publication.scheduled_for,
+            })),
+          minIntervalMinutes: Math.max(
+            1,
+            Number(formData.intervalo_min) || 60
+          ),
+          shiftStepMinutes: 5,
+          startDate: formData.data_inicio,
+          endDate: formData.data_fim,
+          dailyStartTime: formData.hora_inicio,
+          dailyEndTime: formData.hora_fim,
+        });
+
+      const publications: any[] = resolvedSmartPlan.map(slot => {
         const render = renderByContentId.get(slot.contentId);
 
         if (!render) {
