@@ -178,6 +178,7 @@ export default function GarimpoPage() {
 
   // Pagination & Search State
   const [page, setPage] = useState(1);
+  const [nextPage, setNextPage] = useState<number | null>(null);
   const [totalResults, setTotalResults] = useState(0);
   const [hasNextPage, setHasNextPage] = useState(false);
   const [searchType, setSearchType] = useState<'search' | 'popular'>('search');
@@ -195,11 +196,39 @@ export default function GarimpoPage() {
 
   const fetchData = async () => {
     const library = await contentService.getLibrary();
-    const libIds = new Set(library.map(item => item.metadata?.pexels_id?.toString()).filter(Boolean));
+
+    // external_id é a memória permanente do conteúdo no provedor.
+    // metadata.pexels_id fica apenas como compatibilidade com registros antigos.
+    const libIds = new Set(
+      library
+        .filter(item => !item.source || item.source === 'pexels')
+        .map(item =>
+          item.external_id?.toString() ||
+          item.metadata?.pexels_id?.toString()
+        )
+        .filter(Boolean)
+    );
     setImportedExternalIds(libIds as Set<string>);
 
-    const { data: pubData } = await supabase.from('publications').select('content_library(metadata)');
-    const pubIds = new Set(pubData?.map(p => (p.content_library as any)?.metadata?.pexels_id?.toString()).filter(Boolean));
+    const { data: pubData } = await supabase
+      .from('publications')
+      .select('content_library(external_id, source, metadata)');
+
+    const pubIds = new Set(
+      pubData
+        ?.map(p => {
+          const content = p.content_library as any;
+          if (!content) return null;
+          if (content.source && content.source !== 'pexels') return null;
+
+          return (
+            content.external_id?.toString() ||
+            content.metadata?.pexels_id?.toString()
+          );
+        })
+        .filter(Boolean)
+    );
+
     setPublishedExternalIds(pubIds as Set<string>);
 
     const { data: discData } = await supabase.from('content_candidates').select('external_id').eq('status', 'descartado');
@@ -271,7 +300,16 @@ export default function GarimpoPage() {
       }
 
       setTotalResults(data.total_results || 0);
-      setHasNextPage(!!data.next_page);
+
+      const realNextPage =
+        typeof data.next_page_number === 'number'
+          ? data.next_page_number
+          : data.next_page
+          ? targetPage + 1
+          : null;
+
+      setNextPage(realNextPage);
+      setHasNextPage(realNextPage !== null);
       setPage(targetPage);
 
       if (!isLoadMore && newVideos.length === 0) toast.info("Nenhum vídeo encontrado.");
@@ -297,29 +335,53 @@ export default function GarimpoPage() {
   };
 
   const handleLoadMore = () => {
-    performSearch(page + 1, true);
+    if (!nextPage) return;
+    performSearch(nextPage, true);
   };
 
-  const handleChipSearch = (term: string) => {
+  const handleChipSearch = async (term: string) => {
     setQuery(term);
     setSearchType('search');
-    // We need to wait for state update or pass it directly
-    // Using a direct call with the term
     setLoading(true);
-    contentService.searchPexels({ 
-      query: term, 
-      type: 'search',
-      orientation: filterOrientation === 'all' ? undefined : filterOrientation,
-      page: 1,
-      per_page: 40
-    }).then(data => {
+
+    try {
+      const excludeIds = hideUsed ? [
+        ...Array.from(importedExternalIds),
+        ...Array.from(publishedExternalIds),
+        ...Array.from(discardedExternalIds)
+      ] : [];
+
+      const data = await contentService.searchPexels({
+        query: term,
+        type: 'search',
+        orientation: filterOrientation === 'all' ? undefined : filterOrientation,
+        page: 1,
+        per_page: 40,
+        exclude_ids: excludeIds,
+        ensure_min_results: 40
+      });
+
       setResults(data.videos || []);
       setTotalResults(data.total_results || 0);
-      setHasNextPage(!!data.next_page);
+      setIgnoredCount(data.ignored_count || 0);
+
+      const realNextPage =
+        typeof data.next_page_number === 'number'
+          ? data.next_page_number
+          : data.next_page
+          ? 2
+          : null;
+
+      setNextPage(realNextPage);
+      setHasNextPage(realNextPage !== null);
       setPage(1);
+
       sessionStorage.setItem('garimpo_query', term);
-    }).catch(err => toast.error(err.message))
-      .finally(() => setLoading(false));
+    } catch (err: any) {
+      toast.error("Erro: " + err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const formatDuration = (seconds: number) => {
