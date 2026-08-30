@@ -75,6 +75,7 @@ export default function CampanhaPage() {
     data_fim: format(addDays(new Date(), 30), "yyyy-MM-dd"),
     hora_inicio: "09:00",
     hora_fim: "21:00",
+    schedule_mode: "automatic" as "automatic" | "manual" | "hybrid",
     intervalo_min: 40,
     intervalo_max: 90,
     audio_mode: "only_music" as "only_music" | "music_plus_original",
@@ -88,6 +89,24 @@ export default function CampanhaPage() {
 
   // Content Queue — ordem editorial explícita dos conteúdos
   const [contentQueue, setContentQueue] = useState<string[]>([]);
+
+  // Schedule Preview V2
+  // Fonte editável da agenda antes da criação das publications.
+  type SchedulePreviewItem = {
+    accountId: string;
+    platform: string;
+    contentId: string;
+    scheduledFor: string;
+    dayPeriod: "morning" | "afternoon" | "evening";
+    sequence: number;
+    manuallyEdited?: boolean;
+  };
+
+  const [schedulePreview, setSchedulePreview] =
+    useState<SchedulePreviewItem[]>([]);
+
+  const [schedulePreviewSignature, setSchedulePreviewSignature] =
+    useState("");
 
   // Copy editorial — posteriormente preenchida pela Claude
   const [editorialCopies, setEditorialCopies] = useState<Record<string, EditorialCopy>>({});
@@ -568,12 +587,20 @@ export default function CampanhaPage() {
           intervalo_max: draft.intervalo_max ?? prev.intervalo_max,
           data_inicio: draft.data_inicio || prev.data_inicio,
           data_fim: draft.data_fim || prev.data_fim,
+          schedule_mode:
+            draft.schedule_mode === "manual" || draft.schedule_mode === "hybrid"
+              ? draft.schedule_mode
+              : "automatic",
           hora_inicio:
-            typeof draft.hora_inicio === "number"
+            draft.daily_start_time
+              ? String(draft.daily_start_time).slice(0, 5)
+              : typeof draft.hora_inicio === "number"
               ? `${String(draft.hora_inicio).padStart(2, "0")}:00`
               : draft.hora_inicio || prev.hora_inicio,
           hora_fim:
-            typeof draft.hora_fim === "number"
+            draft.daily_end_time
+              ? String(draft.daily_end_time).slice(0, 5)
+              : typeof draft.hora_fim === "number"
               ? `${String(draft.hora_fim).padStart(2, "0")}:00`
               : draft.hora_fim || prev.hora_fim,
           audio_mode: draft.audio_mode || prev.audio_mode,
@@ -734,6 +761,256 @@ export default function CampanhaPage() {
     if (step === 5) return renders.filter(r => selVideos.has(r.source_content_id) && r.music_track_id === formData.music_track_id).every(r => r.is_approved);
     if (step === 6) return selAccounts.size > 0;
     return true;
+  }
+
+  function buildSmartSchedulePlan(
+    selectedAccounts: SocialAccount[],
+    readyRenders: RenderItem[]
+  ): SchedulePreviewItem[] {
+    return generateSmartCampaignPlan({
+      postsPerDay: Math.max(
+        1,
+        Number(formData.posts_por_dia) || 1
+      ),
+      startDate: formData.data_inicio,
+      endDate: formData.data_fim,
+
+      accounts: selectedAccounts.map(account => ({
+        id: account.id,
+        platform: account.platform,
+      })),
+
+      contents: contentQueue
+        .map(contentId =>
+          readyRenders.find(
+            render => render.source_content_id === contentId
+          )
+        )
+        .filter(Boolean)
+        .map(render => ({
+          id: render!.source_content_id,
+        })),
+
+      minIntervalMinutes: Math.max(
+        1,
+        Number(formData.intervalo_min) || 60
+      ),
+
+      accountStaggerMinutes: 7,
+
+      windows: (() => {
+        const parseTimeToMinutes = (
+          value: string,
+          fallbackHour: number
+        ) => {
+          const [hourRaw, minuteRaw] = value.split(":");
+          const hour = Number(hourRaw);
+          const minute = Number(minuteRaw);
+
+          if (
+            !Number.isInteger(hour) ||
+            !Number.isInteger(minute) ||
+            hour < 0 ||
+            hour > 23 ||
+            minute < 0 ||
+            minute > 59
+          ) {
+            return fallbackHour * 60;
+          }
+
+          return hour * 60 + minute;
+        };
+
+        const startMinutes = parseTimeToMinutes(
+          formData.hora_inicio,
+          9
+        );
+
+        const endMinutes = parseTimeToMinutes(
+          formData.hora_fim,
+          21
+        );
+
+        if (endMinutes <= startMinutes) {
+          throw new Error(
+            "O horário final deve ser maior que o horário inicial"
+          );
+        }
+
+        const totalMinutes = endMinutes - startMinutes;
+        const firstEnd =
+          startMinutes + Math.floor(totalMinutes / 3);
+        const secondEnd =
+          startMinutes + Math.floor((totalMinutes * 2) / 3);
+
+        const toWindowTime = (total: number) => ({
+          hour: Math.floor(total / 60),
+          minute: total % 60,
+        });
+
+        const start = toWindowTime(startMinutes);
+        const first = toWindowTime(firstEnd);
+        const second = toWindowTime(secondEnd);
+        const end = toWindowTime(endMinutes);
+
+        return [
+          {
+            period: "morning" as const,
+            startHour: start.hour,
+            startMinute: start.minute,
+            endHour: first.hour,
+            endMinute: first.minute,
+            enabled: true,
+          },
+          {
+            period: "afternoon" as const,
+            startHour: first.hour,
+            startMinute: first.minute,
+            endHour: second.hour,
+            endMinute: second.minute,
+            enabled: true,
+          },
+          {
+            period: "evening" as const,
+            startHour: second.hour,
+            startMinute: second.minute,
+            endHour: end.hour,
+            endMinute: end.minute,
+            enabled: true,
+          },
+        ];
+      })(),
+    });
+  }
+
+  function updateSchedulePreviewDateTime(
+    index: number,
+    localDateTime: string
+  ) {
+    if (!localDateTime) return;
+
+    const match = localDateTime.match(
+      /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/
+    );
+
+    if (!match) {
+      toast.error("Data ou horário inválido");
+      return;
+    }
+
+    const [, year, month, day, hour, minute] = match;
+
+    // Campanhas atualmente operam em America/Sao_Paulo (UTC-03).
+    const scheduledFor =
+      `${year}-${month}-${day}T${hour}:${minute}:00-03:00`;
+
+    setSchedulePreview(previous =>
+      previous.map((slot, slotIndex) =>
+        slotIndex === index
+          ? {
+              ...slot,
+              scheduledFor,
+              manuallyEdited: true,
+            }
+          : slot
+      )
+    );
+  }
+
+  function schedulePreviewInputValue(
+    scheduledFor: string
+  ): string {
+    const date = new Date(scheduledFor);
+
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/Sao_Paulo",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    }).formatToParts(date);
+
+    const get = (type: string) =>
+      parts.find(part => part.type === type)?.value || "";
+
+    return (
+      `${get("year")}-${get("month")}-${get("day")}` +
+      `T${get("hour")}:${get("minute")}`
+    );
+  }
+
+  function buildSchedulePreviewSignature(): string {
+    return JSON.stringify({
+      artistId: formData.artist_id,
+      musicTrackId: formData.music_track_id,
+      postsPerDay: formData.posts_por_dia,
+      startDate: formData.data_inicio,
+      endDate: formData.data_fim,
+      startTime: formData.hora_inicio,
+      endTime: formData.hora_fim,
+      minInterval: formData.intervalo_min,
+      scheduleMode: formData.schedule_mode,
+      contentIds: [...contentQueue],
+      accountIds: Array.from(selAccounts).sort(),
+    });
+  }
+
+  function handleContinueStep() {
+    if (!canAdvance()) return;
+
+    // Ao entrar no Step 6, verificamos se a configuração
+    // que influencia a agenda mudou.
+    if (step === 5) {
+      const signature = buildSchedulePreviewSignature();
+
+      if (signature !== schedulePreviewSignature) {
+        const selectedAccounts = socialAccounts.filter(account =>
+          selAccounts.has(account.id)
+        );
+
+        const readyRenders = renders.filter(render =>
+          contentQueue.includes(render.source_content_id) &&
+          render.music_track_id === formData.music_track_id &&
+          render.status === "ready" &&
+          render.is_approved &&
+          !!render.storage_path
+        );
+
+        if (selectedAccounts.length && readyRenders.length) {
+          try {
+            const preview = buildSmartSchedulePlan(
+              selectedAccounts,
+              readyRenders
+            );
+
+            setSchedulePreview(preview);
+            setSchedulePreviewSignature(signature);
+          } catch (error: any) {
+            console.error(
+              "[SCHEDULE PREVIEW] Erro ao gerar agenda:",
+              error
+            );
+
+            setSchedulePreview([]);
+            setSchedulePreviewSignature("");
+
+            toast.error(
+              "Não foi possível gerar a agenda: " +
+                (error?.message || "erro desconhecido")
+            );
+
+            return;
+          }
+        } else {
+          setSchedulePreview([]);
+          setSchedulePreviewSignature("");
+        }
+      }
+    }
+
+    setStep(current => Math.min(6, current + 1));
   }
 
   function stepBlockMessage(): string {
@@ -934,8 +1211,11 @@ export default function CampanhaPage() {
       artist_id: formData.artist_id || null,
       music_track_id: formData.music_track_id || null,
       posts_por_dia: formData.posts_por_dia,
-      hora_inicio: parseInt(formData.hora_inicio),
-      hora_fim: parseInt(formData.hora_fim),
+      hora_inicio: parseInt(formData.hora_inicio, 10),
+      hora_fim: parseInt(formData.hora_fim, 10),
+      daily_start_time: formData.hora_inicio,
+      daily_end_time: formData.hora_fim,
+      schedule_mode: formData.schedule_mode,
       intervalo_min: formData.intervalo_min,
       intervalo_max: formData.intervalo_max,
       data_inicio: formData.data_inicio,
@@ -1110,8 +1390,11 @@ export default function CampanhaPage() {
         artist_id: formData.artist_id || null,
         music_track_id: formData.music_track_id,
         posts_por_dia: formData.posts_por_dia,
-        hora_inicio: parseInt(formData.hora_inicio),
-        hora_fim: parseInt(formData.hora_fim),
+        hora_inicio: parseInt(formData.hora_inicio, 10),
+        hora_fim: parseInt(formData.hora_fim, 10),
+        daily_start_time: formData.hora_inicio,
+        daily_end_time: formData.hora_fim,
+        schedule_mode: formData.schedule_mode,
         intervalo_min: formData.intervalo_min,
         intervalo_max: formData.intervalo_max,
         data_inicio: formData.data_inicio,
@@ -1225,88 +1508,40 @@ export default function CampanhaPage() {
         throw new Error("Nenhum vídeo processado e aprovado disponível");
       }
 
-      // 5. Smart Campaign Engine V1
-      // Agenda inteligente + Creative Rotation + stagger entre contas
+      // 5. Smart Campaign Engine V2
+      // Usa exatamente a agenda revisada no Step 6.
+      // Se o preview estiver inválido ou desatualizado,
+      // recalcula de forma segura antes do lançamento.
+      const currentScheduleSignature =
+        buildSchedulePreviewSignature();
 
-      const smartPlan = generateSmartCampaignPlan({
-        postsPerDay: Math.max(
-          1,
-          Number(formData.posts_por_dia) || 1
-        ),
-        startDate: formData.data_inicio,
-        endDate: formData.data_fim,
+      const canUseSchedulePreview =
+        schedulePreview.length > 0 &&
+        schedulePreviewSignature === currentScheduleSignature;
 
-        accounts: selectedAccounts.map(account => ({
-          id: account.id,
-          platform: account.platform,
-        })),
-
-        contents: contentQueue
-          .map(contentId =>
-            readyRenders.find(
-              render => render.source_content_id === contentId
-            )
-          )
-          .filter(Boolean)
-          .map(render => ({
-            id: render!.source_content_id,
-          })),
-
-        minIntervalMinutes: Math.max(
-          1,
-          Number(formData.intervalo_min) || 60
-        ),
-
-        // Evita disparar várias contas no mesmo minuto
-        accountStaggerMinutes: 7,
-
-        // Smart Scheduler:
-        // o usuário define apenas início/fim.
-        // O engine divide automaticamente o período em
-        // manhã, tarde e noite.
-        windows: (() => {
-          const startHour =
-            parseInt(formData.hora_inicio, 10) || 9;
-
-          const endHour =
-            parseInt(formData.hora_fim, 10) || 21;
-
-          if (endHour <= startHour) {
-            throw new Error(
-              "O horário final deve ser maior que o horário inicial"
+      const smartPlan: SchedulePreviewItem[] =
+        canUseSchedulePreview
+          ? schedulePreview
+          : buildSmartSchedulePlan(
+              selectedAccounts,
+              readyRenders
             );
-          }
 
-          const totalHours = endHour - startHour;
+      if (!smartPlan.length) {
+        throw new Error(
+          "A agenda da campanha está vazia. Revise os horários antes de publicar."
+        );
+      }
 
-          const firstEnd =
-            startHour + Math.floor(totalHours / 3);
-
-          const secondEnd =
-            startHour + Math.floor((totalHours * 2) / 3);
-
-          return [
-            {
-              period: "morning" as const,
-              startHour,
-              endHour: firstEnd,
-              enabled: true,
-            },
-            {
-              period: "afternoon" as const,
-              startHour: firstEnd,
-              endHour: secondEnd,
-              enabled: true,
-            },
-            {
-              period: "evening" as const,
-              startHour: secondEnd,
-              endHour,
-              enabled: true,
-            },
-          ];
-        })(),
-      });
+      // Manual exige confirmação explícita de todos os horários.
+      if (
+        formData.schedule_mode === "manual" &&
+        smartPlan.some(slot => !slot.manuallyEdited)
+      ) {
+        throw new Error(
+          "No modo Manual, revise e defina o horário de todas as publicações."
+        );
+      }
 
       const renderByContentId = new Map(
         readyRenders.map(render => [
@@ -1351,7 +1586,8 @@ export default function CampanhaPage() {
             campaign_name: formData.nome,
 
             smart_campaign: {
-              version: "v1",
+              version: "v2",
+              schedule_mode: formData.schedule_mode,
               day_period: slot.dayPeriod,
               sequence: slot.sequence,
               creative_rotation: true,
@@ -1552,6 +1788,42 @@ export default function CampanhaPage() {
                     <Input type="date" value={formData.data_fim} onChange={e => setFormData(p => ({ ...p, data_fim: e.target.value }))} className="bg-muted/50 border-border" />
                   </div>
                 </div>
+                <div className="space-y-2">
+                  <Label>Modo de agendamento</Label>
+                  <Select
+                    value={formData.schedule_mode}
+                    onValueChange={v =>
+                      setFormData(p => ({
+                        ...p,
+                        schedule_mode: v as "automatic" | "manual" | "hybrid",
+                      }))
+                    }
+                  >
+                    <SelectTrigger className="bg-muted/50 border-border">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="automatic">
+                        Automático — Flux Post distribui os horários
+                      </SelectItem>
+                      <SelectItem value="manual">
+                        Manual — você define os horários
+                      </SelectItem>
+                      <SelectItem value="hybrid">
+                        Híbrido — Flux Post sugere e você ajusta
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  <p className="text-xs text-muted-foreground">
+                    {formData.schedule_mode === "automatic"
+                      ? "O Flux Post cria automaticamente a melhor distribuição dentro do período."
+                      : formData.schedule_mode === "manual"
+                      ? "Você poderá definir manualmente os horários das publicações."
+                      : "O Flux Post cria uma agenda inicial e você poderá ajustar os horários antes de lançar."}
+                  </p>
+                </div>
+
                 <div className="grid grid-cols-3 gap-4">
                   <div className="space-y-2">
                     <Label>Posts por dia (por conta)</Label>
@@ -2126,6 +2398,149 @@ export default function CampanhaPage() {
                   </div>
                 </div>
 
+                {/* Schedule Preview V2 */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <Clock size={17} className="text-primary" />
+                        <h2 className="text-base font-semibold text-foreground">
+                          Agenda da Campanha
+                        </h2>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {formData.schedule_mode === "automatic"
+                          ? "Horários distribuídos automaticamente pelo Flux Post."
+                          : formData.schedule_mode === "hybrid"
+                          ? "Agenda sugerida pelo Flux Post. Você poderá ajustar os horários."
+                          : "Agenda manual da campanha."}
+                      </p>
+                    </div>
+
+                    <Badge variant="outline">
+                      {schedulePreview.length} publicações
+                    </Badge>
+                  </div>
+
+                  {schedulePreview.length === 0 ? (
+                    <div className="border border-dashed border-border rounded-xl p-6 text-center">
+                      <Clock
+                        size={24}
+                        className="mx-auto text-muted-foreground mb-2"
+                      />
+                      <p className="text-sm text-muted-foreground">
+                        Nenhum horário gerado.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="border border-border rounded-xl overflow-hidden">
+                      <div className="max-h-[420px] overflow-y-auto divide-y divide-border">
+                        {schedulePreview.map((slot, index) => {
+                          const account = socialAccounts.find(
+                            item => item.id === slot.accountId
+                          );
+
+                          const video = biblioteca.find(
+                            item => item.id === slot.contentId
+                          );
+
+                          const scheduledDate = new Date(
+                            slot.scheduledFor
+                          );
+
+                          return (
+                            <div
+                              key={`${slot.accountId}-${slot.contentId}-${slot.scheduledFor}-${index}`}
+                              className="grid grid-cols-[190px_1fr_1fr_90px] gap-3 items-center p-3 bg-muted/20"
+                            >
+                              <div>
+                                {formData.schedule_mode === "automatic" ? (
+                                  <>
+                                    <p className="text-sm font-medium text-foreground">
+                                      {scheduledDate.toLocaleDateString(
+                                        "pt-BR",
+                                        {
+                                          day: "2-digit",
+                                          month: "2-digit",
+                                          timeZone: "America/Sao_Paulo",
+                                        }
+                                      )}
+                                    </p>
+                                    <p className="text-xs text-primary font-medium">
+                                      {scheduledDate.toLocaleTimeString(
+                                        "pt-BR",
+                                        {
+                                          hour: "2-digit",
+                                          minute: "2-digit",
+                                          timeZone: "America/Sao_Paulo",
+                                        }
+                                      )}
+                                    </p>
+                                  </>
+                                ) : (
+                                  <div className="space-y-1">
+                                    <Input
+                                      type="datetime-local"
+                                      value={schedulePreviewInputValue(
+                                        slot.scheduledFor
+                                      )}
+                                      onChange={event =>
+                                        updateSchedulePreviewDateTime(
+                                          index,
+                                          event.target.value
+                                        )
+                                      }
+                                      min={`${formData.data_inicio}T00:00`}
+                                      max={`${formData.data_fim}T23:59`}
+                                      className="h-8 text-xs"
+                                    />
+
+                                    {slot.manuallyEdited && (
+                                      <p className="text-[10px] text-primary">
+                                        Horário ajustado
+                                      </p>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+
+                              <div className="min-w-0">
+                                <p className="text-xs text-muted-foreground">
+                                  Conta
+                                </p>
+                                <p className="text-sm text-foreground truncate">
+                                  {account?.account_name || "Conta"}
+                                  {account?.username
+                                    ? ` — @${account.username.replace(/^@/, "")}`
+                                    : ""}
+                                </p>
+                              </div>
+
+                              <div className="min-w-0">
+                                <p className="text-xs text-muted-foreground">
+                                  Vídeo
+                                </p>
+                                <p className="text-sm text-foreground truncate">
+                                  {video?.title || slot.contentId}
+                                </p>
+                              </div>
+
+                              <div className="text-right">
+                                <Badge
+                                  variant="outline"
+                                  className="capitalize text-[10px]"
+                                >
+                                  {slot.platform}
+                                </Badge>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
                 <Button onClick={handleLaunch} disabled={saving || !canAdvance()}
                   className="w-full bg-primary hover:bg-primary/90 text-white py-6 text-base font-bold gap-2">
                   {saving ? <Loader2 size={18} className="animate-spin" /> : <Megaphone size={18} />}
@@ -2168,7 +2583,7 @@ export default function CampanhaPage() {
             </Button>
           </div>
           {step < 6 && (
-            <Button className="gap-2 bg-primary hover:bg-primary/90 text-white" onClick={() => setStep(s => Math.min(6, s + 1))} disabled={!canAdvance()}>
+            <Button className="gap-2 bg-primary hover:bg-primary/90 text-white" onClick={handleContinueStep} disabled={!canAdvance()}>
               Continuar <ChevronRight size={16} />
             </Button>
           )}

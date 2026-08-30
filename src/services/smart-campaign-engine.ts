@@ -4,6 +4,8 @@ export interface SmartTimeWindow {
   period: SmartDayPeriod;
   startHour: number;
   endHour: number;
+  startMinute?: number;
+  endMinute?: number;
   enabled: boolean;
 }
 
@@ -161,11 +163,15 @@ function buildDailyTimes(
 
     if (count <= 0) return;
 
-    const start = window.startHour * 60;
+    const start =
+      window.startHour * 60 +
+      (window.startMinute ?? 0);
 
     // Reservamos espaço no final para a última conta.
     const end =
-      window.endHour * 60 - maxStaggerMinutes;
+      window.endHour * 60 +
+      (window.endMinute ?? 0) -
+      maxStaggerMinutes;
 
     if (end < start) {
       throw new Error(
@@ -184,9 +190,15 @@ function buildDailyTimes(
 
     const available = end - start;
 
+    // Distribui os posts DENTRO da janela, sem usar
+    // exatamente as bordas. Isso evita que o último post
+    // de uma janela coincida com o primeiro da próxima.
+    //
+    // Exemplo com 2 posts:
+    // 1/3 da janela e 2/3 da janela.
     for (let position = 0; position < count; position++) {
       const offset = Math.floor(
-        (available * position) / (count - 1)
+        (available * (position + 1)) / (count + 1)
       );
 
       result.push({
@@ -228,7 +240,12 @@ export function generateSmartCampaignPlan(
       : DEFAULT_WINDOWS
   )
     .filter(window => window.enabled)
-    .sort((a, b) => a.startHour - b.startHour);
+    .sort(
+      (a, b) =>
+        a.startHour * 60 +
+        (a.startMinute ?? 0) -
+        (b.startHour * 60 + (b.startMinute ?? 0))
+    );
 
   if (!windows.length) {
     throw new Error(
