@@ -184,6 +184,12 @@ export default function CampanhaPage() {
       .join(" ");
   };
 
+  const hashtagsToArray = (hashtags: string): string[] =>
+    (hashtags || "")
+      .split(/\s+/)
+      .map(tag => tag.trim())
+      .filter(Boolean);
+
   const [isGeneratingAllEditorial, setIsGeneratingAllEditorial] = useState(false);
   const [isApprovingAllEditorial, setIsApprovingAllEditorial] = useState(false);
 
@@ -1779,7 +1785,10 @@ export default function CampanhaPage() {
           social_account_id: slot.accountId,
           platform: slot.platform,
           caption: editorialCopy.caption.trim() || null,
-          hashtags: mergeArtistHashtags(editorialCopy.hashtags) || null,
+          hashtags:
+            hashtagsToArray(
+              mergeArtistHashtags(editorialCopy.hashtags)
+            ),
           scheduled_for: slot.scheduledFor,
           status: "scheduled",
           user_id: user.id,
