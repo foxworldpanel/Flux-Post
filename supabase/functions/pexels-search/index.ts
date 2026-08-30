@@ -163,10 +163,6 @@ serve(async (req) => {
 
         collectedIds.add(id)
         collected.push(video)
-
-        if (collected.length >= desiredResults) {
-          break
-        }
       }
 
       pagesScanned++

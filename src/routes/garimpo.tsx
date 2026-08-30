@@ -285,9 +285,9 @@ export default function GarimpoPage() {
         orientation: filterOrientation === 'all' ? undefined : filterOrientation,
         size: filterQuality !== 'all' ? sizeMap[filterQuality] : undefined,
         page: targetPage,
-        per_page: 40,
+        per_page: 80,
         exclude_ids: excludeIds,
-        ensure_min_results: 40
+        ensure_min_results: 80
       });
 
       const newVideos = data.videos || [];
@@ -356,9 +356,9 @@ export default function GarimpoPage() {
         type: 'search',
         orientation: filterOrientation === 'all' ? undefined : filterOrientation,
         page: 1,
-        per_page: 40,
+        per_page: 80,
         exclude_ids: excludeIds,
-        ensure_min_results: 40
+        ensure_min_results: 80
       });
 
       setResults(data.videos || []);
