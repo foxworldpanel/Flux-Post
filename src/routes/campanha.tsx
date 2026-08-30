@@ -2420,7 +2420,7 @@ export default function CampanhaPage() {
                     { label: "Vídeos aprovados", value: approvedRenders.length },
                     { label: "Contas", value: selAccounts.size },
                     { label: "Posts estimados", value: approvedRenders.length * selAccounts.size * formData.posts_por_dia },
-                    { label: "Dias", value: Math.round((new Date(formData.data_fim).getTime() - new Date(formData.data_inicio).getTime()) / 86400000) },
+                    { label: "Dias", value: Math.max(1, Math.round((new Date(formData.data_fim).getTime() - new Date(formData.data_inicio).getTime()) / 86400000) + 1) },
                   ].map(s => (
                     <div key={s.label} className="bg-muted/30 rounded-xl p-3 text-center border border-border">
                       <p className="text-xl font-bold text-primary">{s.value}</p>
@@ -2433,7 +2433,14 @@ export default function CampanhaPage() {
                   <div className="flex items-center justify-between mb-3">
                     <h2 className="text-base font-semibold text-foreground">Contas de publicação</h2>
                     <Button variant="outline" size="sm" className="text-xs border-border"
-                      onClick={() => setSelAccounts(selAccounts.size === socialAccounts.length ? new Set() : new Set(socialAccounts.map(a => a.id)))}>
+                      onClick={() => {
+                        setSelAccounts(
+                          selAccounts.size === socialAccounts.length
+                            ? new Set()
+                            : new Set(socialAccounts.map(a => a.id))
+                        );
+                        setSchedulePreview([]);
+                      }}>
                       {selAccounts.size === socialAccounts.length ? "Desmarcar todas" : "Selecionar todas"}
                     </Button>
                   </div>
@@ -2446,6 +2453,7 @@ export default function CampanhaPage() {
                         const next = new Set(selAccounts);
                         selAccounts.has(acc.id) ? next.delete(acc.id) : next.add(acc.id);
                         setSelAccounts(next);
+                        setSchedulePreview([]);
                       }} className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${selAccounts.has(acc.id) ? "border-primary bg-primary/10" : "border-border bg-muted/30 hover:border-border"}`}>
                         <div className="w-9 h-9 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
                           <Users size={16} className="text-muted-foreground" />
