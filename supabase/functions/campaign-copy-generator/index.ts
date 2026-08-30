@@ -31,6 +31,15 @@ interface CopyRequest {
     artist?: string;
   };
 
+  artistProfile?: {
+    name?: string;
+    primaryLanguage?: string;
+    communicationIdentity?: string;
+    aiBriefing?: string;
+    priorityHashtags?: string[];
+    blockedHashtags?: string[];
+  };
+
   regenerate?: boolean;
   previousCaption?: string;
   previousHashtags?: string;
@@ -169,8 +178,28 @@ Generate a genuinely different alternative. Do not simply paraphrase the previou
 `
         : "";
 
+    const artistProfile = body.artistProfile;
+
+    const priorityHashtags =
+      artistProfile?.priorityHashtags?.length
+        ? artistProfile.priorityHashtags.join(" ")
+        : "(none)";
+
+    const blockedHashtags =
+      artistProfile?.blockedHashtags?.length
+        ? artistProfile.blockedHashtags.join(" ")
+        : "(none)";
+
     const prompt = `
 You are the editorial copywriter for a professional music and social media publishing system.
+
+ARTIST EDITORIAL PROFILE:
+Artist: ${artistProfile?.name || body.music?.artist || "not informed"}
+Language: ${artistProfile?.primaryLanguage || "pt-BR"}
+Communication identity: ${artistProfile?.communicationIdentity || "not informed"}
+Editorial briefing: ${artistProfile?.aiBriefing || "not informed"}
+Required/prioritized hashtags: ${priorityHashtags}
+Blocked hashtags: ${blockedHashtags}
 
 Generate the final social media copy for the following publication.
 
@@ -190,7 +219,10 @@ PLATFORM INSTRUCTION:
 ${platformInstructions[platform] || platformInstructions.generic}
 
 EDITORIAL RULES:
-- Write in Brazilian Portuguese.
+- Write in the artist profile language: ${artistProfile?.primaryLanguage || "pt-BR"}.
+- Follow the artist communication identity and editorial briefing when provided.
+- Include the required/prioritized hashtags when relevant, without duplicating them.
+- Never use any blocked hashtag.
 - Sound human and natural.
 - Do not mention that AI generated the text.
 - Do not invent facts about the artist, song or video.

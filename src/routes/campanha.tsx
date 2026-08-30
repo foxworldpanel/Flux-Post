@@ -23,6 +23,16 @@ import { contentService } from "@/services/content";
 import { generateSmartCampaignPlan } from "@/services/smart-campaign-engine";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
+type Artist = {
+  id: string;
+  name: string;
+  primary_language: string | null;
+  priority_hashtags: string[] | null;
+  blocked_hashtags: string[] | null;
+  ai_briefing: string | null;
+  communication_identity: string | null;
+};
+
 type MusicTrack = { id: string; nome: string; artista: string; artist_id: string; storage_path: string | null; };
 type VideoItem = { id: string; title: string; storage_path: string; duration_seconds?: number; };
 type RenderItem = { id: string; source_content_id: string; music_track_id: string; status: string; storage_path: string | null; is_approved?: boolean; error_message?: string | null; };
@@ -48,6 +58,7 @@ export default function CampanhaPage() {
   const [saving, setSaving] = useState(false);
 
   // Data
+  const [artistas, setArtistas] = useState<Artist[]>([]);
   const [musicas, setMusicas] = useState<MusicTrack[]>([]);
   const [biblioteca, setBiblioteca] = useState<VideoItem[]>([]);
   const [socialAccounts, setSocialAccounts] = useState<SocialAccount[]>([]);
@@ -57,6 +68,7 @@ export default function CampanhaPage() {
   // Form
   const [formData, setFormData] = useState({
     nome: "",
+    artist_id: "",
     music_track_id: "",
     posts_por_dia: 2,
     data_inicio: format(new Date(), "yyyy-MM-dd"),
@@ -110,10 +122,54 @@ export default function CampanhaPage() {
     });
   };
 
+  const normalizeHashtag = (tag: string) =>
+    tag
+      .trim()
+      .replace(/^#+/, "")
+      .replace(/\s+/g, "")
+      .replace(/[^a-zA-Z0-9_À-ÿ]/g, "");
+
+  const mergeArtistHashtags = (generated: string) => {
+    const artist = artistas.find(a => a.id === formData.artist_id);
+
+    const blocked = new Set(
+      (artist?.blocked_hashtags || [])
+        .map(normalizeHashtag)
+        .filter(Boolean)
+        .map(tag => tag.toLowerCase())
+    );
+
+    const priority = (artist?.priority_hashtags || [])
+      .map(normalizeHashtag)
+      .filter(Boolean)
+      .filter(tag => !blocked.has(tag.toLowerCase()));
+
+    const generatedTags = (generated || "")
+      .split(/[\s,]+/)
+      .map(normalizeHashtag)
+      .filter(Boolean)
+      .filter(tag => !blocked.has(tag.toLowerCase()));
+
+    const unique = new Map<string, string>();
+
+    [...priority, ...generatedTags].forEach(tag => {
+      const key = tag.toLowerCase();
+      if (!unique.has(key)) unique.set(key, tag);
+    });
+
+    return Array.from(unique.values())
+      .map(tag => `#${tag}`)
+      .join(" ");
+  };
+
+  const [isGeneratingAllEditorial, setIsGeneratingAllEditorial] = useState(false);
+  const [isApprovingAllEditorial, setIsApprovingAllEditorial] = useState(false);
+
   const generateEditorialCopy = async (
     contentId: string,
-    contentTitle: string
-  ) => {
+    contentTitle: string,
+    silent = false
+  ): Promise<boolean> => {
     const current = getEditorialCopy(contentId);
 
     setEditorialCopies(prev => ({
@@ -136,6 +192,18 @@ export default function CampanhaPage() {
               title: selectedMusic?.nome || "",
               artist: selectedMusic?.artista || "",
             },
+            artistProfile: (() => {
+              const artist = artistas.find(a => a.id === formData.artist_id);
+
+              return {
+                name: artist?.name || selectedMusic?.artista || "",
+                primaryLanguage: artist?.primary_language || "pt-BR",
+                communicationIdentity: artist?.communication_identity || "",
+                aiBriefing: artist?.ai_briefing || "",
+                priorityHashtags: artist?.priority_hashtags || [],
+                blockedHashtags: artist?.blocked_hashtags || [],
+              };
+            })(),
             regenerate:
               current.aiStatus === "generated" ||
               current.aiStatus === "edited",
@@ -157,12 +225,16 @@ export default function CampanhaPage() {
         ...prev,
         [contentId]: {
           caption: data.copy.caption || "",
-          hashtags: data.copy.hashtags || "",
+          hashtags: mergeArtistHashtags(data.copy.hashtags || ""),
           aiStatus: "generated",
         },
       }));
 
-      toast.success("Legenda e hashtags geradas com Claude.");
+      if (!silent) {
+        toast.success("Legenda e hashtags geradas com Claude.");
+      }
+
+      return true;
     } catch (error: any) {
       console.error("[CLAUDE COPY]", error);
 
@@ -174,9 +246,115 @@ export default function CampanhaPage() {
         },
       }));
 
-      toast.error(
-        error?.message || "Não foi possível gerar a legenda com Claude."
+      if (!silent) {
+        toast.error(
+          error?.message || "Não foi possível gerar a legenda com Claude."
+        );
+      }
+
+      return false;
+    }
+  };
+
+  const approveAllEditorial = async () => {
+    if (isApprovingAllEditorial) return;
+
+    const readyRenders = renders.filter(render =>
+      contentQueue.includes(render.source_content_id) &&
+      render.music_track_id === formData.music_track_id &&
+      render.status === "ready" &&
+      !render.is_approved
+    );
+
+    if (!readyRenders.length) {
+      toast.success("Todos os conteúdos prontos já estão aprovados.");
+      return;
+    }
+
+    setIsApprovingAllEditorial(true);
+
+    try {
+      const ids = readyRenders.map(render => render.id);
+
+      const { error } = await supabase
+        .from("media_renders")
+        .update({ is_approved: true })
+        .in("id", ids);
+
+      if (error) throw error;
+
+      const idSet = new Set(ids);
+
+      setRenders(prev =>
+        prev.map(render =>
+          idSet.has(render.id)
+            ? { ...render, is_approved: true }
+            : render
+        )
       );
+
+      toast.success(
+        `${ids.length} ${ids.length === 1 ? "conteúdo aprovado" : "conteúdos aprovados"}.`
+      );
+    } catch (error: any) {
+      console.error("[APPROVE ALL]", error);
+      toast.error(error?.message || "Não foi possível aprovar todos os conteúdos.");
+    } finally {
+      setIsApprovingAllEditorial(false);
+    }
+  };
+
+  const generateAllEditorialCopies = async () => {
+    if (isGeneratingAllEditorial) return;
+
+    if (!formData.artist_id) {
+      toast.error("Selecione o artista da campanha.");
+      return;
+    }
+
+    if (!contentQueue.length) {
+      toast.error("Nenhum vídeo selecionado.");
+      return;
+    }
+
+    setIsGeneratingAllEditorial(true);
+
+    let successCount = 0;
+    let errorCount = 0;
+
+    try {
+      for (const contentId of contentQueue) {
+        const video = biblioteca.find(v => v.id === contentId);
+
+        if (!video) {
+          errorCount++;
+          continue;
+        }
+
+        const success = await generateEditorialCopy(
+          contentId,
+          video.title || "Vídeo",
+          true
+        );
+
+        if (success) {
+          successCount++;
+        } else {
+          errorCount++;
+        }
+      }
+
+      if (errorCount === 0) {
+        toast.success(
+          `${successCount} ${successCount === 1 ? "conteúdo gerado" : "conteúdos gerados"} com Claude.`
+        );
+      } else {
+        toast.warning(
+          `${successCount} gerados com sucesso e ${errorCount} com erro.`
+        );
+      }
+    } finally {
+      setIsGeneratingAllEditorial(false);
     }
   };
 
@@ -242,8 +420,8 @@ export default function CampanhaPage() {
   const [previewTitle, setPreviewTitle] = useState("");
   const [previewLoading, setPreviewLoading] = useState(false);
 
-  // Active campaign
-  const [campanhaAtiva, setCampanhaAtiva] = useState<any>(null);
+  // Active campaigns — Campaign V2 supports multiple simultaneous campaigns
+  const [campanhasAtivas, setCampanhasAtivas] = useState<any[]>([]);
 
   // Persistent campaign draft
   const [draftCampaignId, setDraftCampaignId] = useState<string | null>(null);
@@ -343,7 +521,13 @@ export default function CampanhaPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const [tracksRes, libraryRes, accountsRes, campRes, rendersRes, draftRes] = await Promise.all([
+      const [artistsRes, tracksRes, libraryRes, accountsRes, campRes, rendersRes, draftRes] = await Promise.all([
+        supabase
+          .from("artists")
+          .select("id, name, primary_language, priority_hashtags, blocked_hashtags, ai_briefing, communication_identity")
+          .eq("user_id", user.id)
+          .eq("status", "active")
+          .order("name", { ascending: true }),
         supabase.from("music_tracks").select("id, nome, artista, artist_id, storage_path"),
         supabase
           .from("content_library")
@@ -351,7 +535,7 @@ export default function CampanhaPage() {
           .not("status", "in", '("reserved","used")')
           .order("created_at", { ascending: false }),
         socialService.getConnectedAccounts(),
-        supabase.from("campanhas").select("*").in("status", ["ativo", "pausado"]).order("data_inicio", { ascending: false }).limit(1),
+        supabase.from("campanhas").select("*").eq("user_id", user.id).in("status", ["ativo", "pausado"]).order("data_inicio", { ascending: false }),
         supabase.from("media_renders").select("*").eq("user_id", user.id),
         supabase
           .from("campanhas")
@@ -362,6 +546,7 @@ export default function CampanhaPage() {
           .limit(1)
       ]);
 
+      setArtistas(artistsRes.data || []);
       setMusicas(tracksRes.data || []);
       setBiblioteca(libraryRes.data || []);
       setSocialAccounts(accountsRes || []);
@@ -376,6 +561,7 @@ export default function CampanhaPage() {
         setFormData(prev => ({
           ...prev,
           nome: draft.nome || "",
+          artist_id: draft.artist_id || "",
           music_track_id: draft.music_track_id || "",
           posts_por_dia: draft.posts_por_dia ?? prev.posts_por_dia,
           intervalo_min: draft.intervalo_min ?? prev.intervalo_min,
@@ -462,45 +648,54 @@ export default function CampanhaPage() {
         setDraftCampaignId(null);
       }
 
-      if (campRes.data?.[0]) {
-        const activeCampaign = campRes.data[0];
+      // Campaign V2: process all active/paused campaigns independently
+      const loadedCampaigns = campRes.data || [];
+      const remainingCampaigns: any[] = [];
 
-        const { data: campaignPublications, error: publicationsError } = await supabase
-          .from("publications")
-          .select("id, status")
-          .eq("campaign_id", activeCampaign.id);
+      for (const campaign of loadedCampaigns) {
+        const { data: campaignPublications, error: publicationsError } =
+          await supabase
+            .from("publications")
+            .select("id, status")
+            .eq("campaign_id", campaign.id);
 
         if (publicationsError) {
-          console.error("Erro ao verificar publicações da campanha:", publicationsError);
-          setCampanhaAtiva(activeCampaign);
-        } else {
-          const publications = campaignPublications || [];
-          const allPublished =
-            publications.length > 0 &&
-            publications.every(pub => pub.status === "published");
-
-          if (allPublished) {
-            await Promise.all([
-              supabase
-                .from("campanhas")
-                .update({ status: "concluido" })
-                .eq("id", activeCampaign.id),
-
-              supabase
-                .from("music_tracks")
-                .update({ campanha_ativa: false })
-                .eq("id", activeCampaign.music_track_id)
-            ]);
-
-            setCampanhaAtiva(null);
-            toast.success("Campanha concluída! Todas as publicações foram realizadas.");
-          } else {
-            setCampanhaAtiva(activeCampaign);
-          }
+          console.error(
+            "Erro ao verificar publicações da campanha:",
+            campaign.id,
+            publicationsError
+          );
+          remainingCampaigns.push(campaign);
+          continue;
         }
-      } else {
-        setCampanhaAtiva(null);
+
+        const publications = campaignPublications || [];
+        const allPublished =
+          publications.length > 0 &&
+          publications.every(pub => pub.status === "published");
+
+        if (allPublished) {
+          const { error: completeError } = await supabase
+            .from("campanhas")
+            .update({ status: "concluido" })
+            .eq("id", campaign.id);
+
+          if (completeError) {
+            console.error(
+              "Erro ao concluir campanha:",
+              campaign.id,
+              completeError
+            );
+            remainingCampaigns.push(campaign);
+          } else {
+            console.log("[CAMPAIGN V2] Campanha concluída:", campaign.id);
+          }
+        } else {
+          remainingCampaigns.push(campaign);
+        }
       }
+
+      setCampanhasAtivas(remainingCampaigns);
 
       // Sync progress state from initial renders
       if (rendersRes.data) {
@@ -729,9 +924,14 @@ export default function CampanhaPage() {
       throw new Error("Informe o nome da campanha antes de salvar o rascunho");
     }
 
+    if (!formData.artist_id) {
+      throw new Error("Selecione o artista da campanha");
+    }
+
     const campaignData = {
       user_id: user.id,
       nome: formData.nome.trim(),
+      artist_id: formData.artist_id || null,
       music_track_id: formData.music_track_id || null,
       posts_por_dia: formData.posts_por_dia,
       hora_inicio: parseInt(formData.hora_inicio),
@@ -800,7 +1000,7 @@ export default function CampanhaPage() {
               content_id: contentId,
               position: index + 1,
               caption: copy.caption.trim() || null,
-              hashtags: copy.hashtags.trim() || null,
+              hashtags: mergeArtistHashtags(copy.hashtags) || null,
               editorial_status: isApproved
                 ? "approved"
                 : copy.aiStatus === "generated"
@@ -860,8 +1060,16 @@ export default function CampanhaPage() {
       const selectedVideoIds = [...contentQueue];
       const selectedAccountIds = Array.from(selAccounts);
 
+      if (!formData.artist_id) throw new Error("Selecione o artista da campanha");
+      if (!formData.music_track_id) throw new Error("Selecione uma música");
       if (!selectedVideoIds.length) throw new Error("Selecione pelo menos um vídeo");
       if (!selectedAccountIds.length) throw new Error("Selecione pelo menos uma conta");
+
+      const launchMusic = musicas.find(m => m.id === formData.music_track_id);
+
+      if (!launchMusic || launchMusic.artist_id !== formData.artist_id) {
+        throw new Error("A música selecionada não pertence ao artista da campanha");
+      }
 
       const selectedAccounts = socialAccounts.filter(a =>
         selectedAccountIds.includes(a.id)
@@ -899,6 +1107,7 @@ export default function CampanhaPage() {
       const campaignPayload = {
         user_id: user.id,
         nome: formData.nome,
+        artist_id: formData.artist_id || null,
         music_track_id: formData.music_track_id,
         posts_por_dia: formData.posts_por_dia,
         hora_inicio: parseInt(formData.hora_inicio),
@@ -974,7 +1183,7 @@ export default function CampanhaPage() {
               content_id: id,
               position: index + 1,
               caption: editorialCopy.caption.trim() || null,
-              hashtags: editorialCopy.hashtags.trim() || null,
+              hashtags: mergeArtistHashtags(editorialCopy.hashtags) || null,
               editorial_status: isApproved
                 ? "approved"
                 : editorialCopy.aiStatus === "generated"
@@ -1125,7 +1334,7 @@ export default function CampanhaPage() {
           social_account_id: slot.accountId,
           platform: slot.platform,
           caption: editorialCopy.caption.trim() || null,
-          hashtags: editorialCopy.hashtags.trim() || null,
+          hashtags: mergeArtistHashtags(editorialCopy.hashtags) || null,
           scheduled_for: slot.scheduledFor,
           status: "scheduled",
           user_id: user.id,
@@ -1240,41 +1449,6 @@ export default function CampanhaPage() {
     </DashboardLayout>
   );
 
-  if (campanhaAtiva) return (
-    <DashboardLayout>
-      <div className="max-w-2xl mx-auto p-8 space-y-6">
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-foreground">{campanhaAtiva.nome}</h1>
-          <Badge className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20">ATIVA</Badge>
-        </div>
-        <Card className="bg-card border-border">
-          <CardContent className="p-6 space-y-4">
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div><span className="text-muted-foreground">Início:</span> <span className="text-foreground ml-2">{campanhaAtiva.data_inicio}</span></div>
-              <div><span className="text-muted-foreground">Fim:</span> <span className="text-foreground ml-2">{campanhaAtiva.data_fim}</span></div>
-              <div><span className="text-muted-foreground">Posts/dia:</span> <span className="text-foreground ml-2">{campanhaAtiva.posts_por_dia}</span></div>
-            </div>
-            <div className="flex gap-4 pt-4">
-              <Button variant="outline" className="flex-1 border-yellow-500/20 text-yellow-500 hover:bg-yellow-500/10"
-                onClick={() => supabase.from("campanhas").update({ status: "pausado" }).eq("id", campanhaAtiva.id).then(() => fetchData())}>
-                Pausar Campanha
-              </Button>
-              <Button variant="outline" className="flex-1 border-red-500/20 text-red-500 hover:bg-red-500/10"
-                onClick={async () => {
-                  await supabase.from("campanhas").update({ status: "encerrado" }).eq("id", campanhaAtiva.id);
-                  await supabase.from("music_tracks").update({ campanha_ativa: false }).eq("id", campanhaAtiva.music_track_id);
-                  setCampanhaAtiva(null);
-                  toast.success("Campanha encerrada");
-                }}>
-                Encerrar
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    </DashboardLayout>
-  );
-
   return (
     <DashboardLayout>
       <div className="max-w-3xl mx-auto p-6 space-y-6 animate-in fade-in duration-300">
@@ -1328,6 +1502,46 @@ export default function CampanhaPage() {
                   <Input placeholder="Ex: Lançamento Neon Drift — Agosto" value={formData.nome}
                     onChange={e => setFormData(p => ({ ...p, nome: e.target.value }))} className="bg-muted/50 border-border" />
                 </div>
+                <div className="space-y-2">
+                  <Label>Artista *</Label>
+                  <Select
+                    value={formData.artist_id}
+                    onValueChange={v =>
+                      setFormData(prev => ({
+                        ...prev,
+                        artist_id: v,
+                        music_track_id:
+                          musicas.find(m => m.id === prev.music_track_id)?.artist_id === v
+                            ? prev.music_track_id
+                            : "",
+                      }))
+                    }
+                  >
+                    <SelectTrigger className="bg-muted/50 border-border">
+                      <SelectValue placeholder="Selecione o artista da campanha" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {artistas.map(artist => (
+                        <SelectItem key={artist.id} value={artist.id}>
+                          {artist.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  {formData.artist_id && (
+                    <div className="flex flex-wrap gap-1 pt-1">
+                      {artistas
+                        .find(a => a.id === formData.artist_id)
+                        ?.priority_hashtags?.map(tag => (
+                          <Badge key={tag} variant="secondary">
+                            #{tag.replace(/^#/, "")}
+                          </Badge>
+                        ))}
+                    </div>
+                  )}
+                </div>
+
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Data de início</Label>
@@ -1343,7 +1557,7 @@ export default function CampanhaPage() {
                     <Label>Posts por dia (por conta)</Label>
                     <Select value={String(formData.posts_por_dia)} onValueChange={v => setFormData(p => ({ ...p, posts_por_dia: +v }))}>
                       <SelectTrigger className="bg-muted/50 border-border"><SelectValue /></SelectTrigger>
-                      <SelectContent>{[1,2,3].map(n => <SelectItem key={n} value={String(n)}>{n}x/dia</SelectItem>)}</SelectContent>
+                      <SelectContent>{[1,2,3,4,5,6].map(n => <SelectItem key={n} value={String(n)}>{n}x/dia</SelectItem>)}</SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-2">
@@ -1388,7 +1602,9 @@ export default function CampanhaPage() {
                   {musicas.length === 0 && (
                     <p className="text-center text-muted-foreground text-sm py-6">Nenhuma música na biblioteca. Adicione em Músicas.</p>
                   )}
-                  {musicas.map(m => (
+                  {musicas
+                      .filter(m => !formData.artist_id || m.artist_id === formData.artist_id)
+                      .map(m => (
                     <div key={m.id} onClick={() => setFormData(p => ({ ...p, music_track_id: m.id }))}
                       className={`flex items-center gap-3 p-4 rounded-xl border cursor-pointer transition-all ${
                         formData.music_track_id === m.id ? "border-primary bg-primary/10" : "border-border bg-muted/30 hover:border-border"
@@ -1599,6 +1815,45 @@ export default function CampanhaPage() {
                     Revise o vídeo, a legenda e as hashtags antes de aprovar.
                     A versão aprovada será usada na publicação.
                   </p>
+
+                  <div className="flex flex-wrap gap-2 mt-4">
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={generateAllEditorialCopies}
+                      disabled={isGeneratingAllEditorial || !contentQueue.length}
+                      className="gap-2"
+                    >
+                      {isGeneratingAllEditorial ? (
+                        <Loader2 size={14} className="animate-spin" />
+                      ) : (
+                        <Sparkles size={14} />
+                      )}
+
+                      {isGeneratingAllEditorial
+                        ? "Gerando todos..."
+                        : "Gerar todos com Claude"}
+                    </Button>
+
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={approveAllEditorial}
+                      disabled={isApprovingAllEditorial || !contentQueue.length}
+                      className="gap-2"
+                    >
+                      {isApprovingAllEditorial ? (
+                        <Loader2 size={14} className="animate-spin" />
+                      ) : (
+                        <ThumbsUp size={14} />
+                      )}
+
+                      {isApprovingAllEditorial
+                        ? "Aprovando..."
+                        : "Aprovar todos"}
+                    </Button>
+                  </div>
                 </div>
 
                 <div className="space-y-5">
