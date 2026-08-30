@@ -95,7 +95,17 @@ export const contentService = {
         body: { query, orientation, size, locale, type, page, per_page, exclude_ids, ensure_min_results },
         headers: { Authorization: `Bearer ${session?.access_token}` }
       });
-      if (!error && data) return data;
+      if (!error && data) {
+        console.log('[PEXELS] Edge Function OK', {
+          videos: data.videos?.length,
+          page: data.page,
+          next_page_number: data.next_page_number,
+          total_results: data.total_results
+        });
+        return data;
+      }
+
+      console.warn('[PEXELS] Edge Function returned error, using fallback:', error);
     } catch (e) {
       console.warn('[CONTENT] Edge Function failed, trying direct Pexels API:', e);
     }
@@ -121,7 +131,29 @@ export const contentService = {
 
     if (!res.ok) throw new Error(`Pexels API error: ${res.status}`);
     const json = await res.json();
-    return { videos: json.videos || [], total_results: json.total_results || 0 };
+
+    const nextPageNumber =
+      json.next_page && (json.videos?.length || 0) > 0
+        ? page + 1
+        : null;
+
+    console.log('[PEXELS] Direct fallback OK', {
+      videos: json.videos?.length,
+      page,
+      next_page_number: nextPageNumber,
+      total_results: json.total_results
+    });
+
+    return {
+      videos: json.videos || [],
+      total_results: json.total_results || 0,
+      page,
+      per_page,
+      next_page: json.next_page || null,
+      next_page_number: nextPageNumber,
+      ignored_count: 0,
+      pages_scanned: 1
+    };
   },
 
   async importPexelsVideo({ 
