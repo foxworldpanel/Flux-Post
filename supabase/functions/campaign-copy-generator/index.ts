@@ -11,6 +11,8 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
+const COPY_GENERATOR_BUILD = "v4-priority-hashtags";
+
 type Platform =
   | "instagram"
   | "tiktok"
@@ -69,6 +71,44 @@ function jsonResponse(data: unknown, status = 200) {
       "Content-Type": "application/json",
     },
   });
+}
+
+function enforceArtistHashtags(
+  generated: unknown,
+  priority: unknown,
+  blocked: unknown,
+) {
+  const tokenize = (value: unknown): string[] => {
+    const values = Array.isArray(value)
+      ? value
+      : typeof value === "string"
+      ? value.split(/[\s,;]+/)
+      : [];
+
+    return values
+      .flatMap(item => String(item).split(/[\s,;]+/))
+      .map(item =>
+        item
+          .trim()
+          .replace(/^["']+|["']+$/g, "")
+          .replace(/^#+/, "")
+          .replace(/\s+/g, "")
+      )
+      .filter(Boolean);
+  };
+
+  const blockedSet = new Set(
+    tokenize(blocked).map(tag => tag.toLocaleLowerCase()),
+  );
+  const unique = new Map<string, string>();
+
+  for (const tag of [...tokenize(priority), ...tokenize(generated)]) {
+    const key = tag.toLocaleLowerCase();
+    if (blockedSet.has(key) || unique.has(key)) continue;
+    unique.set(key, "#" + tag);
+  }
+
+  return Array.from(unique.values()).join(" ");
 }
 
 function bytesToBase64(bytes: Uint8Array) {
@@ -402,7 +442,7 @@ ${platformInstructions[platform] || platformInstructions.generic}
 EDITORIAL RULES:
 - Write in the artist profile language: ${artistProfile?.primaryLanguage || "pt-BR"}.
 - Follow the artist communication identity and editorial briefing when provided.
-- Include the required/prioritized hashtags when relevant, without duplicating them.
+- Always include every required/prioritized hashtag, without duplication.
 - Never use any blocked hashtag.
 - Sound human and natural.
 - Do not mention that AI generated the text.
@@ -494,7 +534,7 @@ RULES:
 - Do not invent facts, places, people, brands, actions or achievements.
 - Do not add a music credit line; the system appends it automatically.
 - Every hashtag set must be relevant and may vary naturally by account.
-- Include required/prioritized hashtags without duplication.
+- Always include every required/prioritized hashtag, without duplication.
 - Never use blocked hashtags.
 - Use 4 to 8 hashtags beginning with #.
 - Do not return duplicate captions.
@@ -644,12 +684,17 @@ Return ONLY valid JSON in exactly this structure:
             body.music?.artist || artistProfile?.name,
             body.music?.title,
           ),
-          hashtags: variant.hashtags.trim(),
+          hashtags: enforceArtistHashtags(
+            variant.hashtags,
+            artistProfile?.priorityHashtags,
+            artistProfile?.blockedHashtags,
+          ),
         };
       });
 
       return jsonResponse({
         success: true,
+        build: COPY_GENERATOR_BUILD,
         action,
         contentId: body.contentId,
         variants,
@@ -675,7 +720,11 @@ Return ONLY valid JSON in exactly this structure:
       body.music?.artist || artistProfile?.name,
       body.music?.title,
     );
-    const hashtags = generated.hashtags.trim();
+    const hashtags = enforceArtistHashtags(
+      generated.hashtags,
+      artistProfile?.priorityHashtags,
+      artistProfile?.blockedHashtags,
+    );
 
     if (!generatedCaption) {
       throw new Error("Claude returned an empty caption");
@@ -687,6 +736,7 @@ Return ONLY valid JSON in exactly this structure:
 
     return jsonResponse({
       success: true,
+      build: COPY_GENERATOR_BUILD,
       contentId: body.contentId || null,
       platform,
       copyMode,
