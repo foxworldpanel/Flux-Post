@@ -66,6 +66,50 @@ export interface DiscoveryReport {
 // Falls back to direct API call if Edge Function fails
 const PEXELS_API_KEY = import.meta.env.VITE_PEXELS_API_KEY || '';
 
+const derivePexelsTitle = (url: string | undefined, videoId: number) => {
+  if (!url) return `Pexels Video ${videoId}`;
+
+  try {
+    const segments = new URL(url).pathname.split("/").filter(Boolean);
+    const videoIndex = segments.indexOf("video");
+    const slug = videoIndex >= 0 ? segments[videoIndex + 1] : "";
+    const withoutId = slug.replace(new RegExp("-" + videoId + "$"), "");
+
+    if (withoutId) {
+      return withoutId
+        .split("-")
+        .filter(Boolean)
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(" ");
+    }
+  } catch {
+    // Keep the safe generic title below.
+  }
+
+  return `Pexels Video ${videoId}`;
+};
+
+const normalizePexelsTags = (videoData: any, category: string) => {
+  const suppliedTags = Array.isArray(videoData?.tags)
+    ? videoData.tags.map((tag: any) =>
+        typeof tag === "string" ? tag : tag?.title || tag?.name
+      )
+    : [];
+
+  const title = derivePexelsTitle(videoData?.url, Number(videoData?.id || 0));
+  const titleWords = title
+    .split(/\s+/)
+    .filter(word => word.length > 2 && !/^video$/i.test(word));
+
+  return Array.from(new Set([
+    videoData?.search_query,
+    category,
+    title,
+    ...titleWords,
+    ...suppliedTags,
+  ].map(value => String(value || "").trim()).filter(Boolean)));
+};
+
 export const contentService = {
   async searchPexels({ 
     query, 
@@ -171,7 +215,7 @@ export const contentService = {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const { data, error } = await supabase.functions.invoke("import-pexels-content", {
-        body: { videoId, category },
+        body: { videoId, category, videoData },
         headers: { Authorization: `Bearer ${session?.access_token}` }
       });
       
@@ -203,6 +247,8 @@ export const contentService = {
     }
 
     const currentVideoData = finalVideoData;
+    const descriptiveTitle = derivePexelsTitle(currentVideoData?.url, videoId);
+    const descriptiveTags = normalizePexelsTags(currentVideoData, category);
 
     // Get best video file (prefer HD portrait/vertical)
     const getBestFile = (files: any[]) => {
@@ -232,7 +278,7 @@ export const contentService = {
       .from('content_library')
       .upsert({
         user_id: user.id,
-        title: currentVideoData?.url ? `Pexels Video ${videoId}` : `Video ${videoId}`,
+        title: descriptiveTitle,
         storage_path: videoUrl,
         thumbnail_url: thumbnailUrl,
         source: 'pexels',
@@ -244,7 +290,7 @@ export const contentService = {
         author: author,
         status: 'new',
         niche: category,
-        tags: currentVideoData?.tags?.map((t: any) => t.title) || [],
+        tags: descriptiveTags,
         license_info: 'Pexels License - Free to use',
       }, {
         onConflict: 'external_id,user_id',
