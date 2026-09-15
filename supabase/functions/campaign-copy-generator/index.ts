@@ -18,8 +18,11 @@ type Platform =
   | "facebook"
   | "generic";
 
+type CopyMode = "music" | "video";
+
 interface CopyRequest {
   contentId?: string;
+  copyMode?: CopyMode;
   contentTitle?: string;
   category?: string;
   author?: string;
@@ -53,6 +56,63 @@ function jsonResponse(data: unknown, status = 200) {
       "Content-Type": "application/json",
     },
   });
+}
+
+function bytesToBase64(bytes: Uint8Array) {
+  let binary = "";
+  const chunkSize = 0x8000;
+
+  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+    binary += String.fromCharCode(
+      ...bytes.subarray(offset, offset + chunkSize),
+    );
+  }
+
+  return btoa(binary);
+}
+
+async function loadThumbnailImage(url?: string | null) {
+  if (!url) return null;
+
+  try {
+    const parsed = new URL(url);
+    if (!["http:", "https:"].includes(parsed.protocol)) return null;
+
+    const response = await fetch(parsed.toString());
+    if (!response.ok) return null;
+
+    const mediaType = (response.headers.get("content-type") || "")
+      .split(";")[0]
+      .trim()
+      .toLowerCase();
+
+    const supportedTypes = new Set([
+      "image/jpeg",
+      "image/png",
+      "image/gif",
+      "image/webp",
+    ]);
+
+    if (!supportedTypes.has(mediaType)) return null;
+
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    if (!bytes.length || bytes.length > 5_000_000) return null;
+
+    return {
+      type: "image",
+      source: {
+        type: "base64",
+        media_type: mediaType,
+        data: bytesToBase64(bytes),
+      },
+    };
+  } catch (error) {
+    console.warn(
+      "[campaign-copy-generator] Thumbnail unavailable:",
+      error instanceof Error ? error.message : String(error),
+    );
+    return null;
+  }
 }
 
 function extractJson(text: string) {
@@ -145,6 +205,53 @@ serve(async (req) => {
     const body: CopyRequest = await req.json();
 
     const platform = body.platform || "generic";
+    const copyMode: CopyMode =
+      body.copyMode === "video" ? "video" : "music";
+
+    let contentDetails: {
+      title?: string | null;
+      category?: string | null;
+      niche?: string | null;
+      tags?: unknown;
+      author?: string | null;
+      source?: string | null;
+      thumbnail_url?: string | null;
+    } | null = null;
+
+    if (copyMode === "video") {
+      if (!body.contentId) {
+        return jsonResponse(
+          { error: "contentId is required for video-based copy" },
+          400,
+        );
+      }
+
+      const { data, error } = await supabase
+        .from("content_library")
+        .select("title,category,niche,tags,author,source,thumbnail_url")
+        .eq("id", body.contentId)
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (error) {
+        return jsonResponse(
+          {
+            error: `Content lookup failed: ${error.message}`,
+            stage: "content",
+          },
+          500,
+        );
+      }
+
+      if (!data) {
+        return jsonResponse(
+          { error: "Content not found or unauthorized", stage: "content" },
+          404,
+        );
+      }
+
+      contentDetails = data;
+    }
 
     const platformInstructions: Record<string, string> = {
       instagram:
@@ -180,6 +287,32 @@ Generate a genuinely different alternative. Do not simply paraphrase the previou
 
     const artistProfile = body.artistProfile;
 
+    const videoTags = Array.isArray(contentDetails?.tags)
+      ? contentDetails.tags.map(tag => String(tag)).join(", ")
+      : typeof contentDetails?.tags === "string"
+      ? contentDetails.tags
+      : "(none)";
+
+    const videoFocus =
+      copyMode === "video"
+        ? `
+PRIMARY COPY SOURCE: VIDEO CONTENT
+- Make the visible subject/theme of the video the central topic.
+- Use the attached thumbnail when available, together with title, category,
+  niche and tags.
+- The thumbnail is a representative frame only. Do not invent unseen
+  actions, locations, people, brands or events.
+- The music may complement the mood, but do not make the track title or
+  artist the central subject unless it is genuinely relevant.
+`
+        : `
+PRIMARY COPY SOURCE: MUSIC
+- Make the track title, artist and artist editorial profile the central
+  basis of the caption and hashtags.
+- Treat the video as supporting visual context only.
+- Preserve the current music-focused editorial behavior.
+`;
+
     const priorityHashtags =
       artistProfile?.priorityHashtags?.length
         ? artistProfile.priorityHashtags.join(" ")
@@ -203,13 +336,20 @@ Blocked hashtags: ${blockedHashtags}
 
 Generate the final social media copy for the following publication.
 
+COPY MODE:
+${copyMode}
+${videoFocus}
+
 PLATFORM:
 ${platform}
 
 CONTENT:
-Title: ${body.contentTitle || "Untitled vertical video"}
-Category: ${body.category || "general"}
-Original creator/source: ${body.author || "unknown"}
+Title: ${contentDetails?.title || body.contentTitle || "Untitled vertical video"}
+Category: ${contentDetails?.category || body.category || "general"}
+Niche: ${contentDetails?.niche || "not informed"}
+Tags: ${videoTags}
+Original creator: ${contentDetails?.author || body.author || "unknown"}
+Source: ${contentDetails?.source || "unknown"}
 
 MUSIC:
 Track: ${body.music?.title || "not informed"}
@@ -245,8 +385,17 @@ Return ONLY valid JSON using exactly this structure:
 }
 `.trim();
 
+    const thumbnailImage =
+      copyMode === "video"
+        ? await loadThumbnailImage(contentDetails?.thumbnail_url)
+        : null;
+
+    const messageContent: any[] = [];
+    if (thumbnailImage) messageContent.push(thumbnailImage);
+    messageContent.push({ type: "text", text: prompt });
+
     console.log(
-      `[campaign-copy-generator] user=${user.id} platform=${platform} content=${body.contentId || "unknown"}`,
+      `[campaign-copy-generator] user=${user.id} platform=${platform} mode=${copyMode} content=${body.contentId || "unknown"} thumbnail=${Boolean(thumbnailImage)}`,
     );
 
     // ─────────────────────────────────────────────
@@ -268,7 +417,7 @@ Return ONLY valid JSON using exactly this structure:
           messages: [
             {
               role: "user",
-              content: prompt,
+              content: messageContent,
             },
           ],
         }),
@@ -328,6 +477,7 @@ Return ONLY valid JSON using exactly this structure:
       success: true,
       contentId: body.contentId || null,
       platform,
+      copyMode,
       copy: {
         caption,
         hashtags,
