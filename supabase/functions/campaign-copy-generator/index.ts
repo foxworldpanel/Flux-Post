@@ -21,6 +21,7 @@ type Platform =
 type CopyMode = "music" | "video";
 
 interface CopyRequest {
+  action?: "generate_copy" | "account_variants";
   contentId?: string;
   copyMode?: CopyMode;
   contentTitle?: string;
@@ -46,6 +47,18 @@ interface CopyRequest {
   regenerate?: boolean;
   previousCaption?: string;
   previousHashtags?: string;
+
+  baseCopy?: {
+    caption?: string;
+    hashtags?: string;
+  };
+
+  accounts?: Array<{
+    id: string;
+    platform?: Platform;
+    accountName?: string;
+    username?: string | null;
+  }>;
 }
 
 function jsonResponse(data: unknown, status = 200) {
@@ -228,6 +241,10 @@ serve(async (req) => {
 
     const body: CopyRequest = await req.json();
 
+    const action =
+      body.action === "account_variants"
+        ? "account_variants"
+        : "generate_copy";
     const platform = body.platform || "generic";
     const copyMode: CopyMode =
       body.copyMode === "video" ? "video" : "music";
@@ -242,7 +259,7 @@ serve(async (req) => {
       thumbnail_url?: string | null;
     } | null = null;
 
-    if (copyMode === "video") {
+    if (action === "generate_copy" && copyMode === "video") {
       if (!body.contentId) {
         return jsonResponse(
           { error: "contentId is required for video-based copy" },
@@ -347,7 +364,7 @@ PRIMARY COPY SOURCE: MUSIC
         ? artistProfile.blockedHashtags.join(" ")
         : "(none)";
 
-    const prompt = `
+    const standardPrompt = `
 You are the editorial copywriter for a professional music and social media publishing system.
 
 ARTIST EDITORIAL PROFILE:
@@ -411,8 +428,96 @@ Return ONLY valid JSON using exactly this structure:
 }
 `.trim();
 
+    const variantAccounts = body.accounts || [];
+
+    if (action === "account_variants") {
+      if (
+        !body.contentId ||
+        !body.baseCopy?.caption?.trim() ||
+        variantAccounts.length < 2 ||
+        variantAccounts.length > 20
+      ) {
+        return jsonResponse(
+          {
+            error:
+              "Account variants require contentId, a base caption and 2 to 20 accounts",
+            stage: "variants",
+          },
+          400,
+        );
+      }
+
+      if (
+        new Set(variantAccounts.map(account => account.id)).size !==
+        variantAccounts.length
+      ) {
+        return jsonResponse(
+          { error: "Duplicate accounts in variant request", stage: "variants" },
+          400,
+        );
+      }
+    }
+
+    const variantsPrompt = `
+You are creating account-specific social copy variants for one publication.
+
+LANGUAGE:
+${artistProfile?.primaryLanguage || "pt-BR"}
+
+ARTIST PROFILE:
+Artist: ${artistProfile?.name || body.music?.artist || "not informed"}
+Communication identity: ${artistProfile?.communicationIdentity || "not informed"}
+Editorial briefing: ${artistProfile?.aiBriefing || "not informed"}
+Required/prioritized hashtags: ${priorityHashtags}
+Blocked hashtags: ${blockedHashtags}
+
+BASE APPROVED COPY:
+Caption:
+${body.baseCopy?.caption || ""}
+
+Hashtags:
+${body.baseCopy?.hashtags || ""}
+
+MUSIC:
+Track: ${body.music?.title || "not informed"}
+Artist: ${body.music?.artist || "not informed"}
+
+DESTINATION ACCOUNTS:
+${JSON.stringify(variantAccounts)}
+
+RULES:
+- Return exactly one variant for every destination account, using its exact id.
+- Every caption must be genuinely unique in wording and sentence structure.
+- Preserve the meaning, tone and factual limits of the approved base copy.
+- Adapt naturally to each account's platform.
+- Do not mention account names or usernames unless the base copy already does.
+- Do not invent facts, places, people, brands, actions or achievements.
+- Do not add a music credit line; the system appends it automatically.
+- Every hashtag set must be relevant and may vary naturally by account.
+- Include required/prioritized hashtags without duplication.
+- Never use blocked hashtags.
+- Use 4 to 8 hashtags beginning with #.
+- Do not return duplicate captions.
+
+Return ONLY valid JSON in exactly this structure:
+{
+  "variants": [
+    {
+      "accountId": "exact account id",
+      "caption": "unique final caption without music credit",
+      "hashtags": "#tag1 #tag2 #tag3"
+    }
+  ]
+}
+`.trim();
+
+    const prompt =
+      action === "account_variants"
+        ? variantsPrompt
+        : standardPrompt;
+
     const thumbnailImage =
-      copyMode === "video"
+      action === "generate_copy" && copyMode === "video"
         ? await loadThumbnailImage(contentDetails?.thumbnail_url)
         : null;
 
@@ -421,7 +526,7 @@ Return ONLY valid JSON using exactly this structure:
     messageContent.push({ type: "text", text: prompt });
 
     console.log(
-      `[campaign-copy-generator] user=${user.id} platform=${platform} mode=${copyMode} content=${body.contentId || "unknown"} thumbnail=${Boolean(thumbnailImage)}`,
+      `[campaign-copy-generator] user=${user.id} action=${action} platform=${platform} mode=${copyMode} content=${body.contentId || "unknown"} accounts=${variantAccounts.length} thumbnail=${Boolean(thumbnailImage)}`,
     );
 
     // ─────────────────────────────────────────────
@@ -438,8 +543,11 @@ Return ONLY valid JSON using exactly this structure:
         },
         body: JSON.stringify({
           model: "claude-haiku-4-5-20251001",
-          max_tokens: 700,
-          temperature: 0.8,
+          max_tokens:
+            action === "account_variants"
+              ? Math.min(5000, Math.max(1200, variantAccounts.length * 420))
+              : 700,
+          temperature: action === "account_variants" ? 0.9 : 0.8,
           messages: [
             {
               role: "user",
@@ -480,6 +588,79 @@ Return ONLY valid JSON using exactly this structure:
     }
 
     const generated = extractJson(text);
+
+    if (action === "account_variants") {
+      if (!Array.isArray(generated.variants)) {
+        throw new Error("Claude response is missing account variants");
+      }
+
+      const generatedByAccount = new Map<string, any>();
+
+      for (const variant of generated.variants) {
+        if (
+          variant &&
+          typeof variant.accountId === "string" &&
+          !generatedByAccount.has(variant.accountId)
+        ) {
+          generatedByAccount.set(variant.accountId, variant);
+        }
+      }
+
+      const normalizedCaptions = new Set<string>();
+      const variants = variantAccounts.map(account => {
+        const variant = generatedByAccount.get(account.id);
+
+        if (
+          !variant ||
+          typeof variant.caption !== "string" ||
+          typeof variant.hashtags !== "string" ||
+          !variant.caption.trim()
+        ) {
+          throw new Error(
+            `Claude did not return a valid variant for account ${account.id}`,
+          );
+        }
+
+        const rawCaption = variant.caption
+          .trim()
+          .replace(/\n*🎵?\s*Música\s*:[^\n]*$/iu, "")
+          .trim();
+        const normalizedCaption = rawCaption
+          .toLocaleLowerCase()
+          .replace(/\s+/g, " ");
+
+        if (normalizedCaptions.has(normalizedCaption)) {
+          throw new Error(
+            "Claude returned duplicate account captions; generation aborted",
+          );
+        }
+
+        normalizedCaptions.add(normalizedCaption);
+
+        return {
+          accountId: account.id,
+          caption: appendMusicCredit(
+            rawCaption,
+            body.music?.artist || artistProfile?.name,
+            body.music?.title,
+          ),
+          hashtags: variant.hashtags.trim(),
+        };
+      });
+
+      return jsonResponse({
+        success: true,
+        action,
+        contentId: body.contentId,
+        variants,
+        usage: {
+          input_tokens: anthropicData?.usage?.input_tokens || 0,
+          output_tokens: anthropicData?.usage?.output_tokens || 0,
+        },
+        model:
+          anthropicData?.model || "claude-haiku-4-5-20251001",
+      });
+    }
 
     if (
       typeof generated.caption !== "string" ||
