@@ -115,14 +115,14 @@ export const socialService = {
     return { publication: data, providerResponse: funcData };
   },
 
-  async syncPostStatuses() {
+  async syncPostStatuses(options?: { forceAnalytics?: boolean }) {
     const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
     if (sessionError) throw sessionError;
     const token = sessionData.session?.access_token;
     if (!token) throw new Error('Sessão expirada. Faça login novamente.');
 
     const { data, error } = await supabase.functions.invoke('postpeer-post-sync', {
-      body: {},
+      body: { forceAnalytics: options?.forceAnalytics === true },
       headers: { Authorization: `Bearer ${token}` }
     });
 

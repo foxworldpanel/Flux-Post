@@ -10,13 +10,15 @@ import ProcessarPage from "./routes/processar";
 import ArtistasPage from "./routes/artistas";
 import GarimpoPage from "./routes/garimpo";
 import PublicacoesPage from "./routes/publicacoes";
-import AnalyticsPage from "./routes/analytics";
 import AgendaPage from "./routes/agenda";
 import SecurityReportPage from "./routes/security-report";
 import { Toaster } from "sonner";
 import { ProtectedRoute } from "./components/ProtectedRoute";
+import { lazy, Suspense } from "react";
 
 import { ThemeProvider } from "./components/theme-provider";
+
+const AnalyticsPage = lazy(() => import("./routes/analytics"));
 
 function App() {
   return (
@@ -40,7 +42,18 @@ function App() {
               <Route path="/artistas" element={<ArtistasPage />} />
               <Route path="/garimpo" element={<GarimpoPage />} />
               <Route path="/publicacoes" element={<PublicacoesPage />} />
-              <Route path="/analytics" element={<AnalyticsPage />} />
+              <Route
+                path="/analytics"
+                element={
+                  <Suspense
+                    fallback={
+                      <div className="p-8 text-muted-foreground">Carregando Analytics...</div>
+                    }
+                  >
+                    <AnalyticsPage />
+                  </Suspense>
+                }
+              />
               <Route path="/security-report" element={<SecurityReportPage />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
