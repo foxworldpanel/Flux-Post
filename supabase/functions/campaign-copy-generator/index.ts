@@ -115,6 +115,30 @@ async function loadThumbnailImage(url?: string | null) {
   }
 }
 
+function appendMusicCredit(
+  caption: string,
+  artist?: string,
+  title?: string,
+) {
+  const cleanArtist = (artist || "").trim();
+  const cleanTitle = (title || "").trim();
+
+  if (!cleanTitle) return caption.trim();
+
+  const credit = cleanArtist
+    ? `🎵 Música: ${cleanArtist} — ${cleanTitle}`
+    : `🎵 Música: ${cleanTitle}`;
+
+  const withoutExistingCredit = caption
+    .trim()
+    .replace(/\n*🎵?\s*Música\s*:[^\n]*$/iu, "")
+    .trim();
+
+  return withoutExistingCredit
+    ? `${withoutExistingCredit}\n\n${credit}`
+    : credit;
+}
+
 function extractJson(text: string) {
   const cleaned = text
     .replace(/^```json\s*/i, "")
@@ -371,6 +395,8 @@ EDITORIAL RULES:
 - Avoid repetitive generic marketing language.
 - Avoid excessive emojis.
 - The caption must be ready to publish.
+- Do not write a music attribution/credit line; the system appends it
+  automatically in a fixed format.
 - Hashtags must be relevant to the actual content, music and platform.
 - Use between 4 and 8 hashtags.
 - Do not repeat hashtags.
@@ -462,10 +488,15 @@ Return ONLY valid JSON using exactly this structure:
       throw new Error("Claude response is missing caption or hashtags");
     }
 
-    const caption = generated.caption.trim();
+    const generatedCaption = generated.caption.trim();
+    const caption = appendMusicCredit(
+      generatedCaption,
+      body.music?.artist || artistProfile?.name,
+      body.music?.title,
+    );
     const hashtags = generated.hashtags.trim();
 
-    if (!caption) {
+    if (!generatedCaption) {
       throw new Error("Claude returned an empty caption");
     }
 
