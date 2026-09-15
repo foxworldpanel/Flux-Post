@@ -42,6 +42,11 @@ type RenderItem = { id: string; source_content_id: string; music_track_id: strin
 
 type EditorialGenerationMode = "music" | "video";
 
+type AccountEditorialCopy = {
+  caption: string;
+  hashtags: string;
+};
+
 type EditorialCopy = {
   caption: string;
   hashtags: string;
@@ -412,6 +417,128 @@ export default function CampanhaPage() {
       setIsGeneratingAllEditorial(false);
       setGeneratingAllEditorialMode(null);
     }
+  };
+
+  const generateAccountEditorialVariants = async (
+    contentIds: string[],
+    accounts: SocialAccount[],
+    launchMusic: MusicTrack
+  ): Promise<Map<string, AccountEditorialCopy>> => {
+    const artist = artistas.find(a => a.id === formData.artist_id);
+    const result = new Map<string, AccountEditorialCopy>();
+    const keyFor = (contentId: string, accountId: string) =>
+      `${contentId}:${accountId}`;
+
+    for (const contentId of contentIds) {
+      const baseCopy = getEditorialCopy(contentId);
+
+      if (!baseCopy.caption.trim()) {
+        const video = biblioteca.find(item => item.id === contentId);
+        throw new Error(
+          `Gere e revise a legenda-base de "${video?.title || contentId}" antes de iniciar.`
+        );
+      }
+    }
+
+    if (accounts.length === 1) {
+      for (const contentId of contentIds) {
+        const baseCopy = getEditorialCopy(contentId);
+        result.set(keyFor(contentId, accounts[0].id), {
+          caption: baseCopy.caption.trim(),
+          hashtags: mergeArtistHashtags(baseCopy.hashtags),
+        });
+      }
+
+      return result;
+    }
+
+    let nextContentIndex = 0;
+
+    const generateNext = async () => {
+      while (nextContentIndex < contentIds.length) {
+        const contentId = contentIds[nextContentIndex++];
+        const video = biblioteca.find(item => item.id === contentId);
+        const baseCopy = getEditorialCopy(contentId);
+
+        const { data, error } = await supabase.functions.invoke(
+          "campaign-copy-generator",
+          {
+            body: {
+              action: "account_variants",
+              contentId,
+              baseCopy: {
+                caption: baseCopy.caption.trim(),
+                hashtags: mergeArtistHashtags(baseCopy.hashtags),
+              },
+              accounts: accounts.map(account => ({
+                id: account.id,
+                platform: account.platform,
+                accountName: account.account_name,
+                username: account.username,
+              })),
+              music: {
+                title: launchMusic.nome,
+                artist: launchMusic.artista,
+              },
+              artistProfile: {
+                name: artist?.name || launchMusic.artista,
+                primaryLanguage: artist?.primary_language || "pt-BR",
+                communicationIdentity:
+                  artist?.communication_identity || "",
+                aiBriefing: artist?.ai_briefing || "",
+                priorityHashtags: artist?.priority_hashtags || [],
+                blockedHashtags: artist?.blocked_hashtags || [],
+              },
+            },
+          }
+        );
+
+        if (error) throw error;
+
+        if (
+          !data?.success ||
+          !Array.isArray(data.variants) ||
+          data.variants.length !== accounts.length
+        ) {
+          throw new Error(
+            data?.error ||
+              `Não foi possível criar todas as versões de "${video?.title || contentId}".`
+          );
+        }
+
+        for (const variant of data.variants) {
+          if (
+            !variant?.accountId ||
+            typeof variant.caption !== "string" ||
+            typeof variant.hashtags !== "string"
+          ) {
+            throw new Error(
+              `Versão editorial inválida para "${video?.title || contentId}".`
+            );
+          }
+
+          result.set(keyFor(contentId, variant.accountId), {
+            caption: variant.caption.trim(),
+            hashtags: mergeArtistHashtags(variant.hashtags),
+          });
+        }
+      }
+    };
+
+    const concurrency = Math.min(3, contentIds.length);
+    await Promise.all(
+      Array.from({ length: concurrency }, () => generateNext())
+    );
+
+    const expectedVariantCount = contentIds.length * accounts.length;
+
+    if (result.size !== expectedVariantCount) {
+      throw new Error(
+        `Foram geradas ${result.size} de ${expectedVariantCount} versões exclusivas. O lançamento foi cancelado para evitar legendas repetidas.`
+      );
+    }
+
+    return result;
   };
 
   const toggleVideoSelection = (videoId: string) => {
@@ -1681,6 +1808,25 @@ export default function CampanhaPage() {
           new Date(b.scheduledFor).getTime()
       );
 
+      toast.info(
+        selectedAccounts.length > 1
+          ? `Criando legendas exclusivas para ${selectedAccounts.length} contas...`
+          : "Preparando a legenda da publicação..."
+      );
+
+      // Gera todas as variações antes da transação. Se qualquer conta ficar
+      // sem versão exclusiva, nada da campanha é gravado.
+      const accountEditorialCopies =
+        await generateAccountEditorialVariants(
+          selectedVideoIds,
+          selectedAccounts,
+          launchMusic
+        );
+
+      const accountEditorialKey = (
+        contentId: string,
+        accountId: string
+      ) => `${contentId}:${accountId}`;
 
       // A partir daqui não fazemos mais gravações parciais. O plano já foi
       // validado acima e é enviado inteiro para uma única transação no banco.
@@ -1722,13 +1868,22 @@ export default function CampanhaPage() {
         const render = renderByContentId.get(slot.contentId);
         if (!render) throw new Error(`Render não encontrado para o conteúdo ${slot.contentId}`);
         const sourceContent = contentById.get(slot.contentId);
-        const editorialCopy = getEditorialCopy(slot.contentId);
+        const accountCopy = accountEditorialCopies.get(
+          accountEditorialKey(slot.contentId, slot.accountId)
+        );
+
+        if (!accountCopy) {
+          throw new Error(
+            `Legenda exclusiva ausente para o conteúdo ${slot.contentId} na conta ${slot.accountId}`
+          );
+        }
+
         return {
           content_id: slot.contentId,
           social_account_id: slot.accountId,
           platform: slot.platform,
-          caption: editorialCopy.caption.trim() || null,
-          hashtags: hashtagsToArray(mergeArtistHashtags(editorialCopy.hashtags)),
+          caption: accountCopy.caption,
+          hashtags: hashtagsToArray(accountCopy.hashtags),
           scheduled_for: slot.scheduledFor,
           media_render_id: render.id,
           timezone: 'America/Sao_Paulo',
@@ -1736,7 +1891,7 @@ export default function CampanhaPage() {
           source_external_id: sourceContent?.external_id || null,
           metadata: {
             campaign_name: formData.nome,
-            smart_campaign: { version: 'v2', schedule_mode: formData.schedule_mode, day_period: slot.dayPeriod, sequence: slot.sequence, creative_rotation: true, account_stagger_minutes: 7 },
+            smart_campaign: { version: 'v2', schedule_mode: formData.schedule_mode, day_period: slot.dayPeriod, sequence: slot.sequence, creative_rotation: true, unique_copy_per_account: true, account_stagger_minutes: 7 },
             audio_mode: formData.audio_mode,
             music_start_ms: formData.music_start_ms,
             music_volume: formData.music_volume,
@@ -2698,6 +2853,21 @@ export default function CampanhaPage() {
                       </div>
                     </div>
                   )}
+                </div>
+
+                <div className="flex items-start gap-3 rounded-xl border border-primary/20 bg-primary/5 p-4">
+                  <Sparkles size={17} className="text-primary mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium text-foreground">
+                      Legendas exclusivas por conta
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Ao iniciar, o Claude criará uma variação natural para cada
+                      conta selecionada, preservando a música e as hashtags fixas
+                      do artista. Se alguma versão falhar, a campanha não será
+                      lançada parcialmente.
+                    </p>
+                  </div>
                 </div>
 
                 <Button onClick={handleLaunch} disabled={saving || !canAdvance()}
