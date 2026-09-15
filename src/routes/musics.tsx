@@ -60,29 +60,34 @@ export default function MusicsPage() {
     try {
       setLoading(true);
       const [musicsRes, artistsRes] = await Promise.all([
-        supabase.from("music_tracks").select("*, artists(name)").order("criado_em", { ascending: false }),
-        artistService.getArtists()
+        supabase
+          .from("music_tracks")
+          .select("*, artists(name)")
+          .order("criado_em", { ascending: false }),
+        artistService.getArtists(),
       ]);
 
       if (musicsRes.error) throw musicsRes.error;
-      
+
       const musicsData = musicsRes.data || [];
-      
+
       // Validação de existência física no storage para a UI
-      const validatedMusics = await Promise.all(musicsData.map(async (music) => {
-        if (!music.storage_path) return { ...music, is_available: false };
-        
-        const { data: exists } = await supabase.storage
-          .from('musicas')
-          .list(music.storage_path.split('/').slice(0, -1).join('/'), {
-            search: music.storage_path.split('/').pop()
-          });
-          
-        return { 
-          ...music, 
-          is_available: exists && exists.length > 0 
-        };
-      }));
+      const validatedMusics = await Promise.all(
+        musicsData.map(async (music) => {
+          if (!music.storage_path) return { ...music, is_available: false };
+
+          const { data: exists } = await supabase.storage
+            .from("musicas")
+            .list(music.storage_path.split("/").slice(0, -1).join("/"), {
+              search: music.storage_path.split("/").pop(),
+            });
+
+          return {
+            ...music,
+            is_available: exists && exists.length > 0,
+          };
+        }),
+      );
 
       setMusics(validatedMusics);
       setArtists(artistsRes || []);
@@ -101,12 +106,12 @@ export default function MusicsPage() {
     if (e.target.files && e.target.files[0]) {
       const selectedFile = e.target.files[0];
       const extension = storageService.getFileExtension(selectedFile.name);
-      
-      if (!storageService.isSupportedExtension(extension, ['mp3', 'wav', 'm4a'])) {
+
+      if (!storageService.isSupportedExtension(extension, ["mp3", "wav", "m4a"])) {
         toast.error("Formato de áudio não suportado (apenas MP3, WAV, M4A).");
         return;
       }
-      
+
       setFile(selectedFile);
       if (!nome) setNome(selectedFile.name.replace(/\.[^/.]+$/, ""));
     }
@@ -142,23 +147,21 @@ export default function MusicsPage() {
       const extension = storageService.getFileExtension(file.name);
       const filePath = storageService.generateSafePath({
         userId: user.id,
-        assetType: 'music',
+        assetType: "music",
         extension,
-        artistId: artistId || undefined
+        artistId: artistId || undefined,
       });
-      
-      console.log('Iniciando upload seguro para o bucket musicas:', filePath);
 
-      const { error: uploadError } = await supabase.storage
-        .from('musicas')
-        .upload(filePath, file, {
-          cacheControl: '3600',
-          upsert: true,
-          contentType: file.type
-        });
+      console.log("Iniciando upload seguro para o bucket musicas:", filePath);
+
+      const { error: uploadError } = await supabase.storage.from("musicas").upload(filePath, file, {
+        cacheControl: "3600",
+        upsert: true,
+        contentType: file.type,
+      });
 
       if (uploadError) {
-        console.error('Erro upload storage:', uploadError);
+        console.error("Erro upload storage:", uploadError);
         throw new Error("Não foi possível enviar o arquivo de áudio.");
       }
 
@@ -169,12 +172,12 @@ export default function MusicsPage() {
         estilo,
         duracao_segundos: duration,
         storage_path: filePath, // Agora salvamos o path relativo, não a URL pública
-        user_id: user.id
+        user_id: user.id,
       });
 
       if (dbError) {
         // Rollback Storage
-        await storageService.cleanup('musicas', filePath);
+        await storageService.cleanup("musicas", filePath);
         throw dbError;
       }
 
@@ -201,32 +204,32 @@ export default function MusicsPage() {
     if (!confirm("Tem certeza que deseja excluir esta música?")) return;
 
     try {
-      console.log('Iniciando deleção da música:', id, storagePath);
-      
+      console.log("Iniciando deleção da música:", id, storagePath);
+
       if (storagePath) {
         // Se for uma URL legada, tenta limpar. Se for o novo path relativo, usa direto.
         let cleanPath = storagePath;
-        if (storagePath.includes('/storage/v1/object/public/musicas/')) {
-          cleanPath = storagePath.split('/storage/v1/object/public/musicas/')[1];
-        } else if (storagePath.startsWith('http')) {
-          cleanPath = storagePath.split('/').pop() || storagePath;
+        if (storagePath.includes("/storage/v1/object/public/musicas/")) {
+          cleanPath = storagePath.split("/storage/v1/object/public/musicas/")[1];
+        } else if (storagePath.startsWith("http")) {
+          cleanPath = storagePath.split("/").pop() || storagePath;
         }
-        
-        console.log('Removendo do storage:', cleanPath);
+
+        console.log("Removendo do storage:", cleanPath);
         const { error: storageError } = await supabase.storage.from("musicas").remove([cleanPath]);
         if (storageError) {
-          console.warn('Erro ao remover do storage (prosseguindo):', storageError);
+          console.warn("Erro ao remover do storage (prosseguindo):", storageError);
         }
       }
-      
-      console.log('Removendo do banco de dados:', id);
+
+      console.log("Removendo do banco de dados:", id);
       const { error } = await supabase.from("music_tracks").delete().eq("id", id);
       if (error) throw error;
-      
+
       toast.success("Música removida.");
       fetchData();
     } catch (error: any) {
-      console.error('Erro completo na deleção:', error);
+      console.error("Erro completo na deleção:", error);
       toast.error("Erro ao deletar: " + error.message);
     }
   };
@@ -257,13 +260,15 @@ export default function MusicsPage() {
       <div className="space-y-6">
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="text-3xl font-bold text-[#0A0A0F] font-display">Biblioteca de Músicas</h1>
+            <h1 className="text-3xl font-bold text-foreground font-display">
+              Biblioteca de Músicas
+            </h1>
             <p className="text-muted-foreground">Gerencie suas trilhas sonoras para automação.</p>
           </div>
 
           <Dialog open={isModalOpen} onOpenChange={setIsSidebarOpen}>
             <DialogTrigger asChild>
-              <Button className="bg-[#7C3AED] hover:bg-[#6D28D9] text-foreground gap-2">
+              <Button className="bg-[#7C3AED] hover:bg-[#6D28D9] text-white gap-2">
                 <Plus size={18} />
                 Adicionar Música
               </Button>
@@ -301,7 +306,9 @@ export default function MusicsPage() {
                     </SelectTrigger>
                     <SelectContent className="bg-card border-border text-foreground">
                       {artists.map((a) => (
-                        <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
+                        <SelectItem key={a.id} value={a.id}>
+                          {a.name}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -327,7 +334,7 @@ export default function MusicsPage() {
                 <Button
                   onClick={handleSave}
                   disabled={uploading}
-                  className="bg-[#7C3AED] hover:bg-[#6D28D9] text-foreground w-full"
+                  className="bg-[#7C3AED] hover:bg-[#6D28D9] text-white w-full"
                 >
                   {uploading ? "Salvando..." : "Salvar Música"}
                 </Button>
@@ -350,14 +357,19 @@ export default function MusicsPage() {
               </div>
               <div className="text-center">
                 <p className="text-lg font-medium text-foreground">Nenhuma música encontrada</p>
-                <p className="text-muted-foreground">Comece adicionando sua primeira trilha sonora.</p>
+                <p className="text-muted-foreground">
+                  Comece adicionando sua primeira trilha sonora.
+                </p>
               </div>
             </CardContent>
           </Card>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {musics.map((music) => (
-              <Card key={music.id} className="bg-card border-border hover:border-border transition-all overflow-hidden group">
+              <Card
+                key={music.id}
+                className="bg-card border-border hover:border-border transition-all overflow-hidden group"
+              >
                 <CardHeader className="pb-2 relative">
                   <div className="absolute top-4 right-4 flex gap-2">
                     <div className="flex flex-col gap-1 items-end">
@@ -373,7 +385,10 @@ export default function MusicsPage() {
                           Arquivo ausente
                         </Badge>
                       ) : (
-                        <Badge variant="outline" className="text-emerald-500 border-emerald-500/20 bg-emerald-500/5 gap-1">
+                        <Badge
+                          variant="outline"
+                          className="text-emerald-500 border-emerald-500/20 bg-emerald-500/5 gap-1"
+                        >
                           <CheckCircle2 size={12} />
                           Disponível
                         </Badge>
@@ -389,26 +404,28 @@ export default function MusicsPage() {
                   <CardTitle className="text-foreground text-lg font-bold font-display line-clamp-1">
                     {music.nome}
                   </CardTitle>
-                  <p className="text-sm text-muted-foreground">{music.artists?.name || "Artista desconhecido"}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {music.artists?.name || "Artista desconhecido"}
+                  </p>
                 </CardHeader>
                 <CardContent className="pt-0 space-y-4">
                   <div className="flex justify-between text-xs text-muted-foreground font-medium">
                     <span>{formatDuration(music.duracao_segundos)}</span>
                     <span>Usada {music.vezes_usada || 0} vezes</span>
                   </div>
-                  
+
                   <div className="flex gap-2 pt-2 border-t border-border">
-                    <Button 
-                      variant="ghost" 
-                      className={`flex-1 gap-2 text-xs ${music.campanha_ativa ? 'text-emerald-500 hover:text-emerald-400' : 'text-muted-foreground hover:text-foreground'} hover:bg-muted/50`}
+                    <Button
+                      variant="ghost"
+                      className={`flex-1 gap-2 text-xs ${music.campanha_ativa ? "text-emerald-500 hover:text-emerald-400" : "text-muted-foreground hover:text-foreground"} hover:bg-muted/50`}
                       onClick={() => toggleCampanha(music.id, music.campanha_ativa)}
                     >
                       <Play size={14} />
-                      {music.campanha_ativa ? 'Desativar' : 'Ativar'}
+                      {music.campanha_ativa ? "Desativar" : "Ativar"}
                     </Button>
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
+                    <Button
+                      variant="ghost"
+                      size="icon"
                       className="text-muted-foreground hover:text-red-500 hover:bg-red-500/10"
                       onClick={() => handleDelete(music.id, music.storage_path)}
                     >

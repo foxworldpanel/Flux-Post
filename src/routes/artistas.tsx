@@ -1,14 +1,14 @@
-import { useState, useEffect } from 'react';
-import { DashboardLayout } from '@/components/DashboardLayout';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Plus, User, Globe, MessageSquare, Tag, Music2, Loader2, X, Check } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
-import { artistService } from '@/services/artists';
-import { toast } from 'sonner';
+import { useState, useEffect } from "react";
+import { DashboardLayout } from "@/components/DashboardLayout";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Plus, User, Globe, MessageSquare, Tag, Music2, Loader2, X, Check } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { artistService } from "@/services/artists";
+import { toast } from "sonner";
 import {
   Dialog,
   DialogContent,
@@ -26,7 +26,7 @@ import {
 
 const normalizeList = (value: unknown): string[] => {
   if (Array.isArray(value)) {
-    return value.map(item => String(item).trim()).filter(Boolean);
+    return value.map((item) => String(item).trim()).filter(Boolean);
   }
 
   if (typeof value !== "string" || !value.trim()) return [];
@@ -36,7 +36,7 @@ const normalizeList = (value: unknown): string[] => {
   try {
     const parsed = JSON.parse(trimmed);
     if (Array.isArray(parsed)) {
-      return parsed.map(item => String(item).trim()).filter(Boolean);
+      return parsed.map((item) => String(item).trim()).filter(Boolean);
     }
   } catch {
     // Older records may contain a comma-separated string instead of an array.
@@ -46,7 +46,7 @@ const normalizeList = (value: unknown): string[] => {
     .replace(/^\{/, "")
     .replace(/\}$/, "")
     .split(/[,;\n]+/)
-    .map(item => item.trim().replace(/^"|"$/g, ""))
+    .map((item) => item.trim().replace(/^"|"$/g, ""))
     .filter(Boolean);
 };
 
@@ -70,7 +70,7 @@ export default function ArtistasPage() {
     priority_hashtags: [] as string[],
     blocked_hashtags: [] as string[],
     ai_briefing: "",
-    status: "active"
+    status: "active",
   });
 
   const [newMarket, setNewMarket] = useState("");
@@ -82,12 +82,14 @@ export default function ArtistasPage() {
       setLoading(true);
       await artistService.ensureSourceeAssociated();
       const data = await artistService.getArtists();
-      setArtists(data.map(artist => ({
-        ...artist,
-        priority_markets: normalizeList(artist.priority_markets),
-        priority_hashtags: normalizeList(artist.priority_hashtags),
-        blocked_hashtags: normalizeList(artist.blocked_hashtags),
-      })));
+      setArtists(
+        data.map((artist) => ({
+          ...artist,
+          priority_markets: normalizeList(artist.priority_markets),
+          priority_hashtags: normalizeList(artist.priority_hashtags),
+          blocked_hashtags: normalizeList(artist.blocked_hashtags),
+        })),
+      );
     } catch (error: any) {
       toast.error("Erro ao carregar artistas: " + error.message);
     } finally {
@@ -113,7 +115,7 @@ export default function ArtistasPage() {
       priority_hashtags: [],
       blocked_hashtags: [],
       ai_briefing: "",
-      status: "active"
+      status: "active",
     });
     setIsModalOpen(true);
   };
@@ -132,7 +134,7 @@ export default function ArtistasPage() {
       priority_hashtags: normalizeList(artist.priority_hashtags),
       blocked_hashtags: normalizeList(artist.blocked_hashtags),
       ai_briefing: artist.ai_briefing || "",
-      status: artist.status || "active"
+      status: artist.status || "active",
     });
     setIsModalOpen(true);
   };
@@ -161,7 +163,11 @@ export default function ArtistasPage() {
     }
   };
 
-  const addTag = (field: 'priority_markets' | 'priority_hashtags' | 'blocked_hashtags', value: string, setter: (v: string) => void) => {
+  const addTag = (
+    field: "priority_markets" | "priority_hashtags" | "blocked_hashtags",
+    value: string,
+    setter: (v: string) => void,
+  ) => {
     if (!value) return;
     const cleanValue = value.trim();
     if (!formData[field].includes(cleanValue)) {
@@ -170,7 +176,10 @@ export default function ArtistasPage() {
     setter("");
   };
 
-  const removeTag = (field: 'priority_markets' | 'priority_hashtags' | 'blocked_hashtags', index: number) => {
+  const removeTag = (
+    field: "priority_markets" | "priority_hashtags" | "blocked_hashtags",
+    index: number,
+  ) => {
     const newTags = [...formData[field]];
     newTags.splice(index, 1);
     setFormData({ ...formData, [field]: newTags });
@@ -184,7 +193,10 @@ export default function ArtistasPage() {
             <h1 className="text-3xl font-display font-bold text-foreground">Artistas</h1>
             <p className="text-muted-foreground mt-1">Gerencie os artistas e suas identidades</p>
           </div>
-          <Button onClick={handleOpenCreate} className="bg-[#7C3AED] hover:bg-[#6D28D9] self-start sm:self-auto shrink-0">
+          <Button
+            onClick={handleOpenCreate}
+            className="bg-[#7C3AED] hover:bg-[#6D28D9] self-start sm:self-auto shrink-0"
+          >
             <Plus className="mr-2 h-4 w-4" /> Novo Artista
           </Button>
         </div>
@@ -206,33 +218,46 @@ export default function ArtistasPage() {
         ) : (
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 md:gap-6">
             {artists.map((artist) => (
-              <Card key={artist.id} className="bg-card border-border text-foreground overflow-hidden group hover:border-purple-500/30 transition-all">
+              <Card
+                key={artist.id}
+                className="bg-card border-border text-foreground overflow-hidden group hover:border-purple-500/30 transition-all"
+              >
                 <div className="h-32 bg-gradient-to-br from-[#7C3AED]/20 to-[#4C1D95]/20 flex items-center justify-center relative">
                   <User size={60} className="text-foreground/5" />
                   <div className="absolute bottom-[-20px] left-6 flex items-center gap-4">
-                    <div className="w-20 h-20 rounded-full border-4 border-[#13131F] bg-[#1E1E2E] flex items-center justify-center overflow-hidden">
+                    <div className="w-20 h-20 rounded-full border-4 border-card bg-muted flex items-center justify-center overflow-hidden">
                       {artist.photo_url ? (
-                        <img src={artist.photo_url} alt={artist.name} className="w-full h-full object-cover" />
+                        <img
+                          src={artist.photo_url}
+                          alt={artist.name}
+                          className="w-full h-full object-cover"
+                        />
                       ) : (
                         <User size={40} className="text-slate-600" />
                       )}
                     </div>
                     <div className="pt-6">
                       <h2 className="text-2xl font-bold">{artist.name}</h2>
-                      <Badge className={artist.status === 'active' ? 'bg-[#10B981]/20 text-[#10B981] border-none' : 'bg-slate-500/20 text-muted-foreground border-none'}>
-                        {artist.status === 'active' ? 'Ativo' : 'Inativo'}
+                      <Badge
+                        className={
+                          artist.status === "active"
+                            ? "bg-[#10B981]/20 text-[#10B981] border-none"
+                            : "bg-slate-500/20 text-muted-foreground border-none"
+                        }
+                      >
+                        {artist.status === "active" ? "Ativo" : "Inativo"}
                       </Badge>
                     </div>
                   </div>
                 </div>
-                
+
                 <CardContent className="pt-12 pb-6 px-5 md:px-6 grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-4">
                     <div>
                       <label className="text-xs font-semibold text-muted-foreground uppercase flex items-center gap-2 mb-1">
                         <Music2 size={12} /> Gênero
                       </label>
-                      <p className="text-slate-300">{artist.genre || "Não definido"}</p>
+                      <p className="text-foreground/80">{artist.genre || "Não definido"}</p>
                     </div>
                     <div>
                       <label className="text-xs font-semibold text-muted-foreground uppercase flex items-center gap-2 mb-1">
@@ -240,11 +265,21 @@ export default function ArtistasPage() {
                       </label>
                       <div className="flex flex-wrap gap-1 mt-1">
                         {normalizeList(artist.priority_markets).length > 0 ? (
-                          normalizeList(artist.priority_markets).map((market: string, index: number) => (
-                            <Badge key={market + index} variant="outline" className="border-border text-muted-foreground text-[10px]">{market}</Badge>
-                          ))
+                          normalizeList(artist.priority_markets).map(
+                            (market: string, index: number) => (
+                              <Badge
+                                key={market + index}
+                                variant="outline"
+                                className="border-border text-muted-foreground text-[10px]"
+                              >
+                                {market}
+                              </Badge>
+                            ),
+                          )
                         ) : (
-                          <span className="text-muted-foreground text-xs italic">Nenhum mercado cadastrado</span>
+                          <span className="text-muted-foreground text-xs italic">
+                            Nenhum mercado cadastrado
+                          </span>
                         )}
                       </div>
                     </div>
@@ -252,23 +287,36 @@ export default function ArtistasPage() {
                       <label className="text-xs font-semibold text-muted-foreground uppercase flex items-center gap-2 mb-1">
                         <Tag size={12} /> Hashtags prioritárias
                         {normalizeList(artist.priority_hashtags).length > 0 && (
-                          <span className="ml-1 text-purple-400 normal-case">({normalizeList(artist.priority_hashtags).length})</span>
+                          <span className="ml-1 text-purple-400 normal-case">
+                            ({normalizeList(artist.priority_hashtags).length})
+                          </span>
                         )}
                       </label>
                       <div className="flex flex-wrap gap-1 mt-1">
                         {normalizeList(artist.priority_hashtags).length > 0 ? (
-                          normalizeList(artist.priority_hashtags).map((hashtag: string, index: number) => (
-                            <Badge key={hashtag + index} variant="outline" className="border-purple-500/30 bg-purple-500/5 text-purple-300 text-[10px]">
-                              #{hashtag.replace(/^#+/, "")}
-                            </Badge>
-                          ))
+                          normalizeList(artist.priority_hashtags).map(
+                            (hashtag: string, index: number) => (
+                              <Badge
+                                key={hashtag + index}
+                                variant="outline"
+                                className="border-purple-500/30 bg-purple-500/5 text-purple-300 text-[10px]"
+                              >
+                                #{hashtag.replace(/^#+/, "")}
+                              </Badge>
+                            ),
+                          )
                         ) : (
-                          <span className="text-muted-foreground text-xs italic">Nenhuma hashtag cadastrada</span>
+                          <span className="text-muted-foreground text-xs italic">
+                            Nenhuma hashtag cadastrada
+                          </span>
                         )}
                       </div>
                       {normalizeList(artist.blocked_hashtags).length > 0 && (
                         <p className="mt-2 text-[11px] text-red-400/70">
-                          {normalizeList(artist.blocked_hashtags).length} {normalizeList(artist.blocked_hashtags).length === 1 ? "hashtag bloqueada" : "hashtags bloqueadas"}
+                          {normalizeList(artist.blocked_hashtags).length}{" "}
+                          {normalizeList(artist.blocked_hashtags).length === 1
+                            ? "hashtag bloqueada"
+                            : "hashtags bloqueadas"}
                         </p>
                       )}
                     </div>
@@ -280,12 +328,17 @@ export default function ArtistasPage() {
                         <label className="text-xs font-semibold text-muted-foreground uppercase flex items-center gap-2">
                           <MessageSquare size={12} /> Identidade
                         </label>
-                        <Badge variant="outline" className="border-border text-[10px] text-muted-foreground">
+                        <Badge
+                          variant="outline"
+                          className="border-border text-[10px] text-muted-foreground"
+                        >
                           {artist.primary_language || "pt-BR"}
                         </Badge>
                       </div>
                       <p className="text-sm text-muted-foreground leading-relaxed italic line-clamp-3">
-                        {artist.communication_identity ? `"${artist.communication_identity}"` : "Nenhuma identidade definida."}
+                        {artist.communication_identity
+                          ? `"${artist.communication_identity}"`
+                          : "Nenhuma identidade definida."}
                       </p>
                     </div>
                     <div>
@@ -298,12 +351,20 @@ export default function ArtistasPage() {
                     </div>
                     {artist.description && (
                       <div>
-                        <label className="text-xs font-semibold text-muted-foreground uppercase mb-1 block">Descrição</label>
-                        <p className="text-sm text-muted-foreground leading-relaxed line-clamp-2">{artist.description}</p>
+                        <label className="text-xs font-semibold text-muted-foreground uppercase mb-1 block">
+                          Descrição
+                        </label>
+                        <p className="text-sm text-muted-foreground leading-relaxed line-clamp-2">
+                          {artist.description}
+                        </p>
                       </div>
                     )}
                     <div className="pt-2">
-                      <Button onClick={() => handleOpenEdit(artist)} variant="outline" className="w-full border-border hover:bg-muted/50 text-slate-300">
+                      <Button
+                        onClick={() => handleOpenEdit(artist)}
+                        variant="outline"
+                        className="w-full border-border hover:bg-muted/50 text-foreground/80"
+                      >
                         Editar perfil completo
                       </Button>
                     </div>
@@ -325,20 +386,22 @@ export default function ArtistasPage() {
               <div className="grid grid-cols-1 gap-4">
                 <div className="space-y-2">
                   <Label>Nome do Artista</Label>
-                  <Input 
+                  <Input
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     placeholder="Ex: Sourcee"
                     className="bg-background border-border"
                   />
-                  <p className="text-[10px] text-muted-foreground">O slug da URL será gerado automaticamente a partir do nome.</p>
+                  <p className="text-[10px] text-muted-foreground">
+                    O slug da URL será gerado automaticamente a partir do nome.
+                  </p>
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Gênero Musical</Label>
-                  <Input 
+                  <Input
                     value={formData.genre}
                     onChange={(e) => setFormData({ ...formData, genre: e.target.value })}
                     placeholder="Ex: Eletrônico / Progressive"
@@ -347,7 +410,10 @@ export default function ArtistasPage() {
                 </div>
                 <div className="space-y-2">
                   <Label>Status</Label>
-                  <Select value={formData.status} onValueChange={(v) => setFormData({ ...formData, status: v })}>
+                  <Select
+                    value={formData.status}
+                    onValueChange={(v) => setFormData({ ...formData, status: v })}
+                  >
                     <SelectTrigger className="bg-background border-border">
                       <SelectValue />
                     </SelectTrigger>
@@ -363,21 +429,32 @@ export default function ArtistasPage() {
               <div className="space-y-2">
                 <Label>Mercados Prioritários</Label>
                 <div className="flex gap-2 mb-2">
-                  <Input 
+                  <Input
                     value={newMarket}
                     onChange={(e) => setNewMarket(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && addTag('priority_markets', newMarket, setNewMarket)}
+                    onKeyPress={(e) =>
+                      e.key === "Enter" && addTag("priority_markets", newMarket, setNewMarket)
+                    }
                     placeholder="Adicionar mercado (ex: Brasil)"
                     className="bg-background border-border"
                   />
-                  <Button size="icon" variant="ghost" onClick={() => addTag('priority_markets', newMarket, setNewMarket)}>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => addTag("priority_markets", newMarket, setNewMarket)}
+                  >
                     <Plus size={16} />
                   </Button>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {formData.priority_markets.map((m, i) => (
                     <Badge key={i} className="bg-purple-500/20 text-purple-300 gap-1 pr-1">
-                      {m} <X size={12} className="cursor-pointer" onClick={() => removeTag('priority_markets', i)} />
+                      {m}{" "}
+                      <X
+                        size={12}
+                        className="cursor-pointer"
+                        onClick={() => removeTag("priority_markets", i)}
+                      />
                     </Badge>
                   ))}
                 </div>
@@ -385,9 +462,11 @@ export default function ArtistasPage() {
 
               <div className="space-y-2">
                 <Label>Identidade de Comunicação</Label>
-                <Textarea 
+                <Textarea
                   value={formData.communication_identity}
-                  onChange={(e) => setFormData({ ...formData, communication_identity: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, communication_identity: e.target.value })
+                  }
                   placeholder="Descreva a personalidade do artista..."
                   className="bg-background border-border min-h-[80px]"
                 />
@@ -397,21 +476,32 @@ export default function ArtistasPage() {
                 <div className="space-y-2">
                   <Label>Hashtags Prioritárias</Label>
                   <div className="flex gap-2 mb-2">
-                    <Input 
+                    <Input
                       value={newHashtag}
                       onChange={(e) => setNewHashtag(e.target.value)}
-                      onKeyPress={(e) => e.key === 'Enter' && addTag('priority_hashtags', newHashtag, setNewHashtag)}
+                      onKeyPress={(e) =>
+                        e.key === "Enter" && addTag("priority_hashtags", newHashtag, setNewHashtag)
+                      }
                       placeholder="Tag"
                       className="bg-background border-border"
                     />
-                    <Button size="icon" variant="ghost" onClick={() => addTag('priority_hashtags', newHashtag, setNewHashtag)}>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => addTag("priority_hashtags", newHashtag, setNewHashtag)}
+                    >
                       <Plus size={16} />
                     </Button>
                   </div>
                   <div className="flex flex-wrap gap-1">
                     {formData.priority_hashtags.map((h, i) => (
                       <Badge key={i} variant="outline" className="text-muted-foreground gap-1 pr-1">
-                        #{h} <X size={12} className="cursor-pointer" onClick={() => removeTag('priority_hashtags', i)} />
+                        #{h}{" "}
+                        <X
+                          size={12}
+                          className="cursor-pointer"
+                          onClick={() => removeTag("priority_hashtags", i)}
+                        />
                       </Badge>
                     ))}
                   </div>
@@ -419,21 +509,39 @@ export default function ArtistasPage() {
                 <div className="space-y-2">
                   <Label>Hashtags Bloqueadas</Label>
                   <div className="flex gap-2 mb-2">
-                    <Input 
+                    <Input
                       value={newBlockedHashtag}
                       onChange={(e) => setNewBlockedHashtag(e.target.value)}
-                      onKeyPress={(e) => e.key === 'Enter' && addTag('blocked_hashtags', newBlockedHashtag, setNewBlockedHashtag)}
+                      onKeyPress={(e) =>
+                        e.key === "Enter" &&
+                        addTag("blocked_hashtags", newBlockedHashtag, setNewBlockedHashtag)
+                      }
                       placeholder="Tag"
                       className="bg-background border-border"
                     />
-                    <Button size="icon" variant="ghost" onClick={() => addTag('blocked_hashtags', newBlockedHashtag, setNewBlockedHashtag)}>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() =>
+                        addTag("blocked_hashtags", newBlockedHashtag, setNewBlockedHashtag)
+                      }
+                    >
                       <Plus size={16} />
                     </Button>
                   </div>
                   <div className="flex flex-wrap gap-1">
                     {formData.blocked_hashtags.map((h, i) => (
-                      <Badge key={i} variant="outline" className="text-red-400/50 gap-1 pr-1 border-red-900/20">
-                        #{h} <X size={12} className="cursor-pointer" onClick={() => removeTag('blocked_hashtags', i)} />
+                      <Badge
+                        key={i}
+                        variant="outline"
+                        className="text-red-400/50 gap-1 pr-1 border-red-900/20"
+                      >
+                        #{h}{" "}
+                        <X
+                          size={12}
+                          className="cursor-pointer"
+                          onClick={() => removeTag("blocked_hashtags", i)}
+                        />
                       </Badge>
                     ))}
                   </div>
@@ -444,7 +552,7 @@ export default function ArtistasPage() {
                 <Label className="flex items-center gap-2">
                   <Sparkles size={14} className="text-purple-400" /> Briefing para IA
                 </Label>
-                <Textarea 
+                <Textarea
                   value={formData.ai_briefing}
                   onChange={(e) => setFormData({ ...formData, ai_briefing: e.target.value })}
                   placeholder="Instruções para a IA gerar legendas..."
@@ -453,8 +561,14 @@ export default function ArtistasPage() {
               </div>
             </div>
             <DialogFooter className="sticky bottom-0 bg-card pt-4">
-              <Button variant="ghost" onClick={() => setIsModalOpen(false)}>Cancelar</Button>
-              <Button onClick={handleSave} disabled={saving} className="bg-[#7C3AED] hover:bg-[#6D28D9]">
+              <Button variant="ghost" onClick={() => setIsModalOpen(false)}>
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleSave}
+                disabled={saving}
+                className="bg-[#7C3AED] hover:bg-[#6D28D9]"
+              >
                 {saving ? "Salvando..." : "Salvar Alterações"}
               </Button>
             </DialogFooter>
@@ -465,19 +579,22 @@ export default function ArtistasPage() {
   );
 }
 
-const Sparkles = ({ size, className }: { size: number, className?: string }) => (
-  <svg 
-    width={size} 
-    height={size} 
-    viewBox="0 0 24 24" 
-    fill="none" 
-    stroke="currentColor" 
-    strokeWidth="2" 
-    strokeLinecap="round" 
-    strokeLinejoin="round" 
+const Sparkles = ({ size, className }: { size: number; className?: string }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
     className={className}
   >
-    <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/>
-    <path d="M5 3v4"/><path d="M19 17v4"/><path d="M3 5h4"/><path d="M17 19h4"/>
+    <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
+    <path d="M5 3v4" />
+    <path d="M19 17v4" />
+    <path d="M3 5h4" />
+    <path d="M17 19h4" />
   </svg>
 );
