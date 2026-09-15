@@ -49,6 +49,8 @@ interface ContentLibrary {
   source: string | null;
   author: string | null;
   original_url: string | null;
+  thumbnail_url: string | null;
+  duration_seconds: number | null;
   credit: string | null;
   use_count: number | null;
   created_at: string | null;
@@ -61,6 +63,8 @@ export default function VideosPage() {
   const [selectedItem, setSelectedItem] = useState<ContentLibrary | null>(null);
   const [signedUrl, setSignedUrl] = useState<string | null>(null);
   const [loadingUrl, setLoadingUrl] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const [failedThumbnails, setFailedThumbnails] = useState<Set<string>>(new Set());
 
   const [searchTerm, setSearchTerm] = useState("");
   const [filterCategory, setFilterCategory] = useState("all");
@@ -87,11 +91,16 @@ export default function VideosPage() {
     setSelectedItem(item);
     setIsPreviewOpen(true);
     setLoadingUrl(true);
+    setPreviewError(null);
+    setSignedUrl(null);
     try {
       const url = await contentService.getSignedUrl(item.storage_path);
+      if (!url) throw new Error("URL do vídeo não encontrada");
       setSignedUrl(url);
-    } catch (error) {
-      toast.error("Erro ao carregar preview");
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Erro ao carregar preview";
+      setPreviewError(message);
+      toast.error(message);
     } finally {
       setLoadingUrl(false);
     }
@@ -102,11 +111,13 @@ export default function VideosPage() {
 
     try {
       // 1. Storage
-      const { error: storageError } = await supabase.storage
-        .from("content-library")
-        .remove([item.storage_path]);
+      if (!/^https?:\/\//i.test(item.storage_path)) {
+        const { error: storageError } = await supabase.storage
+          .from("content-library")
+          .remove([item.storage_path]);
 
-      if (storageError) console.warn("Erro ao remover arquivo (prosseguindo):", storageError);
+        if (storageError) console.warn("Erro ao remover arquivo (prosseguindo):", storageError);
+      }
 
       // 2. Database
       const { error } = await supabase.from("content_library").delete().eq("id", item.id);
@@ -135,19 +146,20 @@ export default function VideosPage() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-8 animate-in fade-in duration-500">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-4xl font-space font-bold text-foreground mb-2">
+      <div className="mx-auto w-full max-w-[1440px] space-y-7 px-4 pb-12 pt-6 animate-in fade-in duration-500 sm:px-6 sm:pt-8 lg:px-10 xl:px-12">
+        <div className="flex flex-col gap-5 border-b border-border/70 pb-6 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <p className="eyebrow mb-2">Acervo visual</p>
+            <h1 className="text-2xl font-space font-bold text-foreground sm:text-3xl">
               Biblioteca de Conteúdo
             </h1>
-            <p className="text-muted-foreground">
+            <p className="mt-1 text-sm text-muted-foreground sm:text-base">
               Gerencie seus vídeos importados e processados para campanhas.
             </p>
           </div>
           <Button
             onClick={() => (window.location.href = "/garimpo")}
-            className="bg-[#7C3AED] hover:bg-[#6D28D9] gap-2 h-12 px-6 font-bold shadow-lg shadow-purple-500/20"
+            className="h-11 w-full shrink-0 gap-2 bg-[#7C3AED] px-6 font-bold text-white shadow-lg shadow-purple-500/20 hover:bg-[#6D28D9] sm:w-auto"
           >
             <Search size={18} />
             Garimpar Conteúdo
@@ -155,8 +167,8 @@ export default function VideosPage() {
         </div>
 
         {/* Filtros */}
-        <div className="bg-card p-4 rounded-2xl border border-border grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="relative">
+        <div className="grid grid-cols-1 gap-3 rounded-2xl border border-border bg-card p-4 shadow-[var(--card-shadow)] md:grid-cols-2 xl:grid-cols-[1.35fr_1fr_1fr_auto] xl:items-center">
+          <div className="relative min-w-0">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
               placeholder="Buscar por título ou autor..."
@@ -191,15 +203,15 @@ export default function VideosPage() {
               ))}
             </SelectContent>
           </Select>
-          <div className="flex items-center justify-end">
-            <p className="text-xs text-muted-foreground font-medium">
-              {filteredItems.length} itens encontrados
-            </p>
+          <div className="flex items-center md:justify-end">
+            <Badge variant="secondary" className="h-9 whitespace-nowrap px-3 font-medium">
+              {filteredItems.length} {filteredItems.length === 1 ? "vídeo" : "vídeos"}
+            </Badge>
           </div>
         </div>
 
         {loading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
               <div
                 key={i}
@@ -226,19 +238,32 @@ export default function VideosPage() {
             </Button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {filteredItems.map((item) => (
               <Card
                 key={item.id}
-                className="bg-card border-border hover:border-purple-500/30 transition-all duration-300 overflow-hidden group flex flex-col"
+                className="group flex flex-col overflow-hidden border-border bg-card transition-all duration-300 hover:-translate-y-0.5 hover:border-purple-500/30 hover:shadow-xl"
               >
                 <div
-                  className="relative aspect-[9/16] bg-black cursor-pointer overflow-hidden"
+                  className="relative aspect-[9/14] cursor-pointer overflow-hidden bg-black"
                   onClick={() => handlePreview(item)}
                 >
-                  <div className="absolute inset-0 flex items-center justify-center bg-muted/50 group-hover:bg-transparent transition-colors">
-                    <Video className="w-12 h-12 text-foreground/10 group-hover:scale-110 transition-transform duration-500" />
-                  </div>
+                  {item.thumbnail_url && !failedThumbnails.has(item.id) ? (
+                    <img
+                      src={item.thumbnail_url}
+                      alt={`Preview de ${item.title}`}
+                      loading="lazy"
+                      className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.035]"
+                      onError={() =>
+                        setFailedThumbnails(previous => new Set(previous).add(item.id))
+                      }
+                    />
+                  ) : (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-gradient-to-br from-muted/80 to-background text-muted-foreground">
+                      <Video className="h-12 w-12 opacity-25" />
+                      <span className="text-xs">Thumbnail indisponível</span>
+                    </div>
+                  )}
 
                   {/* Overlay */}
                   <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-transparent opacity-60 group-hover:opacity-100 transition-opacity" />
@@ -247,14 +272,14 @@ export default function VideosPage() {
                     <Badge className="bg-purple-500/20 text-purple-400 border-purple-500/30 text-[10px] backdrop-blur-md">
                       {item.category || "Sem Categoria"}
                     </Badge>
-                    <h3 className="text-foreground font-bold text-sm line-clamp-2 leading-snug group-hover:text-purple-400 transition-colors">
+                    <h3 className="line-clamp-2 text-sm font-bold leading-snug text-white transition-colors group-hover:text-purple-300">
                       {item.title}
                     </h3>
                   </div>
 
                   {/* Play Button Overlay */}
                   <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                    <div className="w-14 h-14 rounded-full bg-purple-600 flex items-center justify-center text-foreground shadow-2xl transform scale-90 group-hover:scale-100 transition-transform">
+                    <div className="flex h-14 w-14 scale-90 items-center justify-center rounded-full bg-purple-600 text-white shadow-2xl transition-transform group-hover:scale-100">
                       <Play size={24} fill="currentColor" className="ml-1" />
                     </div>
                   </div>
@@ -269,7 +294,7 @@ export default function VideosPage() {
                   </div>
                 </div>
 
-                <CardContent className="p-4 bg-background/50 flex-1 flex flex-col justify-between">
+                <CardContent className="flex flex-1 flex-col justify-between bg-background/35 p-4">
                   <div className="space-y-2">
                     <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
                       <Calendar size={12} />
@@ -282,6 +307,11 @@ export default function VideosPage() {
                         Por: {item.author}
                       </div>
                     )}
+                    {item.duration_seconds ? (
+                      <div className="text-[11px] text-muted-foreground">
+                        Duração: {Math.floor(item.duration_seconds / 60)}:{String(item.duration_seconds % 60).padStart(2, "0")}
+                      </div>
+                    ) : null}
                   </div>
 
                   <div className="flex gap-2 pt-4 mt-4 border-t border-border">
@@ -314,22 +344,46 @@ export default function VideosPage() {
         open={isPreviewOpen}
         onOpenChange={(open) => {
           setIsPreviewOpen(open);
-          if (!open) setSignedUrl(null);
+          if (!open) {
+            setSignedUrl(null);
+            setPreviewError(null);
+          }
         }}
       >
-        <DialogContent className="max-w-4xl bg-background border-border p-0 overflow-hidden shadow-2xl">
+        <DialogContent className="max-h-[92vh] max-w-5xl overflow-hidden border-border bg-background p-0 shadow-2xl">
           {selectedItem && (
             <div className="grid grid-cols-1 md:grid-cols-3">
-              <div className="md:col-span-2 bg-black flex items-center justify-center min-h-[500px]">
+              <div className="flex min-h-[420px] items-center justify-center bg-black md:col-span-2 md:min-h-[620px]">
                 {loadingUrl ? (
                   <Loader2 className="w-10 h-10 animate-spin text-purple-500" />
-                ) : signedUrl ? (
-                  <video src={signedUrl} className="max-h-[85vh] w-full" controls autoPlay />
+                ) : signedUrl && !previewError ? (
+                  <video
+                    src={signedUrl}
+                    poster={selectedItem.thumbnail_url || undefined}
+                    className="max-h-[88vh] h-full w-full object-contain"
+                    controls
+                    autoPlay
+                    playsInline
+                    onError={() => setPreviewError("O arquivo do vídeo não está mais disponível na origem.")}
+                  />
                 ) : (
-                  <p className="text-muted-foreground">Falha ao carregar vídeo</p>
+                  <div className="max-w-sm space-y-3 px-6 text-center">
+                    <Video className="mx-auto h-10 w-10 text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground">
+                      {previewError || "Falha ao carregar vídeo"}
+                    </p>
+                    {selectedItem.original_url && (
+                      <Button variant="outline" asChild>
+                        <a href={selectedItem.original_url} target="_blank" rel="noopener noreferrer">
+                          <ExternalLink size={14} />
+                          Abrir na fonte
+                        </a>
+                      </Button>
+                    )}
+                  </div>
                 )}
               </div>
-              <div className="p-8 space-y-8 bg-card/80 backdrop-blur-xl border-l border-border">
+              <div className="max-h-[88vh] space-y-8 overflow-y-auto border-l border-border bg-card/80 p-6 backdrop-blur-xl md:p-8">
                 <div className="space-y-4">
                   <div className="space-y-1">
                     <Badge className="bg-purple-500/10 text-purple-400 border-purple-500/20">
