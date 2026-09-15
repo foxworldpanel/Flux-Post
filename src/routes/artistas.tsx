@@ -24,6 +24,32 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
+const normalizeList = (value: unknown): string[] => {
+  if (Array.isArray(value)) {
+    return value.map(item => String(item).trim()).filter(Boolean);
+  }
+
+  if (typeof value !== "string" || !value.trim()) return [];
+
+  const trimmed = value.trim();
+
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (Array.isArray(parsed)) {
+      return parsed.map(item => String(item).trim()).filter(Boolean);
+    }
+  } catch {
+    // Older records may contain a comma-separated string instead of an array.
+  }
+
+  return trimmed
+    .replace(/^\{/, "")
+    .replace(/\}$/, "")
+    .split(/[,;\n]+/)
+    .map(item => item.trim().replace(/^"|"$/g, ""))
+    .filter(Boolean);
+};
+
 export default function ArtistasPage() {
   const [artists, setArtists] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -56,7 +82,12 @@ export default function ArtistasPage() {
       setLoading(true);
       await artistService.ensureSourceeAssociated();
       const data = await artistService.getArtists();
-      setArtists(data);
+      setArtists(data.map(artist => ({
+        ...artist,
+        priority_markets: normalizeList(artist.priority_markets),
+        priority_hashtags: normalizeList(artist.priority_hashtags),
+        blocked_hashtags: normalizeList(artist.blocked_hashtags),
+      })));
     } catch (error: any) {
       toast.error("Erro ao carregar artistas: " + error.message);
     } finally {
@@ -95,11 +126,11 @@ export default function ArtistasPage() {
       genre: artist.genre || "",
       description: artist.description || "",
       photo_url: artist.photo_url || "",
-      priority_markets: artist.priority_markets || [],
+      priority_markets: normalizeList(artist.priority_markets),
       primary_language: artist.primary_language || "pt-BR",
       communication_identity: artist.communication_identity || "",
-      priority_hashtags: artist.priority_hashtags || [],
-      blocked_hashtags: artist.blocked_hashtags || [],
+      priority_hashtags: normalizeList(artist.priority_hashtags),
+      blocked_hashtags: normalizeList(artist.blocked_hashtags),
       ai_briefing: artist.ai_briefing || "",
       status: artist.status || "active"
     });
@@ -122,7 +153,7 @@ export default function ArtistasPage() {
         toast.success("Artista criado com sucesso");
       }
       setIsModalOpen(false);
-      loadArtists();
+      await loadArtists();
     } catch (error: any) {
       toast.error("Erro ao salvar: " + error.message);
     } finally {
@@ -147,13 +178,13 @@ export default function ArtistasPage() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-8">
-        <div className="flex items-center justify-between">
+      <div className="max-w-7xl mx-auto p-4 md:p-8 space-y-8 animate-in fade-in duration-500">
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
           <div>
             <h1 className="text-3xl font-display font-bold text-foreground">Artistas</h1>
             <p className="text-muted-foreground mt-1">Gerencie os artistas e suas identidades</p>
           </div>
-          <Button onClick={handleOpenCreate} className="bg-[#7C3AED] hover:bg-[#6D28D9]">
+          <Button onClick={handleOpenCreate} className="bg-[#7C3AED] hover:bg-[#6D28D9] self-start sm:self-auto shrink-0">
             <Plus className="mr-2 h-4 w-4" /> Novo Artista
           </Button>
         </div>
@@ -173,7 +204,7 @@ export default function ArtistasPage() {
             </CardContent>
           </Card>
         ) : (
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 md:gap-6">
             {artists.map((artist) => (
               <Card key={artist.id} className="bg-card border-border text-foreground overflow-hidden group hover:border-purple-500/30 transition-all">
                 <div className="h-32 bg-gradient-to-br from-[#7C3AED]/20 to-[#4C1D95]/20 flex items-center justify-center relative">
@@ -195,7 +226,7 @@ export default function ArtistasPage() {
                   </div>
                 </div>
                 
-                <CardContent className="pt-12 grid grid-cols-1 md:grid-cols-2 gap-6">
+                <CardContent className="pt-12 pb-6 px-5 md:px-6 grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-4">
                     <div>
                       <label className="text-xs font-semibold text-muted-foreground uppercase flex items-center gap-2 mb-1">
@@ -208,19 +239,32 @@ export default function ArtistasPage() {
                         <Globe size={12} /> Mercados Prioritários
                       </label>
                       <div className="flex flex-wrap gap-1 mt-1">
-                        {artist.priority_markets?.map((m: string, i: number) => (
-                          <Badge key={i} variant="outline" className="border-border text-muted-foreground text-[10px]">{m}</Badge>
-                        )) || <span className="text-muted-foreground text-xs italic">Nenhum</span>}
+                        {normalizeList(artist.priority_markets).length > 0 ? (
+                          normalizeList(artist.priority_markets).map((market: string, index: number) => (
+                            <Badge key={market + index} variant="outline" className="border-border text-muted-foreground text-[10px]">{market}</Badge>
+                          ))
+                        ) : (
+                          <span className="text-muted-foreground text-xs italic">Nenhum mercado cadastrado</span>
+                        )}
                       </div>
                     </div>
                     <div>
                       <label className="text-xs font-semibold text-muted-foreground uppercase flex items-center gap-2 mb-1">
-                        <Tag size={12} /> Hashtags
+                        <Tag size={12} /> Hashtags prioritárias
+                        {normalizeList(artist.priority_hashtags).length > 0 && (
+                          <span className="ml-1 text-purple-400 normal-case">({normalizeList(artist.priority_hashtags).length})</span>
+                        )}
                       </label>
                       <div className="flex flex-wrap gap-1 mt-1">
-                        {artist.priority_hashtags?.map((h: string, i: number) => (
-                          <Badge key={i} variant="outline" className="border-border text-muted-foreground text-[10px]">#{h.replace('#', '')}</Badge>
-                        )) || <span className="text-muted-foreground text-xs italic">Nenhuma</span>}
+                        {normalizeList(artist.priority_hashtags).length > 0 ? (
+                          normalizeList(artist.priority_hashtags).map((hashtag: string, index: number) => (
+                            <Badge key={hashtag + index} variant="outline" className="border-purple-500/30 bg-purple-500/5 text-purple-300 text-[10px]">
+                              #{hashtag.replace(/^#+/, "")}
+                            </Badge>
+                          ))
+                        ) : (
+                          <span className="text-muted-foreground text-xs italic">Nenhuma hashtag cadastrada</span>
+                        )}
                       </div>
                     </div>
                   </div>
