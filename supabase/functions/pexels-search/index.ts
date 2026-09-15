@@ -79,7 +79,11 @@ serve(async (req) => {
         const id = String(video.id)
         if (excluded.has(id)) { ignoredCount++; continue }
         if (collectedIds.has(id)) continue
-        collectedIds.add(id); collected.push(video)
+        collectedIds.add(id)
+        collected.push({
+          ...video,
+          search_query: query?.trim() || null,
+        })
       }
       pagesScanned++; hasMore = Boolean(data.next_page) && videos.length > 0; currentPage++
     }
