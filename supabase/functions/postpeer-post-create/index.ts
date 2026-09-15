@@ -1,9 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import {
-  corsHeaders,
-  PostPeerClient
-} from "../_shared/social-helpers.ts";
+import { corsHeaders, PostPeerClient } from "../_shared/social-helpers.ts";
 import { claimPublicationForPosting } from "../_shared/publication-claim.ts";
 
 const jsonResponse = (body: unknown, status = 200) =>
@@ -85,18 +82,12 @@ serve(async (req) => {
     if (!mediaPath) return jsonResponse({ error: "Publication has no media available" }, 400);
     if (pub.media_render_id && !renderPath) return jsonResponse({ error: "Rendered media is not ready" }, 409);
 
-    /* Final provider boundary. Even direct/manual calls must pass the same atomic DB guard. */
-    const claim = await claimPublicationForPosting(supabaseAdmin, publicationId);
-    if (!claim.allowed) {
-      console.warn("[postpeer-post-create] Blocked by atomic publication guard", { publicationId, reason: claim.reason });
-      return jsonResponse({ error: "Publication blocked by safety guard", reason: claim.reason }, 409);
-    }
-
+    // Prepare everything that can fail locally before claiming the publication.
+    // The atomic claim is intentionally the final boundary immediately before the provider call.
     const { data: signedUrlData, error: signedUrlError } = await supabaseAdmin.storage.from(bucketName).createSignedUrl(mediaPath, 86400);
     if (signedUrlError || !signedUrlData?.signedUrl) return jsonResponse({ error: "Failed to prepare media for publishing" }, 500);
 
     const postpeer = new PostPeerClient(postpeerApiKey);
-    const publishNow = true;
     const normalizedPlatform = platform.toLowerCase();
     const youtubeTitle = (pub.caption || "Flux Post").replace(/\s+/g, " ").trim().slice(0, 100) || "Flux Post";
     const platformConfig = normalizedPlatform === "youtube"
@@ -108,11 +99,18 @@ serve(async (req) => {
       content: pub.caption || "",
       mediaItems: [{ url: signedUrlData.signedUrl, type: "video" as const }],
       timezone: pub.timezone || "America/Sao_Paulo",
-      publishNow,
+      publishNow: true,
       scheduledFor: undefined
     };
 
-    console.log("[postpeer-post-create] Sending publication", { publicationId, platform, accountId: account.provider_connection_id, bucketName, publishNow });
+    /* Final provider boundary. Even direct/manual calls must pass the atomic DB guard. */
+    const claim = await claimPublicationForPosting(supabaseAdmin, publicationId);
+    if (!claim.allowed) {
+      console.warn("[postpeer-post-create] Blocked by atomic publication guard", { publicationId, reason: claim.reason });
+      return jsonResponse({ error: "Publication blocked by safety guard", reason: claim.reason }, 409);
+    }
+
+    console.log("[postpeer-post-create] Sending publication", { publicationId, platform, accountId: account.provider_connection_id, bucketName, publishNow: true });
     const response = await postpeer.createPost(payload);
     if (!response?.postId) throw new Error("PostPeer returned no post ID");
 
