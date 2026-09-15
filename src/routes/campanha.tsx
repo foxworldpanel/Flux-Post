@@ -1970,7 +1970,12 @@ export default function CampanhaPage() {
       } : undefined);
   }
 
-  const approvedRenders = renders.filter(r => r.is_approved && r.status === "ready");
+  const approvedRenders = renders.filter(r =>
+    r.is_approved &&
+    r.status === "ready" &&
+    r.music_track_id === formData.music_track_id &&
+    selVideos.has(r.source_content_id)
+  );
   const selectedMusic = musicas.find(m => m.id === formData.music_track_id);
 
   if (loading) return (
@@ -2690,7 +2695,7 @@ export default function CampanhaPage() {
                   {[
                     { label: "Vídeos aprovados", value: approvedRenders.length },
                     { label: "Contas", value: selAccounts.size },
-                    { label: "Posts estimados", value: approvedRenders.length * selAccounts.size * formData.posts_por_dia },
+                    { label: "Publicações da agenda", value: schedulePreview.length },
                     { label: "Dias", value: Math.max(1, Math.round((new Date(formData.data_fim).getTime() - new Date(formData.data_inicio).getTime()) / 86400000) + 1) },
                   ].map(s => (
                     <div key={s.label} className="bg-muted/30 rounded-xl p-3 text-center border border-border">
