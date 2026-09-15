@@ -22,6 +22,34 @@ export interface SocialAccount {
   updated_at: string;
 }
 
+const PLATFORM_LABEL: Record<SocialPlatform, string> = {
+  tiktok: 'TikTok',
+  instagram: 'Instagram',
+  facebook: 'Facebook',
+  youtube: 'YouTube',
+};
+
+async function edgeFunctionError(error: any, fallback: string) {
+  let detail = error?.message || fallback;
+  const context = error?.context;
+
+  if (context instanceof Response) {
+    try {
+      const payload = await context.clone().json();
+      detail = payload?.message || payload?.error || detail;
+    } catch {
+      try {
+        const body = await context.clone().text();
+        if (body) detail = body;
+      } catch {
+        // Mantém a mensagem original quando a resposta não pode ser lida.
+      }
+    }
+  }
+
+  return new Error(detail);
+}
+
 export const socialService = {
   async getAccounts(): Promise<SocialAccount[]> {
     const { data, error } = await supabase
@@ -63,14 +91,57 @@ export const socialService = {
   },
 
   async startConnection(platform: SocialPlatform) {
-    const { data, error } = await supabase.functions.invoke('tiktok-oauth-start', { body: { platform } });
-    if (error) throw error;
+    const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+    if (sessionError) throw sessionError;
+
+    const session = sessionData.session;
+    if (!session?.user || !session.access_token) {
+      throw new Error('Sessão expirada. Faça login novamente.');
+    }
+
+    const pendingKey = crypto.randomUUID();
+    const { data: pendingAccount, error: insertError } = await supabase
+      .from('social_accounts')
+      .insert({
+        user_id: session.user.id,
+        platform,
+        account_name: `${PLATFORM_LABEL[platform]} — nova conta`,
+        username: `pending_${platform}_${pendingKey}`,
+        provider: 'postpeer',
+        connection_status: 'nao_conectada',
+        status: 'active',
+      })
+      .select('id')
+      .single();
+
+    if (insertError || !pendingAccount) {
+      throw insertError || new Error('Não foi possível preparar a nova conta.');
+    }
+
+    const { data, error } = await supabase.functions.invoke('postpeer-connect', {
+      body: { social_account_id: pendingAccount.id },
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    });
+
+    if (error) throw await edgeFunctionError(error, 'Erro ao iniciar conexão.');
+    if (data?.error) throw new Error(data.message || data.error);
+    if (!data?.authorization_url) throw new Error('O provedor não retornou a URL de autorização.');
     return data;
   },
 
   async connectAccount(accountId: string) {
-    const { data, error } = await supabase.functions.invoke('postpeer-connect', { body: { accountId } });
-    if (error) throw error;
+    const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+    if (sessionError) throw sessionError;
+    const token = sessionData.session?.access_token;
+    if (!token) throw new Error('Sessão expirada. Faça login novamente.');
+
+    const { data, error } = await supabase.functions.invoke('postpeer-connect', {
+      body: { social_account_id: accountId },
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (error) throw await edgeFunctionError(error, 'Erro ao reconectar conta.');
+    if (data?.error) throw new Error(data.message || data.error);
+    if (!data?.authorization_url) throw new Error('O provedor não retornou a URL de autorização.');
     return data;
   },
 
@@ -83,8 +154,17 @@ export const socialService = {
   },
 
   async syncAccount(id: string) {
-    const { data, error } = await supabase.functions.invoke('postpeer-sync', { body: { accountId: id } });
-    if (error) throw error;
+    const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+    if (sessionError) throw sessionError;
+    const token = sessionData.session?.access_token;
+    if (!token) throw new Error('Sessão expirada. Faça login novamente.');
+
+    const { data, error } = await supabase.functions.invoke('postpeer-sync', {
+      body: { social_account_id: id },
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (error) throw await edgeFunctionError(error, 'Erro ao sincronizar conta.');
+    if (data?.error) throw new Error(data.error);
     return data;
   },
 
