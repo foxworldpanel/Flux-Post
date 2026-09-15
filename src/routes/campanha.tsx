@@ -985,6 +985,15 @@ export default function CampanhaPage() {
 
       accountStaggerMinutes: 7,
 
+      rotationSeed: [
+        formData.nome.trim(),
+        formData.music_track_id,
+        formData.data_inicio,
+        formData.data_fim,
+        [...contentQueue].join(","),
+        selectedAccounts.map(account => account.id).sort().join(","),
+      ].join("|"),
+
       windows: (() => {
         const parseTimeToMinutes = (
           value: string,
@@ -1153,6 +1162,7 @@ export default function CampanhaPage() {
 
   function buildSchedulePreviewSignature(): string {
     return JSON.stringify({
+      campaignName: formData.nome.trim(),
       artistId: formData.artist_id,
       musicTrackId: formData.music_track_id,
       postsPerDay: formData.posts_por_dia,
@@ -1914,7 +1924,7 @@ export default function CampanhaPage() {
           source_external_id: sourceContent?.external_id || null,
           metadata: {
             campaign_name: formData.nome,
-            smart_campaign: { version: 'v2', schedule_mode: formData.schedule_mode, day_period: slot.dayPeriod, sequence: slot.sequence, creative_rotation: true, unique_copy_per_account: true, account_stagger_minutes: 7 },
+            smart_campaign: { version: 'v2', schedule_mode: formData.schedule_mode, day_period: slot.dayPeriod, sequence: slot.sequence, creative_rotation: true, rotation_strategy: 'seeded_shuffle_offsets', unique_copy_per_account: true, account_stagger_minutes: 7 },
             audio_mode: formData.audio_mode,
             music_start_ms: formData.music_start_ms,
             music_volume: formData.music_volume,
@@ -2885,9 +2895,10 @@ export default function CampanhaPage() {
                       Legendas exclusivas por conta
                     </p>
                     <p className="text-xs text-muted-foreground mt-1">
-                      Ao iniciar, o Claude criará uma variação natural para cada
-                      conta selecionada, preservando a música e as hashtags fixas
-                      do artista. Se alguma versão falhar, a campanha não será
+                      Cada conta receberá uma ordem diferente de vídeos e o
+                      Claude criará uma variação natural de legenda para cada
+                      publicação, preservando a música e as hashtags fixas do
+                      artista. Se alguma versão falhar, a campanha não será
                       lançada parcialmente.
                     </p>
                   </div>
