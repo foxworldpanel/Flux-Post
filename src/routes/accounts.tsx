@@ -46,12 +46,51 @@ const PLATFORM_LABEL: Record<SocialPlatform, string> = {
   youtube: "YouTube",
 };
 
-const PLATFORM_ICON: Record<SocialPlatform, string> = {
-  tiktok: "📱",
-  instagram: "📸",
-  facebook: "👥",
-  youtube: "🎥",
-};
+function PlatformLogo({ platform, className = "h-5 w-5" }: { platform: SocialPlatform; className?: string }) {
+  const commonProps = {
+    className,
+    viewBox: "0 0 24 24",
+    fill: "none",
+    xmlns: "http://www.w3.org/2000/svg",
+    "aria-hidden": true,
+  };
+
+  if (platform === "tiktok") {
+    return (
+      <svg {...commonProps} viewBox="0 0 24 24">
+        <path
+          d="M15 4.4c.8 1.8 2.2 3 4.2 3.4v3.1c-1.5-.1-2.9-.5-4.2-1.3v5.8a6 6 0 1 1-5.2-5.9v3.2a2.9 2.9 0 1 0 2.1 2.8V3h3.1v1.4Z"
+          fill="currentColor"
+        />
+      </svg>
+    );
+  }
+
+  if (platform === "instagram") {
+    return (
+      <svg {...commonProps}>
+        <rect x="3.25" y="3.25" width="17.5" height="17.5" rx="5.25" stroke="currentColor" strokeWidth="1.8" />
+        <circle cx="12" cy="12" r="4.1" stroke="currentColor" strokeWidth="1.8" />
+        <circle cx="17.45" cy="6.7" r="1.15" fill="currentColor" />
+      </svg>
+    );
+  }
+
+  if (platform === "youtube") {
+    return (
+      <svg {...commonProps}>
+        <path d="M21 8.15a3 3 0 0 0-2.1-2.12C17.05 5.5 12 5.5 12 5.5s-5.05 0-6.9.53A3 3 0 0 0 3 8.15 31.5 31.5 0 0 0 2.5 12 31.5 31.5 0 0 0 3 15.85a3 3 0 0 0 2.1 2.12c1.85.53 6.9.53 6.9.53s5.05 0 6.9-.53a3 3 0 0 0 2.1-2.12c.34-1.27.5-2.56.5-3.85s-.16-2.58-.5-3.85Z" stroke="currentColor" strokeWidth="1.7" />
+        <path d="m10 9 5 3-5 3V9Z" fill="currentColor" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg {...commonProps}>
+      <path d="M13.7 21v-8h2.75l.4-3.1H13.7V7.95c0-.9.25-1.5 1.58-1.5H17V3.67c-.3-.04-1.32-.12-2.5-.12-2.48 0-4.18 1.5-4.18 4.3V9.9H7.5V13h2.82v8h3.38Z" fill="currentColor" />
+    </svg>
+  );
+}
 
 const PAGE_SIZE = 24;
 
@@ -284,7 +323,9 @@ export default function AccountsPage() {
                     {count}<span className="text-xs font-medium text-muted-foreground"> / 100</span>
                   </p>
                 </div>
-                <span className="text-xl" aria-hidden>{PLATFORM_ICON[platform]}</span>
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-border bg-muted/50 text-muted-foreground">
+                  <PlatformLogo platform={platform} className="h-4.5 w-4.5" />
+                </div>
               </div>
               <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-muted">
                 <div className="h-full rounded-full bg-primary" style={{ width: `${Math.min(100, count)}%` }} />
@@ -357,7 +398,7 @@ export default function AccountsPage() {
                       {account.profile_image_url ? (
                         <img src={account.profile_image_url} alt="" className="w-full h-full object-cover" />
                       ) : (
-                        PLATFORM_ICON[account.platform]
+                        <PlatformLogo platform={account.platform} className="h-5 w-5 text-muted-foreground" />
                       )}
                     </div>
                     <div className="min-w-0">
@@ -534,31 +575,39 @@ export default function AccountsPage() {
 
         {/* Modal Adicionar Conta */}
         <Dialog open={isAddOpen} onOpenChange={(open) => { setIsAddOpen(open); if (!open) { setSelectedPlatform(null); setIsConnecting(false); } }}>
-          <DialogContent className="bg-background border-border text-foreground max-w-lg">
+          <DialogContent className="max-w-lg overflow-hidden border-border bg-background p-0 text-foreground shadow-2xl">
             <DialogHeader>
-              <DialogTitle className="text-xl font-bold font-space text-center">
-                {selectedPlatform ? `Conectar ${PLATFORM_LABEL[selectedPlatform]}` : "Escolha a plataforma"}
-              </DialogTitle>
+              <div className="border-b border-border px-6 pb-5 pt-6 text-center">
+                <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.24em] text-muted-foreground">Nova conexão</p>
+                <DialogTitle className="font-space text-xl font-bold">
+                  {selectedPlatform ? `Conectar ${PLATFORM_LABEL[selectedPlatform]}` : "Escolha uma rede social"}
+                </DialogTitle>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  {selectedPlatform ? "Autorize o Flux Post a publicar nesta conta." : "Selecione onde você deseja publicar seus conteúdos."}
+                </p>
+              </div>
             </DialogHeader>
 
             {!selectedPlatform ? (
-              <div className="grid grid-cols-2 gap-4 py-4">
+              <div className="grid grid-cols-2 gap-3 p-6">
                 {platformList.map(p => (
                   <button
                     key={p}
                     type="button"
                     onClick={() => setSelectedPlatform(p)}
-                    className="flex flex-col items-center gap-2 p-6 rounded-xl bg-muted/50 border border-border hover:border-purple-500/50 hover:bg-purple-500/5 transition-all"
+                    className="group flex min-h-32 flex-col items-center justify-center gap-3 rounded-2xl border border-border bg-card p-5 text-foreground transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:bg-muted/50 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                   >
-                    <span className="text-3xl">{PLATFORM_ICON[p]}</span>
-                    <span className="text-sm font-bold">{PLATFORM_LABEL[p]}</span>
+                    <span className="flex h-12 w-12 items-center justify-center rounded-2xl border border-border bg-muted/60 text-muted-foreground transition-colors group-hover:border-primary/20 group-hover:text-foreground">
+                      <PlatformLogo platform={p} className="h-6 w-6" />
+                    </span>
+                    <span className="text-sm font-semibold">{PLATFORM_LABEL[p]}</span>
                   </button>
                 ))}
               </div>
             ) : (
-              <div className="py-6 space-y-5 text-center">
-                <div className="w-16 h-16 rounded-full bg-muted/50 border border-border flex items-center justify-center mx-auto text-3xl">
-                  {PLATFORM_ICON[selectedPlatform]}
+              <div className="space-y-5 p-6 text-center">
+                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-border bg-muted/60 text-foreground">
+                  <PlatformLogo platform={selectedPlatform} className="h-8 w-8" />
                 </div>
                 <p className="text-sm text-muted-foreground leading-relaxed px-4">
                   Você será redirecionado para o {PLATFORM_LABEL[selectedPlatform]} para autorizar o acesso.
