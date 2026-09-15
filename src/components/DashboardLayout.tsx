@@ -32,7 +32,7 @@ const navItems = [
   { label: "Músicas", icon: Music, href: "/musicas" },
   { label: "Garimpo", icon: Search, href: "/garimpo" },
   { label: "Biblioteca", icon: Video, href: "/biblioteca" },
-  { label: "Contas Sociais", icon: Users, href: "/accounts" },
+  { label: "Redes Sociais", icon: Users, href: "/accounts" },
   { label: "Agenda", icon: Calendar, href: "/agenda" },
   { label: "Publicações", icon: History, href: "/publicacoes" },
   { label: "Analytics", icon: BarChart3, href: "/analytics" },

@@ -1,15 +1,35 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Loader2, Archive, Power, RefreshCw, Unlink, Edit2 } from "lucide-react";
+import {
+  Plus,
+  Loader2,
+  Archive,
+  Power,
+  RefreshCw,
+  Unlink,
+  Edit2,
+  Search,
+  ChevronLeft,
+  ChevronRight,
+  Users,
+  Wifi,
+  WifiOff,
+} from "lucide-react";
 import { toast } from "sonner";
 import { socialService, SocialAccount, SocialPlatform, ConnectionStatus, OperationalStatus } from "@/services/social";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { supabase } from "@/integrations/supabase/client";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const CONNECTION_STATUS_MAP: Record<ConnectionStatus, { label: string; color: string }> = {
   nao_conectada: { label: "Não Conectada", color: "bg-slate-500/10 text-muted-foreground" },
@@ -33,6 +53,8 @@ const PLATFORM_ICON: Record<SocialPlatform, string> = {
   youtube: "🎥",
 };
 
+const PAGE_SIZE = 24;
+
 export default function AccountsPage() {
   const [accounts, setAccounts] = useState<SocialAccount[]>([]);
   const [loading, setLoading] = useState(true);
@@ -41,7 +63,10 @@ export default function AccountsPage() {
   const [selectedPlatform, setSelectedPlatform] = useState<SocialPlatform | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
   const [editingAccount, setEditingAccount] = useState<Partial<SocialAccount> | null>(null);
-  const [filterPlatform, setFilterPlatform] = useState<string>("Todas");
+  const [filterPlatform, setFilterPlatform] = useState<"all" | SocialPlatform>("all");
+  const [filterConnection, setFilterConnection] = useState("all");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
 
   const loadData = async () => {
     try {
@@ -153,107 +178,234 @@ export default function AccountsPage() {
     }
   };
 
-  const filteredAccounts = accounts.filter(a => {
-    const matchPlatform = filterPlatform === "Todas" || a.platform === filterPlatform.toLowerCase();
-    const matchStatus = a.status !== 'archived';
-    return matchPlatform && matchStatus;
-  });
-
   const platformList: SocialPlatform[] = ['tiktok', 'instagram', 'youtube', 'facebook'];
+  const activeAccounts = useMemo(
+    () => accounts.filter(account => account.status !== "archived"),
+    [accounts]
+  );
+  const filteredAccounts = useMemo(() => {
+    const normalizedSearch = searchTerm.trim().toLowerCase();
+    return activeAccounts
+      .filter(account => {
+        const matchesPlatform =
+          filterPlatform === "all" || account.platform === filterPlatform;
+        const matchesConnection =
+          filterConnection === "all" ||
+          (filterConnection === "connected" && account.connection_status === "conectada") ||
+          (filterConnection === "attention" && account.connection_status !== "conectada") ||
+          (filterConnection === "paused" && account.status === "paused");
+        const searchable = [
+          account.account_name,
+          account.external_display_name,
+          account.username,
+          account.platform,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+        return (
+          matchesPlatform &&
+          matchesConnection &&
+          (!normalizedSearch || searchable.includes(normalizedSearch))
+        );
+      })
+      .sort((a, b) => {
+        const platformOrder = platformList.indexOf(a.platform) - platformList.indexOf(b.platform);
+        return platformOrder || a.account_name.localeCompare(b.account_name, "pt-BR");
+      });
+  }, [activeAccounts, filterPlatform, filterConnection, searchTerm]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredAccounts.length / PAGE_SIZE));
+  const paginatedAccounts = filteredAccounts.slice(
+    (currentPage - 1) * PAGE_SIZE,
+    currentPage * PAGE_SIZE
+  );
+  const connectedCount = activeAccounts.filter(
+    account => account.connection_status === "conectada"
+  ).length;
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filterPlatform, filterConnection, searchTerm]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) setCurrentPage(totalPages);
+  }, [currentPage, totalPages]);
 
   return (
     <DashboardLayout>
-      <div className="space-y-8 p-8 animate-in fade-in duration-500">
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-4xl font-bold text-foreground mb-2 font-space">Central de Contas Sociais</h1>
-            <p className="text-muted-foreground">Destinos de publicação para suas campanhas.</p>
+      <div className="mx-auto w-full max-w-[1600px] space-y-7 px-4 pb-12 pt-6 animate-in fade-in duration-500 sm:px-6 sm:pt-8 lg:px-10 xl:px-12">
+        <div className="flex flex-col gap-5 border-b border-border/70 pb-6 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <p className="eyebrow mb-2">Canais de distribuição</p>
+            <h1 className="text-2xl font-bold text-foreground font-space sm:text-3xl">
+              Central de Redes Sociais
+            </h1>
+            <p className="mt-1 text-sm text-muted-foreground sm:text-base">
+              Organize e monitore todos os destinos de publicação das campanhas.
+            </p>
           </div>
-          <Button className="bg-[#7C3AED] hover:bg-[#6D28D9]" onClick={() => { setSelectedPlatform(null); setIsAddOpen(true); }}>
+          <Button
+            className="h-11 w-full shrink-0 bg-[#7C3AED] text-white hover:bg-[#6D28D9] sm:w-auto"
+            onClick={() => { setSelectedPlatform(null); setIsAddOpen(true); }}
+          >
             <Plus className="mr-2 h-4 w-4" /> Adicionar Conta
           </Button>
         </div>
 
-        {/* Métricas Simplificadas */}
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
-          <Card className="bg-card border-border p-4"><p className="text-[10px] text-muted-foreground font-bold uppercase">Total</p><p className="text-xl font-bold text-foreground">{accounts.length}</p></Card>
-          {platformList.map(p => (
-            <Card key={p} className="bg-card border-border p-4">
-              <p className="text-[10px] text-muted-foreground font-bold uppercase">{p}</p>
-              <p className="text-xl font-bold text-foreground">{accounts.filter(a => a.platform === p).length}</p>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-6">
+          <Card className="border-border bg-card p-4 sm:col-span-2 xl:col-span-1">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Total cadastrado</p>
+                <p className="mt-1 text-2xl font-bold text-foreground">
+                  {activeAccounts.length}<span className="text-sm font-medium text-muted-foreground"> / 400</span>
+                </p>
+              </div>
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                <Users size={19} />
+              </div>
+            </div>
+            <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-muted">
+              <div className="h-full rounded-full bg-primary" style={{ width: `${Math.min(100, (activeAccounts.length / 400) * 100)}%` }} />
+            </div>
+          </Card>
+
+          {platformList.map(platform => {
+            const count = activeAccounts.filter(account => account.platform === platform).length;
+            return (
+            <Card key={platform} className="border-border bg-card p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                    {PLATFORM_LABEL[platform]}
+                  </p>
+                  <p className="mt-1 text-xl font-bold text-foreground">
+                    {count}<span className="text-xs font-medium text-muted-foreground"> / 100</span>
+                  </p>
+                </div>
+                <span className="text-xl" aria-hidden>{PLATFORM_ICON[platform]}</span>
+              </div>
+              <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-muted">
+                <div className="h-full rounded-full bg-primary" style={{ width: `${Math.min(100, count)}%` }} />
+              </div>
             </Card>
-          ))}
-          <Card className="bg-card border-border p-4"><p className="text-[10px] text-muted-foreground font-bold uppercase">Conectadas</p><p className="text-xl font-bold text-emerald-400">{accounts.filter(a => a.connection_status === 'conectada').length}</p></Card>
-          <Card className="bg-card border-border p-4"><p className="text-[10px] text-muted-foreground font-bold uppercase">Off</p><p className="text-xl font-bold text-amber-400">{accounts.filter(a => a.connection_status !== 'conectada').length}</p></Card>
+          )})}
+
+          <Card className="border-border bg-card p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Conexões</p>
+                <p className="mt-1 text-sm font-bold text-emerald-400">{connectedCount} online</p>
+                <p className="text-xs text-amber-400">{activeAccounts.length - connectedCount} requer atenção</p>
+              </div>
+              <Wifi size={20} className="text-emerald-400" />
+            </div>
+          </Card>
         </div>
 
-        {/* Filtros */}
-        <div className="flex gap-4 items-center bg-card/50 p-4 rounded-xl border border-border">
-          <div className="flex items-center gap-2">
-            <Label className="text-muted-foreground text-xs uppercase">Plataforma:</Label>
-            <div className="flex gap-2">
-              {["Todas", ...platformList].map(p => (
-                <Button key={p} variant={filterPlatform === p ? "default" : "outline"} size="sm" 
-                  className={filterPlatform === p ? "bg-[#7C3AED]" : "border-border text-muted-foreground text-xs h-7"}
-                  onClick={() => setFilterPlatform(p)}>
-                  {p}
-                </Button>
-              ))}
-            </div>
+        <div className="grid grid-cols-1 gap-3 rounded-2xl border border-border bg-card p-4 shadow-[var(--card-shadow)] md:grid-cols-[minmax(240px,1fr)_220px_220px_auto] md:items-center">
+          <div className="relative min-w-0">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={searchTerm}
+              onChange={event => setSearchTerm(event.target.value)}
+              placeholder="Buscar por nome, usuário ou plataforma..."
+              className="border-border bg-muted/40 pl-10"
+            />
           </div>
+
+          <Select value={filterPlatform} onValueChange={value => setFilterPlatform(value as "all" | SocialPlatform)}>
+            <SelectTrigger className="border-border bg-muted/40">
+              <SelectValue placeholder="Todas as plataformas" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas as plataformas</SelectItem>
+              {platformList.map(platform => (
+                <SelectItem key={platform} value={platform}>{PLATFORM_LABEL[platform]}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select value={filterConnection} onValueChange={setFilterConnection}>
+            <SelectTrigger className="border-border bg-muted/40">
+              <SelectValue placeholder="Todos os status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os status</SelectItem>
+              <SelectItem value="connected">Conectadas</SelectItem>
+              <SelectItem value="attention">Requer atenção</SelectItem>
+              <SelectItem value="paused">Pausadas</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <Badge variant="secondary" className="h-9 justify-center whitespace-nowrap px-3">
+            {filteredAccounts.length} {filteredAccounts.length === 1 ? "conta" : "contas"}
+          </Badge>
         </div>
 
         {loading ? (
-          <div className="flex justify-center py-20"><Loader2 className="animate-spin text-purple-500" /></div>
+          <div className="flex justify-center py-20"><Loader2 className="animate-spin text-primary" /></div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredAccounts.map(account => (
-              <Card key={account.id} className="bg-card border-border p-6 hover:border-purple-500/30 transition-all flex flex-col group">
-                <div className="flex justify-between items-start mb-4">
-                  <div className="flex gap-3">
-                    <div className="w-10 h-10 rounded-full bg-muted/50 flex items-center justify-center border border-border text-xl overflow-hidden">
+          <div className="space-y-5">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {paginatedAccounts.map(account => (
+              <Card key={account.id} className="group flex min-w-0 flex-col overflow-hidden border-border bg-card p-5 transition-all hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-lg">
+                <div className="mb-5 flex min-w-0 items-start justify-between gap-3">
+                  <div className="flex min-w-0 gap-3">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border bg-muted/50 text-xl">
                       {account.profile_image_url ? (
                         <img src={account.profile_image_url} alt="" className="w-full h-full object-cover" />
                       ) : (
                         PLATFORM_ICON[account.platform]
                       )}
                     </div>
-                    <div>
-                      <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-tight">{account.account_name}</h3>
-                      <div className="flex flex-col">
-                        <span className="text-lg font-bold text-foreground group-hover:text-purple-400 transition-colors">
+                    <div className="min-w-0">
+                      <div className="mb-1 flex items-center gap-2">
+                        <Badge variant="outline" className="h-5 px-2 text-[9px] uppercase">
+                          {PLATFORM_LABEL[account.platform]}
+                        </Badge>
+                        {account.status === "paused" && (
+                          <Badge variant="secondary" className="h-5 px-2 text-[9px]">Pausada</Badge>
+                        )}
+                      </div>
+                      <h3 className="truncate text-xs font-semibold uppercase tracking-wide text-muted-foreground">{account.account_name}</h3>
+                      <div className="flex min-w-0 flex-col">
+                        <span className="truncate text-base font-bold text-foreground transition-colors group-hover:text-primary">
                           {account.external_display_name || account.username || 'Identidade Pendente'}
                         </span>
                         {account.username && account.username !== account.external_display_name && !account.username.startsWith('tiktok_conta_') && (
-                           <span className="text-xs text-muted-foreground">@{account.username}</span>
+                           <span className="truncate text-xs text-muted-foreground">@{account.username.replace(/^@/, "")}</span>
                         )}
                       </div>
                     </div>
                   </div>
-                  <div className="flex flex-col items-end gap-1">
-                    <Badge className={`text-[10px] ${CONNECTION_STATUS_MAP[account.connection_status]?.color || 'bg-slate-500/10 text-muted-foreground'}`}>
-                      {account.connection_status === 'conectada' ? '🟢 CONECTADA' : CONNECTION_STATUS_MAP[account.connection_status]?.label}
+                  <div className="flex shrink-0 flex-col items-end gap-1">
+                    <Badge className={`gap-1.5 whitespace-nowrap text-[9px] ${CONNECTION_STATUS_MAP[account.connection_status]?.color || 'bg-slate-500/10 text-muted-foreground'}`}>
+                      {account.connection_status === 'conectada' ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
+                      {account.connection_status === 'conectada' ? 'Conectada' : CONNECTION_STATUS_MAP[account.connection_status]?.label}
                     </Badge>
-                    <span className="text-[9px] text-slate-600 uppercase font-bold tracking-widest">PostPeer</span>
+                    <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/60">PostPeer</span>
                   </div>
                 </div>
 
-                <div className="flex gap-2 mt-auto pt-4 border-t border-border">
+                <div className="mt-auto space-y-3 border-t border-border pt-4">
+                  <div className="grid grid-cols-2 gap-2">
                   {account.connection_status === 'conectada' ? (
                     <>
-                      <Button variant="outline" size="sm" className="flex-1 border-border hover:bg-muted/50 text-muted-foreground text-xs h-8 gap-1.5" 
+                      <Button variant="outline" size="sm" className="h-9 gap-1.5 border-border text-xs text-muted-foreground hover:bg-muted/50"
                         onClick={() => socialService.syncAccount(account.id)
                           .then(() => { toast.success("Sincronizado!"); loadData(); })
                           .catch((e: Error) => toast.error(e.message))}>
-                        <RefreshCw className="w-3 h-3" /> SINCRONIZAR
+                        <RefreshCw className="h-3.5 w-3.5" /> Sincronizar
                       </Button>
-                      <Button variant="outline" size="sm" className="flex-1 border-red-500/30 text-red-400 hover:bg-red-500/10 text-xs h-8 gap-1.5" 
+                      <Button variant="outline" size="sm" className="h-9 gap-1.5 border-red-500/30 text-xs text-red-400 hover:bg-red-500/10"
                         onClick={() => handleDisconnect(account)}>
-                        <Unlink className="w-3 h-3" /> DESCONECTAR
+                        <Unlink className="h-3.5 w-3.5" /> Desconectar
                       </Button>
                     </>
                   ) : (
-                    <Button variant="outline" size="sm" className="flex-1 border-purple-500/30 text-purple-400 hover:bg-purple-500/10 text-xs h-8" 
+                    <Button variant="outline" size="sm" className="col-span-2 h-9 border-purple-500/30 text-xs text-purple-400 hover:bg-purple-500/10"
                       disabled={isConnecting}
                       onClick={() => {
                         if (account.provider === 'postpeer' && account.provider_profile_id) {
@@ -274,19 +426,21 @@ export default function AccountsPage() {
                       {account.provider === 'postpeer' && account.provider_profile_id ? 'VERIFICAR CONEXÃO' : 'CONECTAR'}
                     </Button>
                   )}
+                  </div>
 
-                  <div className="flex gap-1">
-                    <Button variant="ghost" size="sm" className="h-8 px-2 text-[10px] text-muted-foreground hover:text-foreground uppercase font-bold" onClick={() => {
+                  <div className="grid grid-cols-3 gap-1 rounded-xl bg-muted/30 p-1">
+                    <Button variant="ghost" size="sm" className="h-8 gap-1 px-2 text-[10px] font-semibold text-muted-foreground hover:text-foreground" onClick={() => {
                       setEditingAccount(account);
                       setIsDialogOpen(true);
                     }}>
-                      RENOMEAR
+                      <Edit2 className="h-3 w-3" /> Renomear
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={() => toggleStatus(account)}>
-                      <Power className={`w-4 h-4 ${account.status === 'active' ? 'text-emerald-500' : 'text-muted-foreground'}`} />
+                    <Button variant="ghost" size="sm" className="h-8 gap-1 px-2 text-[10px] font-semibold text-muted-foreground hover:text-foreground" onClick={() => toggleStatus(account)}>
+                      <Power className={`h-3 w-3 ${account.status === 'active' ? 'text-emerald-500' : 'text-muted-foreground'}`} />
+                      {account.status === "active" ? "Pausar" : "Ativar"}
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-red-400" onClick={() => archiveAccount(account.id)}>
-                      <Archive className="w-4 h-4" />
+                    <Button variant="ghost" size="sm" className="h-8 gap-1 px-2 text-[10px] font-semibold text-muted-foreground hover:text-red-400" onClick={() => archiveAccount(account.id)}>
+                      <Archive className="h-3 w-3" /> Arquivar
                     </Button>
                   </div>
                 </div>
@@ -294,15 +448,45 @@ export default function AccountsPage() {
             ))}
 
             {filteredAccounts.length === 0 && (
-              <div className="col-span-full py-20 text-center border-2 border-dashed border-border rounded-3xl">
+              <div className="col-span-full rounded-3xl border-2 border-dashed border-border py-20 text-center">
                 <div className="w-16 h-16 bg-muted/50 rounded-full flex items-center justify-center mx-auto mb-4 border border-border">
                    <Plus className="text-slate-600" />
                 </div>
-                <h3 className="text-xl font-bold text-foreground mb-2">Nenhuma conta social</h3>
-                <p className="text-muted-foreground mb-6">Conecte uma rede social para começar a distribuir conteúdo.</p>
+                <h3 className="mb-2 text-xl font-bold text-foreground">Nenhuma rede social encontrada</h3>
+                <p className="mb-6 text-muted-foreground">Ajuste os filtros ou conecte uma nova conta.</p>
                 <Button className="bg-[#7C3AED]" onClick={() => { setSelectedPlatform(null); setIsAddOpen(true); }}>
-                  ADICIONAR CONTA
+                  Adicionar conta
                 </Button>
+              </div>
+            )}
+            </div>
+
+            {filteredAccounts.length > 0 && (
+              <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-xs text-muted-foreground">
+                  Exibindo {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, filteredAccounts.length)} de {filteredAccounts.length} contas
+                </p>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={currentPage === 1}
+                    onClick={() => setCurrentPage(page => Math.max(1, page - 1))}
+                  >
+                    <ChevronLeft className="h-4 w-4" /> Anterior
+                  </Button>
+                  <Badge variant="secondary" className="h-8 px-3">
+                    {currentPage} / {totalPages}
+                  </Badge>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={currentPage === totalPages}
+                    onClick={() => setCurrentPage(page => Math.min(totalPages, page + 1))}
+                  >
+                    Próxima <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
             )}
           </div>
@@ -395,5 +579,3 @@ export default function AccountsPage() {
     </DashboardLayout>
   );
 }
-
-

@@ -3020,7 +3020,7 @@ export default function CampanhaPage() {
                     </Button>
                   </div>
                   {socialAccounts.length === 0 && (
-                    <p className="text-center text-muted-foreground text-sm py-4">Nenhuma conta conectada. Vá em Contas Sociais.</p>
+                    <p className="text-center text-muted-foreground text-sm py-4">Nenhuma conta conectada. Vá em Redes Sociais.</p>
                   )}
                   <div className="space-y-2">
                     {socialAccounts.map(acc => (
