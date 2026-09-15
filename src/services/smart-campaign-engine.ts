@@ -2,7 +2,7 @@ export type SmartDayPeriod = "morning" | "afternoon" | "evening";
 export interface SmartTimeWindow { period: SmartDayPeriod; startHour: number; endHour: number; startMinute?: number; endMinute?: number; enabled: boolean; }
 export interface SmartCampaignAccount { id: string; platform: string; }
 export interface SmartCampaignContent { id: string; }
-export interface SmartCampaignConfig { postsPerDay: number; startDate: string; endDate: string; accounts: SmartCampaignAccount[]; contents: SmartCampaignContent[]; minIntervalMinutes?: number; accountStaggerMinutes?: number; windows?: SmartTimeWindow[]; }
+export interface SmartCampaignConfig { postsPerDay: number; startDate: string; endDate: string; accounts: SmartCampaignAccount[]; contents: SmartCampaignContent[]; minIntervalMinutes?: number; accountStaggerMinutes?: number; windows?: SmartTimeWindow[]; rotationSeed?: string; }
 export interface SmartPublicationSlot { accountId: string; platform: string; contentId: string; scheduledFor: string; dayPeriod: SmartDayPeriod; sequence: number; }
 const DEFAULT_WINDOWS: SmartTimeWindow[] = [
   { period: "morning", startHour: 9, endHour: 12, enabled: true },
@@ -20,6 +20,33 @@ function buildDailyTimes(postsPerDay:number,windows:SmartTimeWindow[],maxStagger
   windows.forEach((window,windowIndex)=>{const count=postsByWindow[windowIndex];if(count<=0)return;const start=window.startHour*60+(window.startMinute??0);const end=window.endHour*60+(window.endMinute??0)-maxStaggerMinutes;if(end<start)throw new Error(`Smart Campaign: janela ${window.period} é pequena demais para o stagger configurado`);if(count===1){result.push({minutes:Math.floor((start+end)/2),period:window.period});return;}const available=end-start;for(let position=0;position<count;position++){const offset=Math.floor((available*(position+1))/(count+1));result.push({minutes:start+offset,period:window.period});}});
   return result.sort((a,b)=>a.minutes-b.minutes);
 }
+function hashSeed(value:string) {
+  let hash=2166136261;
+  for(let index=0;index<value.length;index++){
+    hash^=value.charCodeAt(index);
+    hash=Math.imul(hash,16777619);
+  }
+  return hash>>>0;
+}
+function createSeededRandom(seed:number) {
+  let state=seed||0x6d2b79f5;
+  return ()=>{
+    state+=0x6d2b79f5;
+    let value=state;
+    value=Math.imul(value^(value>>>15),value|1);
+    value^=value+Math.imul(value^(value>>>7),value|61);
+    return ((value^(value>>>14))>>>0)/4294967296;
+  };
+}
+function seededShuffle<T>(items:T[],seed:string):T[] {
+  const result=[...items];
+  const random=createSeededRandom(hashSeed(seed));
+  for(let index=result.length-1;index>0;index--){
+    const swapIndex=Math.floor(random()*(index+1));
+    [result[index],result[swapIndex]]=[result[swapIndex],result[index]];
+  }
+  return result;
+}
 export function generateSmartCampaignPlan(config:SmartCampaignConfig):SmartPublicationSlot[] {
   if(!config.accounts.length)throw new Error("Smart Campaign: nenhuma conta selecionada");
   if(!config.contents.length)throw new Error("Smart Campaign: nenhum conteúdo selecionado");
@@ -30,6 +57,17 @@ export function generateSmartCampaignPlan(config:SmartCampaignConfig):SmartPubli
   if(uniqueContentIds.size!==config.contents.length)throw new Error("Smart Campaign: a seleção contém conteúdos duplicados");
   if(config.contents.length<requiredUniqueContentsPerAccount)throw new Error(`Smart Campaign: esta campanha precisa de ${requiredUniqueContentsPerAccount} conteúdos únicos por conta (${campaignDays} dias × ${postsPerDay} posts/dia), mas somente ${config.contents.length} foram selecionados. Adicione mais conteúdos ou reduza o período/posts por dia.`);
   const windows=(config.windows?.length?config.windows:DEFAULT_WINDOWS).filter(window=>window.enabled).sort((a,b)=>a.startHour*60+(a.startMinute??0)-(b.startHour*60+(b.startMinute??0)));if(!windows.length)throw new Error("Smart Campaign: nenhuma janela ativa");
+  const rotationSeed=config.rotationSeed||[
+    config.startDate,
+    config.endDate,
+    postsPerDay,
+    config.contents.map(content=>content.id).join(","),
+  ].join("|");
+  const shuffledContents=seededShuffle(config.contents,`${rotationSeed}:contents`);
+  const accountOffsets=seededShuffle(
+    Array.from({length:config.contents.length},(_,index)=>index),
+    `${rotationSeed}:account-offsets`,
+  );
   const staggerMinutes=Math.max(0,Math.floor(config.accountStaggerMinutes??7));const minIntervalMinutes=Math.max(0,Math.floor(config.minIntervalMinutes??60));const maxStaggerMinutes=Math.max(0,config.accounts.length-1)*staggerMinutes;const baseTimes=buildDailyTimes(postsPerDay,windows,maxStaggerMinutes);if(baseTimes.length!==postsPerDay)throw new Error("Smart Campaign: não foi possível distribuir todos os posts");
   for(let i=1;i<baseTimes.length;i++){const interval=baseTimes[i].minutes-baseTimes[i-1].minutes;if(interval<minIntervalMinutes)throw new Error(`Smart Campaign: intervalo de ${interval} minutos é menor que o mínimo configurado de ${minIntervalMinutes} minutos`);}
   const slots:SmartPublicationSlot[]=[];let dayIndex=0;let sequence=0;
@@ -37,10 +75,12 @@ export function generateSmartCampaignPlan(config:SmartCampaignConfig):SmartPubli
     for(let accountIndex=0;accountIndex<config.accounts.length;accountIndex++){
       const account=config.accounts[accountIndex];
       baseTimes.forEach((baseTime,dailyPosition)=>{
-        // Each account walks the unique content set exactly once. Account offset only changes ordering.
+        // Stable seeded shuffle: every account walks all content exactly once,
+        // while unique offsets avoid the same video in the same publishing wave.
         const position=dayIndex*postsPerDay+dailyPosition;
-        const contentIndex=(position+accountIndex)%config.contents.length;
-        const content=config.contents[contentIndex];
+        const accountOffset=accountOffsets[accountIndex%accountOffsets.length];
+        const contentIndex=(position+accountOffset)%shuffledContents.length;
+        const content=shuffledContents[contentIndex];
         const finalMinutes=baseTime.minutes+accountIndex*staggerMinutes;
         slots.push({accountId:account.id,platform:account.platform,contentId:content.id,scheduledFor:saoPauloToIso(currentDate,finalMinutes),dayPeriod:baseTime.period,sequence:sequence++});
       });
