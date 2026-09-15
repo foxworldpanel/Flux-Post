@@ -1654,11 +1654,11 @@ export default function CampanhaPage() {
       );
 
 
-      // 1. Ativar o rascunho existente ou criar uma nova campanha
+      // A partir daqui não fazemos mais gravações parciais. O plano já foi
+      // validado acima e é enviado inteiro para uma única transação no banco.
       const campaignPayload = {
-        user_id: user.id,
-        nome: formData.nome,
-        artist_id: formData.artist_id || null,
+        nome: formData.nome.trim(),
+        artist_id: formData.artist_id,
         music_track_id: formData.music_track_id,
         posts_por_dia: formData.posts_por_dia,
         hora_inicio: parseInt(formData.hora_inicio, 10),
@@ -1674,199 +1674,60 @@ export default function CampanhaPage() {
         music_volume: formData.music_volume,
         original_audio_volume: formData.original_audio_volume,
         music_start_ms: formData.music_start_ms,
-        status: "ativo",
       };
 
-      let camp: any;
+      const atomicContents = selectedVideoIds.map((id, index) => {
+        const editorialCopy = getEditorialCopy(id);
+        const isApproved = readyRenders.some(r => r.source_content_id === id && r.is_approved);
+        return {
+          content_id: id,
+          position: index + 1,
+          caption: editorialCopy.caption.trim() || null,
+          hashtags: mergeArtistHashtags(editorialCopy.hashtags) || null,
+          editorial_status: isApproved ? 'approved' : editorialCopy.aiStatus,
+          approved_at: isApproved ? new Date().toISOString() : null,
+        };
+      });
 
-      if (draftCampaignId) {
-        const { data, error } = await supabase
-          .from("campanhas")
-          .update(campaignPayload)
-          .eq("id", draftCampaignId)
-          .eq("user_id", user.id)
-          .eq("status", "rascunho")
-          .select()
-          .single();
-
-        if (error) throw error;
-        camp = data;
-
-        // O rascunho já pode possuir vínculos.
-        // Recriamos abaixo usando o estado final da interface.
-        const [deleteContentsRes, deleteAccountsRes] = await Promise.all([
-          supabase
-            .from("campaign_contents")
-            .delete()
-            .eq("campaign_id", camp.id),
-          supabase
-            .from("campaign_social_accounts")
-            .delete()
-            .eq("campaign_id", camp.id),
-        ]);
-
-        if (deleteContentsRes.error) throw deleteContentsRes.error;
-        if (deleteAccountsRes.error) throw deleteAccountsRes.error;
-      } else {
-        const { data, error } = await supabase
-          .from("campanhas")
-          .insert(campaignPayload)
-          .select()
-          .single();
-
-        if (error) throw error;
-        camp = data;
-      }
-
-      // 2. Vincular vídeos
-      const { error: contentsError } = await supabase
-        .from("campaign_contents")
-        .insert(
-          selectedVideoIds.map((id, index) => {
-            const editorialCopy = getEditorialCopy(id);
-            const isApproved = renders.some(
-              r =>
-                r.source_content_id === id &&
-                r.music_track_id === formData.music_track_id &&
-                r.status === "ready" &&
-                r.is_approved
-            );
-
-            return {
-              campaign_id: camp.id,
-              content_id: id,
-              position: index + 1,
-              caption: editorialCopy.caption.trim() || null,
-              hashtags: mergeArtistHashtags(editorialCopy.hashtags) || null,
-              editorial_status: isApproved
-                ? "approved"
-                : editorialCopy.aiStatus === "generated"
-                ? "generated"
-                : editorialCopy.aiStatus === "edited"
-                ? "edited"
-                : "pending",
-              approved_at: isApproved
-                ? new Date().toISOString()
-                : null,
-            };
-          })
-        );
-
-      if (contentsError) throw contentsError;
-
-      // 3. Vincular contas sociais
-      const { error: accountsError } = await supabase
-        .from("campaign_social_accounts")
-        .insert(
-          selectedAccountIds.map(id => ({
-            campaign_id: camp.id,
-            social_account_id: id
-          }))
-        );
-
-      if (accountsError) throw accountsError;
-
-      const publications: any[] = resolvedSmartPlan.map(slot => {
+      const atomicAccounts = selectedAccountIds.map(id => ({ social_account_id: id }));
+      const atomicPublications = resolvedSmartPlan.map(slot => {
         const render = renderByContentId.get(slot.contentId);
-
-        if (!render) {
-          throw new Error(
-            `Render não encontrado para o conteúdo ${slot.contentId}`
-          );
-        }
-
+        if (!render) throw new Error(`Render não encontrado para o conteúdo ${slot.contentId}`);
         const sourceContent = contentById.get(slot.contentId);
         const editorialCopy = getEditorialCopy(slot.contentId);
-
         return {
-          campaign_id: camp.id,
           content_id: slot.contentId,
-          music_track_id: formData.music_track_id,
           social_account_id: slot.accountId,
           platform: slot.platform,
           caption: editorialCopy.caption.trim() || null,
-          hashtags:
-            hashtagsToArray(
-              mergeArtistHashtags(editorialCopy.hashtags)
-            ),
+          hashtags: hashtagsToArray(mergeArtistHashtags(editorialCopy.hashtags)),
           scheduled_for: slot.scheduledFor,
-          status: "scheduled",
-          user_id: user.id,
           media_render_id: render.id,
-          timezone: "America/Sao_Paulo",
-
-          source_provider:
-            sourceContent?.source || null,
-
-          source_external_id:
-            sourceContent?.external_id || null,
-
+          timezone: 'America/Sao_Paulo',
+          source_provider: sourceContent?.source || null,
+          source_external_id: sourceContent?.external_id || null,
           metadata: {
             campaign_name: formData.nome,
-
-            smart_campaign: {
-              version: "v2",
-              schedule_mode: formData.schedule_mode,
-              day_period: slot.dayPeriod,
-              sequence: slot.sequence,
-              creative_rotation: true,
-              account_stagger_minutes: 7,
-            },
-
+            smart_campaign: { version: 'v2', schedule_mode: formData.schedule_mode, day_period: slot.dayPeriod, sequence: slot.sequence, creative_rotation: true, account_stagger_minutes: 7 },
             audio_mode: formData.audio_mode,
             music_start_ms: formData.music_start_ms,
             music_volume: formData.music_volume,
-            original_audio_volume:
-              formData.original_audio_volume,
-
-            source: {
-              provider:
-                sourceContent?.source || null,
-              external_id:
-                sourceContent?.external_id || null,
-              title:
-                sourceContent?.title || null,
-              original_url:
-                sourceContent?.original_url || null,
-              thumbnail_url:
-                sourceContent?.thumbnail_url || null,
-              author:
-                sourceContent?.author || null,
-              duration_seconds:
-                sourceContent?.duration_seconds || null,
-            },
+            original_audio_volume: formData.original_audio_volume,
+            source: { provider: sourceContent?.source || null, external_id: sourceContent?.external_id || null, title: sourceContent?.title || null, original_url: sourceContent?.original_url || null, thumbnail_url: sourceContent?.thumbnail_url || null, author: sourceContent?.author || null, duration_seconds: sourceContent?.duration_seconds || null },
           },
         };
       });
 
-      if (!publications.length) {
-        throw new Error("Não foi possível gerar a agenda da campanha");
-      }
-
-      // 6. Criar publications
-      const { error: publicationsError } = await supabase
-        .from("publications")
-        .insert(publications);
-
-      if (publicationsError) throw publicationsError;
-
-      // 7. Reservar os vídeos utilizados para impedir reutilização
-      const usedContentIds = Array.from(
-        new Set(publications.map(publication => publication.content_id))
-      );
-
-      const { error: reserveError } = await supabase
-        .from("content_library")
-        .update({ status: "reserved" })
-        .in("id", usedContentIds);
-
-      if (reserveError) throw reserveError;
-
-      // 8. Marcar música como utilizada em campanha
-      await supabase
-        .from("music_tracks")
-        .update({ campanha_ativa: true })
-        .eq("id", formData.music_track_id);
+      const { data: launchResult, error: launchError } = await supabase.rpc('launch_campaign_atomic', {
+        p_campaign: campaignPayload,
+        p_draft_campaign_id: draftCampaignId,
+        p_contents: atomicContents,
+        p_accounts: atomicAccounts,
+        p_publications: atomicPublications,
+      });
+      if (launchError) throw launchError;
+      if (!launchResult || (launchResult as any).ok !== true) throw new Error('O banco não confirmou o lançamento da campanha');
+      const publications = atomicPublications;
 
       // A campanha foi lançada com sucesso e não é mais um rascunho
       setDraftCampaignId(null);
