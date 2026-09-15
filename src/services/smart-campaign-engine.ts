@@ -2,8 +2,9 @@ export type SmartDayPeriod = "morning" | "afternoon" | "evening";
 export interface SmartTimeWindow { period: SmartDayPeriod; startHour: number; endHour: number; startMinute?: number; endMinute?: number; enabled: boolean; }
 export interface SmartCampaignAccount { id: string; platform: string; }
 export interface SmartCampaignContent { id: string; }
-export interface SmartCampaignConfig { postsPerDay: number; startDate: string; endDate: string; accounts: SmartCampaignAccount[]; contents: SmartCampaignContent[]; minIntervalMinutes?: number; accountStaggerMinutes?: number; windows?: SmartTimeWindow[]; rotationSeed?: string; }
-export interface SmartPublicationSlot { accountId: string; platform: string; contentId: string; scheduledFor: string; dayPeriod: SmartDayPeriod; sequence: number; }
+export interface SmartCampaignMusicTrack { id: string; }
+export interface SmartCampaignConfig { postsPerDay: number; startDate: string; endDate: string; accounts: SmartCampaignAccount[]; contents: SmartCampaignContent[]; musicTracks?: SmartCampaignMusicTrack[]; minIntervalMinutes?: number; accountStaggerMinutes?: number; windows?: SmartTimeWindow[]; dailyTimes?: string[]; rotationSeed?: string; }
+export interface SmartPublicationSlot { accountId: string; platform: string; contentId: string; musicTrackId?: string; scheduledFor: string; dayPeriod: SmartDayPeriod; sequence: number; manuallyEdited?: boolean; }
 const DEFAULT_WINDOWS: SmartTimeWindow[] = [
   { period: "morning", startHour: 9, endHour: 12, enabled: true },
   { period: "afternoon", startHour: 13, endHour: 17, enabled: true },
@@ -47,6 +48,27 @@ function seededShuffle<T>(items:T[],seed:string):T[] {
   }
   return result;
 }
+export function buildSmartContentMusicRotation(config:{contents:SmartCampaignContent[];musicTracks:SmartCampaignMusicTrack[];rotationSeed:string}):Map<string,string> {
+  const uniqueTrackIds=[...new Set(config.musicTracks.map(track=>track.id).filter(Boolean))];
+  if(!uniqueTrackIds.length)throw new Error("Smart Campaign: nenhuma música selecionada");
+  const shuffledContents=seededShuffle(config.contents,`${config.rotationSeed}:contents`);
+  const shuffledTracks=seededShuffle(uniqueTrackIds,`${config.rotationSeed}:music-tracks`);
+  return new Map(shuffledContents.map((content,index)=>[content.id,shuffledTracks[index%shuffledTracks.length]]));
+}
+function parseDailyTimes(values:string[],postsPerDay:number):Array<{minutes:number;period:SmartDayPeriod}> {
+  if(values.length!==postsPerDay)throw new Error(`Smart Campaign: defina exatamente ${postsPerDay} horários por dia`);
+  const parsed=values.map(value=>{
+    const match=value.match(/^(\d{2}):(\d{2})$/);
+    if(!match)throw new Error(`Smart Campaign: horário manual inválido (${value})`);
+    const hour=Number(match[1]);const minute=Number(match[2]);
+    if(hour>23||minute>59)throw new Error(`Smart Campaign: horário manual inválido (${value})`);
+    const minutes=hour*60+minute;
+    const period:SmartDayPeriod=hour<12?"morning":hour<18?"afternoon":"evening";
+    return {minutes,period};
+  }).sort((a,b)=>a.minutes-b.minutes);
+  if(new Set(parsed.map(item=>item.minutes)).size!==parsed.length)throw new Error("Smart Campaign: os horários manuais do dia não podem se repetir");
+  return parsed;
+}
 export function generateSmartCampaignPlan(config:SmartCampaignConfig):SmartPublicationSlot[] {
   if(!config.accounts.length)throw new Error("Smart Campaign: nenhuma conta selecionada");
   if(!config.contents.length)throw new Error("Smart Campaign: nenhum conteúdo selecionado");
@@ -56,6 +78,8 @@ export function generateSmartCampaignPlan(config:SmartCampaignConfig):SmartPubli
   const uniqueContentIds=new Set(config.contents.map(content=>content.id));
   if(uniqueContentIds.size!==config.contents.length)throw new Error("Smart Campaign: a seleção contém conteúdos duplicados");
   if(config.contents.length<requiredUniqueContentsPerAccount)throw new Error(`Smart Campaign: esta campanha precisa de ${requiredUniqueContentsPerAccount} conteúdos únicos por conta (${campaignDays} dias × ${postsPerDay} posts/dia), mas somente ${config.contents.length} foram selecionados. Adicione mais conteúdos ou reduza o período/posts por dia.`);
+  const uniqueMusicTracks=[...new Set((config.musicTracks||[]).map(track=>track.id).filter(Boolean))];
+  if(config.musicTracks&&uniqueMusicTracks.length<postsPerDay)throw new Error(`Smart Campaign: para não repetir música no mesmo dia, selecione pelo menos ${postsPerDay} músicas (${uniqueMusicTracks.length} selecionadas).`);
   const windows=(config.windows?.length?config.windows:DEFAULT_WINDOWS).filter(window=>window.enabled).sort((a,b)=>a.startHour*60+(a.startMinute??0)-(b.startHour*60+(b.startMinute??0)));if(!windows.length)throw new Error("Smart Campaign: nenhuma janela ativa");
   const rotationSeed=config.rotationSeed||[
     config.startDate,
@@ -64,11 +88,12 @@ export function generateSmartCampaignPlan(config:SmartCampaignConfig):SmartPubli
     config.contents.map(content=>content.id).join(","),
   ].join("|");
   const shuffledContents=seededShuffle(config.contents,`${rotationSeed}:contents`);
+  const contentMusicRotation=config.musicTracks?.length?buildSmartContentMusicRotation({contents:config.contents,musicTracks:config.musicTracks,rotationSeed}):new Map<string,string>();
   const accountOffsets=seededShuffle(
     Array.from({length:config.contents.length},(_,index)=>index),
     `${rotationSeed}:account-offsets`,
   );
-  const staggerMinutes=Math.max(0,Math.floor(config.accountStaggerMinutes??7));const minIntervalMinutes=Math.max(0,Math.floor(config.minIntervalMinutes??60));const maxStaggerMinutes=Math.max(0,config.accounts.length-1)*staggerMinutes;const baseTimes=buildDailyTimes(postsPerDay,windows,maxStaggerMinutes);if(baseTimes.length!==postsPerDay)throw new Error("Smart Campaign: não foi possível distribuir todos os posts");
+  const staggerMinutes=Math.max(0,Math.floor(config.accountStaggerMinutes??7));const minIntervalMinutes=Math.max(0,Math.floor(config.minIntervalMinutes??60));const maxStaggerMinutes=Math.max(0,config.accounts.length-1)*staggerMinutes;const baseTimes=config.dailyTimes?.length?parseDailyTimes(config.dailyTimes,postsPerDay):buildDailyTimes(postsPerDay,windows,maxStaggerMinutes);if(baseTimes.length!==postsPerDay)throw new Error("Smart Campaign: não foi possível distribuir todos os posts");
   for(let i=1;i<baseTimes.length;i++){const interval=baseTimes[i].minutes-baseTimes[i-1].minutes;if(interval<minIntervalMinutes)throw new Error(`Smart Campaign: intervalo de ${interval} minutos é menor que o mínimo configurado de ${minIntervalMinutes} minutos`);}
   const slots:SmartPublicationSlot[]=[];let dayIndex=0;let sequence=0;
   for(let currentDate=startDate;compareCalendarDates(currentDate,endDate)<=0;currentDate=addCalendarDays(startDate,++dayIndex)){
@@ -82,7 +107,7 @@ export function generateSmartCampaignPlan(config:SmartCampaignConfig):SmartPubli
         const contentIndex=(position+accountOffset)%shuffledContents.length;
         const content=shuffledContents[contentIndex];
         const finalMinutes=baseTime.minutes+accountIndex*staggerMinutes;
-        slots.push({accountId:account.id,platform:account.platform,contentId:content.id,scheduledFor:saoPauloToIso(currentDate,finalMinutes),dayPeriod:baseTime.period,sequence:sequence++});
+        slots.push({accountId:account.id,platform:account.platform,contentId:content.id,musicTrackId:contentMusicRotation.get(content.id),scheduledFor:saoPauloToIso(currentDate,finalMinutes),dayPeriod:baseTime.period,sequence:sequence++,manuallyEdited:Boolean(config.dailyTimes?.length)});
       });
     }
   }

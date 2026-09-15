@@ -21,6 +21,7 @@ import { format, addDays } from "date-fns";
 import { socialService, type SocialAccount } from "@/services/social";
 import { contentService } from "@/services/content";
 import {
+  buildSmartContentMusicRotation,
   generateSmartCampaignPlan,
   resolveSmartCampaignConflicts,
 } from "@/services/smart-campaign-engine";
@@ -51,6 +52,29 @@ type EditorialCopy = {
   caption: string;
   hashtags: string;
   aiStatus: "idle" | "generating" | "generated" | "edited";
+};
+
+const buildEvenDailyTimes = (
+  count: number,
+  startTime: string,
+  endTime: string
+): string[] => {
+  const toMinutes = (value: string, fallback: number) => {
+    const [hour, minute] = value.split(":").map(Number);
+    return Number.isInteger(hour) && Number.isInteger(minute)
+      ? hour * 60 + minute
+      : fallback;
+  };
+  const start = toMinutes(startTime, 9 * 60);
+  const end = toMinutes(endTime, 21 * 60);
+  const safeCount = Math.max(1, count);
+  const span = Math.max(safeCount - 1, end - start);
+  return Array.from({ length: safeCount }, (_, index) => {
+    const minutes = safeCount === 1
+      ? Math.floor((start + end) / 2)
+      : start + Math.round((span * index) / (safeCount - 1));
+    return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
+  });
 };
 
 const STEPS = [
@@ -96,6 +120,10 @@ export default function CampanhaPage() {
 
   // Selections
   const [selVideos, setSelVideos] = useState<Set<string>>(new Set());
+  const [selMusicTracks, setSelMusicTracks] = useState<Set<string>>(new Set());
+  const [manualDailyTimes, setManualDailyTimes] = useState<string[]>(
+    buildEvenDailyTimes(2, "09:00", "21:00")
+  );
 
   // Content Queue — ordem editorial explícita dos conteúdos
   const [contentQueue, setContentQueue] = useState<string[]>([]);
@@ -106,6 +134,7 @@ export default function CampanhaPage() {
     accountId: string;
     platform: string;
     contentId: string;
+    musicTrackId?: string;
     scheduledFor: string;
     dayPeriod: "morning" | "afternoon" | "evening";
     sequence: number;
@@ -117,6 +146,49 @@ export default function CampanhaPage() {
 
   const [schedulePreviewSignature, setSchedulePreviewSignature] =
     useState("");
+
+  const selectedMusicTrackIds = Array.from(selMusicTracks);
+  const selectedMusicTracks = musicas.filter(track =>
+    selMusicTracks.has(track.id)
+  );
+  const primarySelectedMusic = selectedMusicTracks[0];
+
+  const musicRotationSeed = useMemo(
+    () =>
+      [
+        formData.nome.trim(),
+        formData.artist_id,
+        formData.data_inicio,
+        formData.data_fim,
+        contentQueue.join(","),
+        [...selectedMusicTrackIds].sort().join(","),
+      ].join("|"),
+    [
+      formData.nome,
+      formData.artist_id,
+      formData.data_inicio,
+      formData.data_fim,
+      contentQueue,
+      selectedMusicTrackIds.join(","),
+    ]
+  );
+
+  const contentMusicRotation = useMemo(() => {
+    if (!contentQueue.length || !selectedMusicTrackIds.length) {
+      return new Map<string, string>();
+    }
+    return buildSmartContentMusicRotation({
+      contents: contentQueue.map(id => ({ id })),
+      musicTracks: selectedMusicTrackIds.map(id => ({ id })),
+      rotationSeed: musicRotationSeed,
+    });
+  }, [contentQueue, selectedMusicTrackIds.join(","), musicRotationSeed]);
+
+  const getMusicIdForContent = (contentId: string) =>
+    contentMusicRotation.get(contentId) || formData.music_track_id;
+
+  const getMusicForContent = (contentId: string) =>
+    musicas.find(track => track.id === getMusicIdForContent(contentId));
 
   // Copy editorial — posteriormente preenchida pela Claude
   const [editorialCopies, setEditorialCopies] = useState<Record<string, EditorialCopy>>({});
@@ -231,6 +303,7 @@ export default function CampanhaPage() {
     silent = false
   ): Promise<boolean> => {
     const current = getEditorialCopy(contentId);
+    const assignedMusic = getMusicForContent(contentId) || primarySelectedMusic;
 
     setGeneratingEditorialModes(previous => ({
       ...previous,
@@ -255,14 +328,14 @@ export default function CampanhaPage() {
             copyMode: mode,
             platform: "generic",
             music: {
-              title: selectedMusic?.nome || "",
-              artist: selectedMusic?.artista || "",
+              title: assignedMusic?.nome || "",
+              artist: assignedMusic?.artista || "",
             },
             artistProfile: (() => {
               const artist = artistas.find(a => a.id === formData.artist_id);
 
               return {
-                name: artist?.name || selectedMusic?.artista || "",
+                name: artist?.name || assignedMusic?.artista || "",
                 primaryLanguage: artist?.primary_language || "pt-BR",
                 communicationIdentity: artist?.communication_identity || "",
                 aiBriefing: artist?.ai_briefing || "",
@@ -337,7 +410,7 @@ export default function CampanhaPage() {
 
     const readyRenders = renders.filter(render =>
       contentQueue.includes(render.source_content_id) &&
-      render.music_track_id === formData.music_track_id &&
+      render.music_track_id === getMusicIdForContent(render.source_content_id) &&
       render.status === "ready" &&
       !render.is_approved
     );
@@ -441,8 +514,7 @@ export default function CampanhaPage() {
 
   const generateAccountEditorialVariants = async (
     contentIds: string[],
-    accounts: SocialAccount[],
-    launchMusic: MusicTrack
+    accounts: SocialAccount[]
   ): Promise<Map<string, AccountEditorialCopy>> => {
     const artist = artistas.find(a => a.id === formData.artist_id);
     const result = new Map<string, AccountEditorialCopy>();
@@ -463,10 +535,12 @@ export default function CampanhaPage() {
     if (accounts.length === 1) {
       for (const contentId of contentIds) {
         const baseCopy = getEditorialCopy(contentId);
+        const assignedMusic = getMusicForContent(contentId);
+        if (!assignedMusic) throw new Error(`Música não encontrada para o conteúdo ${contentId}`);
         result.set(keyFor(contentId, accounts[0].id), {
           caption: appendMusicCreditToCaption(
             baseCopy.caption,
-            launchMusic
+            assignedMusic
           ),
           hashtags: mergeArtistHashtags(baseCopy.hashtags),
         });
@@ -482,6 +556,8 @@ export default function CampanhaPage() {
         const contentId = contentIds[nextContentIndex++];
         const video = biblioteca.find(item => item.id === contentId);
         const baseCopy = getEditorialCopy(contentId);
+        const assignedMusic = getMusicForContent(contentId);
+        if (!assignedMusic) throw new Error(`Música não encontrada para o conteúdo ${contentId}`);
 
         const { data, error } = await supabase.functions.invoke(
           "campaign-copy-generator",
@@ -500,11 +576,11 @@ export default function CampanhaPage() {
                 username: account.username,
               })),
               music: {
-                title: launchMusic.nome,
-                artist: launchMusic.artista,
+                title: assignedMusic.nome,
+                artist: assignedMusic.artista,
               },
               artistProfile: {
-                name: artist?.name || launchMusic.artista,
+                name: artist?.name || assignedMusic.artista,
                 primaryLanguage: artist?.primary_language || "pt-BR",
                 communicationIdentity:
                   artist?.communication_identity || "",
@@ -541,7 +617,10 @@ export default function CampanhaPage() {
           }
 
           result.set(keyFor(contentId, variant.accountId), {
-            caption: variant.caption.trim(),
+            caption: appendMusicCreditToCaption(
+              variant.caption.trim(),
+              assignedMusic
+            ),
             hashtags: mergeArtistHashtags(variant.hashtags),
           });
         }
@@ -594,6 +673,42 @@ export default function CampanhaPage() {
     setContentQueue(ids);
   };
 
+  const toggleMusicSelection = (musicId: string) => {
+    setSelMusicTracks(previous => {
+      const next = new Set(previous);
+      if (next.has(musicId)) next.delete(musicId);
+      else next.add(musicId);
+
+      const nextPrimary = Array.from(next)[0] || "";
+      setFormData(current => ({
+        ...current,
+        music_track_id: nextPrimary,
+      }));
+      setSchedulePreview([]);
+      setSchedulePreviewSignature("");
+      return next;
+    });
+  };
+
+  const selectAllArtistMusic = () => {
+    const artistTracks = musicas.filter(
+      track => !formData.artist_id || track.artist_id === formData.artist_id
+    );
+    const allSelected =
+      artistTracks.length > 0 &&
+      artistTracks.every(track => selMusicTracks.has(track.id));
+    const next = allSelected
+      ? new Set<string>()
+      : new Set(artistTracks.map(track => track.id));
+    setSelMusicTracks(next);
+    setFormData(current => ({
+      ...current,
+      music_track_id: Array.from(next)[0] || "",
+    }));
+    setSchedulePreview([]);
+    setSchedulePreviewSignature("");
+  };
+
   const moveContentInQueue = (
     videoId: string,
     direction: "up" | "down"
@@ -634,6 +749,14 @@ export default function CampanhaPage() {
 
   const pollTimerRef = useRef<number | null>(null);
   const [localProcessingId, setLocalProcessingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    setManualDailyTimes(previous => {
+      const expected = Math.max(1, Number(formData.posts_por_dia) || 1);
+      if (previous.length === expected) return previous;
+      return buildEvenDailyTimes(expected, formData.hora_inicio, formData.hora_fim);
+    });
+  }, [formData.posts_por_dia, formData.hora_inicio, formData.hora_fim]);
 
   useEffect(() => { 
     fetchData(); 
@@ -682,7 +805,7 @@ export default function CampanhaPage() {
     const hasActiveRenders = renders.some(r => 
       (r.status === 'queued' || r.status === 'processing') && 
       selVideos.has(r.source_content_id) && 
-      r.music_track_id === formData.music_track_id
+      r.music_track_id === getMusicIdForContent(r.source_content_id)
     );
 
     if (hasActiveRenders && !pollTimerRef.current) {
@@ -695,7 +818,7 @@ export default function CampanhaPage() {
           .from("media_renders")
           .select("*")
           .eq("user_id", user.id)
-          .eq("music_track_id", formData.music_track_id)
+          .in("music_track_id", selectedMusicTrackIds)
           .in("source_content_id", Array.from(selVideos));
 
         if (data) {
@@ -719,7 +842,7 @@ export default function CampanhaPage() {
       clearInterval(pollTimerRef.current);
       pollTimerRef.current = null;
     }
-  }, [renders, selVideos, formData.music_track_id]);
+  }, [renders, selVideos, selectedMusicTrackIds.join(","), contentMusicRotation]);
 
   async function fetchData() {
     setLoading(true);
@@ -764,11 +887,26 @@ export default function CampanhaPage() {
       if (draft) {
         setDraftCampaignId(draft.id);
 
+        const draftMusicTrackIds =
+          draft.music_track_ids?.length
+            ? draft.music_track_ids
+            : draft.music_track_id
+            ? [draft.music_track_id]
+            : [];
+        setSelMusicTracks(new Set(draftMusicTrackIds));
+        if (draft.manual_daily_times?.length) {
+          setManualDailyTimes(
+            draft.manual_daily_times.map((value: string) =>
+              String(value).slice(0, 5)
+            )
+          );
+        }
+
         setFormData(prev => ({
           ...prev,
           nome: draft.nome || "",
           artist_id: draft.artist_id || "",
-          music_track_id: draft.music_track_id || "",
+          music_track_id: draftMusicTrackIds[0] || "",
           posts_por_dia: draft.posts_por_dia ?? prev.posts_por_dia,
           intervalo_min: draft.intervalo_min ?? prev.intervalo_min,
           intervalo_max: draft.intervalo_max ?? prev.intervalo_max,
@@ -937,15 +1075,35 @@ export default function CampanhaPage() {
   }
 
   // ─── Validation per step ──────────────────────────────────────────────────
+  function hasValidManualDailyTimes(): boolean {
+    if (formData.schedule_mode !== "manual") return true;
+    return (
+      manualDailyTimes.length === formData.posts_por_dia &&
+      new Set(manualDailyTimes).size === manualDailyTimes.length &&
+      manualDailyTimes.every(
+        time =>
+          /^\d{2}:\d{2}$/.test(time) &&
+          time >= formData.hora_inicio &&
+          time <= formData.hora_fim
+      )
+    );
+  }
+
   function canAdvance(): boolean {
-    if (step === 1) return !!formData.nome;
-    if (step === 2) return !!formData.music_track_id;
+    if (step === 1) return !!formData.nome && hasValidManualDailyTimes();
+    if (step === 2) return selMusicTracks.size >= formData.posts_por_dia;
     if (step === 3) return selVideos.size > 0;
     if (step === 4) return Array.from(selVideos).every(id => {
-      const r = renders.find(r => r.source_content_id === id && r.music_track_id === formData.music_track_id);
+      const r = renders.find(r => r.source_content_id === id && r.music_track_id === getMusicIdForContent(id));
       return r?.status === "ready" && !!r.storage_path;
     });
-    if (step === 5) return renders.filter(r => selVideos.has(r.source_content_id) && r.music_track_id === formData.music_track_id).every(r => r.is_approved);
+    if (step === 5) return Array.from(selVideos).every(id => {
+      const render = renders.find(r =>
+        r.source_content_id === id &&
+        r.music_track_id === getMusicIdForContent(id)
+      );
+      return Boolean(render?.is_approved);
+    });
     if (step === 6) return selAccounts.size > 0;
     return true;
   }
@@ -978,21 +1136,22 @@ export default function CampanhaPage() {
           id: render!.source_content_id,
         })),
 
+      musicTracks: selectedMusicTrackIds.map(id => ({ id })),
+
       minIntervalMinutes: Math.max(
         1,
         Number(formData.intervalo_min) || 60
       ),
 
-      accountStaggerMinutes: 7,
+      accountStaggerMinutes:
+        formData.schedule_mode === "manual" ? 0 : 7,
 
-      rotationSeed: [
-        formData.nome.trim(),
-        formData.music_track_id,
-        formData.data_inicio,
-        formData.data_fim,
-        [...contentQueue].join(","),
-        selectedAccounts.map(account => account.id).sort().join(","),
-      ].join("|"),
+      dailyTimes:
+        formData.schedule_mode === "manual"
+          ? manualDailyTimes
+          : undefined,
+
+      rotationSeed: musicRotationSeed,
 
       windows: (() => {
         const parseTimeToMinutes = (
@@ -1165,6 +1324,7 @@ export default function CampanhaPage() {
       campaignName: formData.nome.trim(),
       artistId: formData.artist_id,
       musicTrackId: formData.music_track_id,
+      musicTrackIds: [...selectedMusicTrackIds].sort(),
       postsPerDay: formData.posts_por_dia,
       startDate: formData.data_inicio,
       endDate: formData.data_fim,
@@ -1172,10 +1332,62 @@ export default function CampanhaPage() {
       endTime: formData.hora_fim,
       minInterval: formData.intervalo_min,
       scheduleMode: formData.schedule_mode,
+      manualDailyTimes,
       contentIds: [...contentQueue],
       accountIds: Array.from(selAccounts).sort(),
     });
   }
+
+  useEffect(() => {
+    if (step !== 6) return;
+
+    const signature = buildSchedulePreviewSignature();
+    if (schedulePreview.length > 0 && signature === schedulePreviewSignature) {
+      return;
+    }
+
+    const selectedAccounts = socialAccounts.filter(account =>
+      selAccounts.has(account.id)
+    );
+    const readyRenders = renders.filter(render =>
+      contentQueue.includes(render.source_content_id) &&
+      render.music_track_id === getMusicIdForContent(render.source_content_id) &&
+      render.status === "ready" &&
+      render.is_approved &&
+      Boolean(render.storage_path)
+    );
+
+    if (!selectedAccounts.length || readyRenders.length !== contentQueue.length) {
+      setSchedulePreview([]);
+      return;
+    }
+
+    try {
+      setSchedulePreview(buildSmartSchedulePlan(selectedAccounts, readyRenders));
+      setSchedulePreviewSignature(signature);
+    } catch (error: any) {
+      setSchedulePreview([]);
+      setSchedulePreviewSignature("");
+      toast.error(error?.message || "Não foi possível gerar a agenda");
+    }
+  }, [
+    step,
+    selAccounts,
+    renders,
+    contentQueue,
+    formData.nome,
+    formData.posts_por_dia,
+    formData.data_inicio,
+    formData.data_fim,
+    formData.hora_inicio,
+    formData.hora_fim,
+    formData.intervalo_min,
+    formData.schedule_mode,
+    selectedMusicTrackIds.join(","),
+    manualDailyTimes.join(","),
+    schedulePreview.length,
+    schedulePreviewSignature,
+  ]);
 
   function handleContinueStep() {
     if (!canAdvance()) return;
@@ -1192,7 +1404,7 @@ export default function CampanhaPage() {
 
         const readyRenders = renders.filter(render =>
           contentQueue.includes(render.source_content_id) &&
-          render.music_track_id === formData.music_track_id &&
+          render.music_track_id === getMusicIdForContent(render.source_content_id) &&
           render.status === "ready" &&
           render.is_approved &&
           !!render.storage_path
@@ -1235,17 +1447,25 @@ export default function CampanhaPage() {
 
   function stepBlockMessage(): string {
     if (step === 1 && !formData.nome) return "Preencha o nome da campanha";
-    if (step === 2 && !formData.music_track_id) return "Selecione uma música";
+    if (step === 1 && !hasValidManualDailyTimes()) {
+      return "Defina horários manuais diferentes e dentro do intervalo da campanha";
+    }
+    if (step === 2 && selMusicTracks.size < formData.posts_por_dia) {
+      return `Selecione pelo menos ${formData.posts_por_dia} músicas para não repetir faixa no mesmo dia`;
+    }
     if (step === 3 && selVideos.size === 0) return "Selecione pelo menos um vídeo";
     if (step === 4) {
       const pending = Array.from(selVideos).filter(id => {
-        const r = renders.find(r => r.source_content_id === id && r.music_track_id === formData.music_track_id);
+        const r = renders.find(r => r.source_content_id === id && r.music_track_id === getMusicIdForContent(id));
         return r?.status !== "ready" || !r.storage_path;
       });
       if (pending.length > 0) return `Aguarde o processamento: ${pending.length} vídeos pendentes`;
     }
     if (step === 5) {
-      const selectedRenders = renders.filter(r => selVideos.has(r.source_content_id) && r.music_track_id === formData.music_track_id);
+      const selectedRenders = renders.filter(r =>
+        selVideos.has(r.source_content_id) &&
+        r.music_track_id === getMusicIdForContent(r.source_content_id)
+      );
       const unapprovedCount = selectedRenders.filter(r => !r.is_approved).length;
       if (unapprovedCount > 0) return `Aprove todos os vídeos (${unapprovedCount} pendentes)`;
     }
@@ -1256,8 +1476,8 @@ export default function CampanhaPage() {
   // ─── Process videos ───────────────────────────────────────────────────────
   // ─── Process videos (Server-side Enqueue) ──────────────────────────────────
   async function handleProcessAll() {
-    if (!formData.music_track_id) 
-      return toast.error("Selecione uma música");
+    if (selMusicTracks.size < formData.posts_por_dia)
+      return toast.error(`Selecione pelo menos ${formData.posts_por_dia} músicas`);
     
     setIsProcessing(true);
     try {
@@ -1265,9 +1485,11 @@ export default function CampanhaPage() {
       if (!user) throw new Error("Não autenticado");
 
       for (const videoId of contentQueue) {
+        const assignedMusicId = getMusicIdForContent(videoId);
+        if (!assignedMusicId) throw new Error(`Música não definida para o vídeo ${videoId}`);
         const render_key = [
           videoId,
-          formData.music_track_id,
+          assignedMusicId,
           formData.music_start_ms,
           formData.music_volume,
           formData.original_audio_volume,
@@ -1275,14 +1497,14 @@ export default function CampanhaPage() {
           "v1"
         ].join("|");
 
-        console.log('[RENDER] Inserindo job via RPC:', { user_id: user.id, source_content_id: videoId, music_track_id: formData.music_track_id });
+        console.log('[RENDER] Inserindo job via RPC:', { user_id: user.id, source_content_id: videoId, music_track_id: assignedMusicId });
         
         // Usa RPC SECURITY DEFINER para garantir o insert
         const { data: renderId, error: rpcError } = await supabase
           .rpc('insert_media_render', {
             p_user_id: user.id,
             p_source_content_id: videoId,
-            p_music_track_id: formData.music_track_id,
+            p_music_track_id: assignedMusicId,
             p_audio_mode: formData.audio_mode,
             p_music_volume: formData.music_volume,
             p_original_audio_volume: formData.original_audio_volume,
@@ -1299,7 +1521,7 @@ export default function CampanhaPage() {
         const render = { 
           id: renderId, 
           source_content_id: videoId,
-          music_track_id: formData.music_track_id,
+          music_track_id: assignedMusicId,
           status: 'queued' as const,
           storage_path: null,
           is_approved: false
@@ -1321,7 +1543,7 @@ export default function CampanhaPage() {
           .from("media_renders")
           .select("*")
           .in("source_content_id", ids)
-          .eq("music_track_id", formData.music_track_id);
+          .in("music_track_id", selectedMusicTrackIds);
 
         if (rendersData) {
           setRenders(rendersData as RenderItem[]);
@@ -1329,9 +1551,16 @@ export default function CampanhaPage() {
             setProcessProgress(prev => ({ ...prev, [r.source_content_id]: r.status }));
           });
 
-          const allDone = rendersData.every(r => 
-            r.status === "ready" || r.status === "failed"
+          const expectedRenders = ids.map(id =>
+            rendersData.find(render =>
+              render.source_content_id === id &&
+              render.music_track_id === getMusicIdForContent(id)
+            )
           );
+          const allDone = expectedRenders.length === ids.length &&
+            expectedRenders.every(render =>
+              render && (render.status === "ready" || render.status === "failed")
+            );
 
           if (allDone) {
             window.clearInterval(interval);
@@ -1430,6 +1659,9 @@ export default function CampanhaPage() {
       nome: formData.nome.trim(),
       artist_id: formData.artist_id || null,
       music_track_id: formData.music_track_id || null,
+      music_track_ids: selectedMusicTrackIds,
+      manual_daily_times:
+        formData.schedule_mode === "manual" ? manualDailyTimes : [],
       posts_por_dia: formData.posts_por_dia,
       hora_inicio: parseInt(formData.hora_inicio, 10),
       hora_fim: parseInt(formData.hora_fim, 10),
@@ -1490,7 +1722,7 @@ export default function CampanhaPage() {
             const isApproved = renders.some(
               render =>
                 render.source_content_id === contentId &&
-                render.music_track_id === formData.music_track_id &&
+                render.music_track_id === getMusicIdForContent(contentId) &&
                 render.status === "ready" &&
                 render.is_approved
             );
@@ -1547,6 +1779,7 @@ export default function CampanhaPage() {
 
     console.log("[CAMPAIGN DRAFT] Salvo:", campaignId);
 
+    if (!campaignId) throw new Error("Não foi possível identificar o rascunho salvo");
     return campaignId;
   }
 
@@ -1561,14 +1794,17 @@ export default function CampanhaPage() {
       const selectedAccountIds = Array.from(selAccounts);
 
       if (!formData.artist_id) throw new Error("Selecione o artista da campanha");
-      if (!formData.music_track_id) throw new Error("Selecione uma música");
+      if (selectedMusicTrackIds.length < formData.posts_por_dia) {
+        throw new Error(`Selecione pelo menos ${formData.posts_por_dia} músicas para não repetir faixa no mesmo dia`);
+      }
       if (!selectedVideoIds.length) throw new Error("Selecione pelo menos um vídeo");
       if (!selectedAccountIds.length) throw new Error("Selecione pelo menos uma conta");
 
-      const launchMusic = musicas.find(m => m.id === formData.music_track_id);
-
-      if (!launchMusic || launchMusic.artist_id !== formData.artist_id) {
-        throw new Error("A música selecionada não pertence ao artista da campanha");
+      const invalidLaunchMusic = selectedMusicTracks.find(
+        music => music.artist_id !== formData.artist_id
+      );
+      if (selectedMusicTracks.length !== selectedMusicTrackIds.length || invalidLaunchMusic) {
+        throw new Error("Uma das músicas selecionadas não pertence ao artista da campanha");
       }
 
       const selectedAccounts = socialAccounts.filter(a =>
@@ -1607,7 +1843,7 @@ export default function CampanhaPage() {
       // 4. Preparar os renders aprovados/prontos
       const readyRenders = renders.filter(r =>
         selectedVideoIds.includes(r.source_content_id) &&
-        r.music_track_id === formData.music_track_id &&
+        r.music_track_id === getMusicIdForContent(r.source_content_id) &&
         r.status === "ready" &&
         r.is_approved &&
         !!r.storage_path
@@ -1852,8 +2088,7 @@ export default function CampanhaPage() {
       const accountEditorialCopies =
         await generateAccountEditorialVariants(
           selectedVideoIds,
-          selectedAccounts,
-          launchMusic
+          selectedAccounts
         );
 
       const accountEditorialKey = (
@@ -1867,6 +2102,9 @@ export default function CampanhaPage() {
         nome: formData.nome.trim(),
         artist_id: formData.artist_id,
         music_track_id: formData.music_track_id,
+        music_track_ids: selectedMusicTrackIds,
+        manual_daily_times:
+          formData.schedule_mode === "manual" ? manualDailyTimes : [],
         posts_por_dia: formData.posts_por_dia,
         hora_inicio: parseInt(formData.hora_inicio, 10),
         hora_fim: parseInt(formData.hora_fim, 10),
@@ -1900,6 +2138,10 @@ export default function CampanhaPage() {
       const atomicPublications = resolvedSmartPlan.map(slot => {
         const render = renderByContentId.get(slot.contentId);
         if (!render) throw new Error(`Render não encontrado para o conteúdo ${slot.contentId}`);
+        const publicationMusicId = slot.musicTrackId || getMusicIdForContent(slot.contentId);
+        if (!publicationMusicId || render.music_track_id !== publicationMusicId) {
+          throw new Error(`A rotação musical do conteúdo ${slot.contentId} não corresponde ao render aprovado`);
+        }
         const sourceContent = contentById.get(slot.contentId);
         const accountCopy = accountEditorialCopies.get(
           accountEditorialKey(slot.contentId, slot.accountId)
@@ -1913,6 +2155,7 @@ export default function CampanhaPage() {
 
         return {
           content_id: slot.contentId,
+          music_track_id: publicationMusicId,
           social_account_id: slot.accountId,
           platform: slot.platform,
           caption: accountCopy.caption,
@@ -1924,7 +2167,7 @@ export default function CampanhaPage() {
           source_external_id: sourceContent?.external_id || null,
           metadata: {
             campaign_name: formData.nome,
-            smart_campaign: { version: 'v2', schedule_mode: formData.schedule_mode, day_period: slot.dayPeriod, sequence: slot.sequence, creative_rotation: true, rotation_strategy: 'seeded_shuffle_offsets', unique_copy_per_account: true, account_stagger_minutes: 7 },
+            smart_campaign: { version: 'v3-music-rotation', schedule_mode: formData.schedule_mode, day_period: slot.dayPeriod, sequence: slot.sequence, creative_rotation: true, rotation_strategy: 'seeded_content_and_music_cycles', unique_copy_per_account: true, account_stagger_minutes: formData.schedule_mode === 'manual' ? 0 : 7, music_track_id: publicationMusicId },
             audio_mode: formData.audio_mode,
             music_start_ms: formData.music_start_ms,
             music_volume: formData.music_volume,
@@ -1963,9 +2206,10 @@ export default function CampanhaPage() {
 
   // ─── Render helpers ───────────────────────────────────────────────────────
   function getRender(videoId: string): RenderItem | undefined {
-    return renders.find(r => r.source_content_id === videoId && r.music_track_id === formData.music_track_id)
+    const assignedMusicId = getMusicIdForContent(videoId);
+    return renders.find(r => r.source_content_id === videoId && r.music_track_id === assignedMusicId)
       || (processProgress[videoId] ? {
-        id: videoId, source_content_id: videoId, music_track_id: formData.music_track_id,
+        id: videoId, source_content_id: videoId, music_track_id: assignedMusicId,
         status: processProgress[videoId], storage_path: null, is_approved: false
       } : undefined);
   }
@@ -1973,10 +2217,9 @@ export default function CampanhaPage() {
   const approvedRenders = renders.filter(r =>
     r.is_approved &&
     r.status === "ready" &&
-    r.music_track_id === formData.music_track_id &&
+    r.music_track_id === getMusicIdForContent(r.source_content_id) &&
     selVideos.has(r.source_content_id)
   );
-  const selectedMusic = musicas.find(m => m.id === formData.music_track_id);
 
   if (loading) return (
     <DashboardLayout>
@@ -2043,16 +2286,17 @@ export default function CampanhaPage() {
                   <Label>Artista *</Label>
                   <Select
                     value={formData.artist_id}
-                    onValueChange={v =>
+                    onValueChange={v => {
+                      const retained = selectedMusicTracks.filter(
+                        track => track.artist_id === v
+                      );
+                      setSelMusicTracks(new Set(retained.map(track => track.id)));
                       setFormData(prev => ({
                         ...prev,
                         artist_id: v,
-                        music_track_id:
-                          musicas.find(m => m.id === prev.music_track_id)?.artist_id === v
-                            ? prev.music_track_id
-                            : "",
-                      }))
-                    }
+                        music_track_id: retained[0]?.id || "",
+                      }));
+                    }}
                   >
                     <SelectTrigger className="bg-muted/50 border-border">
                       <SelectValue placeholder="Selecione o artista da campanha" />
@@ -2142,15 +2386,68 @@ export default function CampanhaPage() {
                     <Input type="time" value={formData.hora_fim} onChange={e => setFormData(p => ({ ...p, hora_fim: e.target.value }))} className="bg-muted/50 border-border" />
                   </div>
                 </div>
+
+                {formData.schedule_mode === "manual" && (
+                  <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 space-y-3">
+                    <div>
+                      <Label className="text-sm font-semibold">Horários exatos de cada dia</Label>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Estes horários serão repetidos em cada dia da campanha, separadamente em cada conta.
+                      </p>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                      {manualDailyTimes.map((time, index) => (
+                        <div key={index} className="space-y-1">
+                          <Label className="text-xs">Post {index + 1}</Label>
+                          <Input
+                            type="time"
+                            value={time}
+                            min={formData.hora_inicio}
+                            max={formData.hora_fim}
+                            onChange={event =>
+                              setManualDailyTimes(previous =>
+                                previous.map((value, position) =>
+                                  position === index ? event.target.value : value
+                                )
+                              )
+                            }
+                            className="bg-background"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {formData.schedule_mode === "hybrid" && (
+                  <div className="rounded-xl border border-border bg-muted/30 p-4 text-sm text-muted-foreground">
+                    O Flux Post distribuirá os horários dentro do intervalo acima. Na etapa Publicar, cada data e hora ficará editável antes do lançamento.
+                  </div>
+                )}
               </div>
             )}
 
             {/* STEP 2 — Música */}
             {step === 2 && (
               <div className="space-y-5">
-                <div>
-                  <h2 className="text-lg font-semibold text-foreground">Escolha a música</h2>
-                  <p className="text-sm text-muted-foreground">Uma música por campanha para concentrar os streams.</p>
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <h2 className="text-lg font-semibold text-foreground">Escolha as músicas</h2>
+                    <p className="text-sm text-muted-foreground">
+                      O Flux Post alterna o catálogo inteiro e não repete música no mesmo dia por conta.
+                    </p>
+                  </div>
+                  <Button type="button" variant="outline" size="sm" onClick={selectAllArtistMusic}>
+                    {musicas
+                      .filter(m => !formData.artist_id || m.artist_id === formData.artist_id)
+                      .every(m => selMusicTracks.has(m.id))
+                      ? "Desmarcar todas"
+                      : "Selecionar todas"}
+                  </Button>
+                </div>
+                <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 text-sm">
+                  <strong>{selMusicTracks.size} músicas selecionadas.</strong>{" "}
+                  Para {formData.posts_por_dia} posts por dia, são necessárias pelo menos {formData.posts_por_dia} faixas diferentes.
                 </div>
                 <div className="space-y-4">
                   <div className="space-y-2">
@@ -2178,9 +2475,9 @@ export default function CampanhaPage() {
                   {musicas
                       .filter(m => !formData.artist_id || m.artist_id === formData.artist_id)
                       .map(m => (
-                    <div key={m.id} onClick={() => setFormData(p => ({ ...p, music_track_id: m.id }))}
+                    <div key={m.id} onClick={() => toggleMusicSelection(m.id)}
                       className={`flex items-center gap-3 p-4 rounded-xl border cursor-pointer transition-all ${
-                        formData.music_track_id === m.id ? "border-primary bg-primary/10" : "border-border bg-muted/30 hover:border-border"
+                        selMusicTracks.has(m.id) ? "border-primary bg-primary/10" : "border-border bg-muted/30 hover:border-border"
                       }`}>
                       <div className="w-10 h-10 rounded-lg bg-purple-600/20 flex items-center justify-center flex-shrink-0">
                         <MusicIcon size={20} className="text-purple-400" />
@@ -2189,7 +2486,7 @@ export default function CampanhaPage() {
                         <p className="text-sm font-semibold text-foreground">{m.nome}</p>
                         <p className="text-xs text-muted-foreground">{m.artista}</p>
                       </div>
-                      {formData.music_track_id === m.id && <Check size={18} className="text-primary flex-shrink-0" />}
+                      {selMusicTracks.has(m.id) && <Check size={18} className="text-primary flex-shrink-0" />}
                     </div>
                   ))}
                 </div>
@@ -2291,6 +2588,7 @@ export default function CampanhaPage() {
                   {contentQueue.map((id, idx) => {
                     const video = biblioteca.find(v => v.id === id);
                     const render = getRender(id);
+                    const assignedMusic = getMusicForContent(id);
                     const status = render?.status || "pending";
                     
                     const getProgressValue = () => {
@@ -2334,7 +2632,7 @@ export default function CampanhaPage() {
                             
                             <div className="space-y-2">
                               <div className="flex items-center justify-between text-[10px]">
-                                <span className="text-muted-foreground">Trilha: {selectedMusic?.nome}</span>
+                                <span className="text-muted-foreground">Trilha: {assignedMusic?.nome || "Não definida"}</span>
                                 <span className="text-muted-foreground font-mono">{getProgressValue()}%</span>
                               </div>
                               <Progress 
@@ -2449,11 +2747,12 @@ export default function CampanhaPage() {
                 <div className="space-y-5">
                   {contentQueue.map((id, idx) => {
                     const video = biblioteca.find(v => v.id === id);
+                    const assignedMusic = getMusicForContent(id);
 
                     const render = renders.find(
                       r =>
                         r.source_content_id === id &&
-                        r.music_track_id === formData.music_track_id
+                        r.music_track_id === getMusicIdForContent(id)
                     );
 
                     if (!render) return null;
@@ -2521,12 +2820,12 @@ export default function CampanhaPage() {
                               </p>
 
                               <p className="text-xs font-medium text-foreground truncate">
-                                {selectedMusic?.nome || "Sem música"}
+                                {assignedMusic?.nome || "Sem música"}
                               </p>
 
-                              {selectedMusic?.artista && (
+                              {assignedMusic?.artista && (
                                 <p className="text-[11px] text-muted-foreground truncate">
-                                  {selectedMusic.artista}
+                                  {assignedMusic.artista}
                                 </p>
                               )}
                             </div>
@@ -2597,8 +2896,8 @@ export default function CampanhaPage() {
                                 disabled={copy.aiStatus === "generating"}
                                 onClick={() =>
                                   generateEditorialCopy(
-                                    video.id,
-                                    video.title,
+                                    id,
+                                    video?.title || `Vídeo ${idx + 1}`,
                                     "music"
                                   )
                                 }
@@ -2621,8 +2920,8 @@ export default function CampanhaPage() {
                                 disabled={copy.aiStatus === "generating"}
                                 onClick={() =>
                                   generateEditorialCopy(
-                                    video.id,
-                                    video.title,
+                                    id,
+                                    video?.title || `Vídeo ${idx + 1}`,
                                     "video"
                                   )
                                 }
@@ -2769,9 +3068,25 @@ export default function CampanhaPage() {
                       </p>
                     </div>
 
-                    <Badge variant="outline">
-                      {schedulePreview.length} publicações
-                    </Badge>
+                    <div className="flex items-center gap-2">
+                      {formData.schedule_mode !== "automatic" && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setSchedulePreview([]);
+                            setSchedulePreviewSignature("");
+                          }}
+                        >
+                          <RefreshCw size={13} />
+                          Recalcular agenda
+                        </Button>
+                      )}
+                      <Badge variant="outline">
+                        {schedulePreview.length} publicações
+                      </Badge>
+                    </div>
                   </div>
 
                   {schedulePreview.length === 0 ? (
@@ -2795,6 +3110,9 @@ export default function CampanhaPage() {
                           const video = biblioteca.find(
                             item => item.id === slot.contentId
                           );
+                          const slotMusic = musicas.find(
+                            item => item.id === slot.musicTrackId
+                          );
 
                           const scheduledDate = new Date(
                             slot.scheduledFor
@@ -2803,7 +3121,7 @@ export default function CampanhaPage() {
                           return (
                             <div
                               key={`${slot.accountId}-${slot.contentId}-${slot.scheduledFor}-${index}`}
-                              className="grid grid-cols-[190px_1fr_1fr_90px] gap-3 items-center p-3 bg-muted/20"
+                              className="grid grid-cols-1 md:grid-cols-[190px_1fr_1.25fr_90px] gap-3 items-center p-3 bg-muted/20"
                             >
                               <div>
                                 {formData.schedule_mode === "automatic" ? (
@@ -2870,10 +3188,16 @@ export default function CampanhaPage() {
 
                               <div className="min-w-0">
                                 <p className="text-xs text-muted-foreground">
-                                  Vídeo
+                                  Vídeo e música
                                 </p>
                                 <p className="text-sm text-foreground truncate">
                                   {video?.title || slot.contentId}
+                                </p>
+                                <p className="text-xs text-primary truncate mt-0.5">
+                                  <MusicIcon size={11} className="inline mr-1" />
+                                  {slotMusic
+                                    ? `${slotMusic.artista} — ${slotMusic.nome}`
+                                    : "Música não encontrada"}
                                 </p>
                               </div>
 

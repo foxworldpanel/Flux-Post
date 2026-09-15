@@ -215,9 +215,11 @@ export type Database = {
           id: string
           intervalo_max: number | null
           intervalo_min: number | null
+          manual_daily_times: string[]
           music_start_mode: string | null
           music_start_ms: number | null
           music_track_id: string | null
+          music_track_ids: string[]
           music_volume: number | null
           nome: string
           original_audio_volume: number | null
@@ -253,9 +255,11 @@ export type Database = {
           id?: string
           intervalo_max?: number | null
           intervalo_min?: number | null
+          manual_daily_times?: string[]
           music_start_mode?: string | null
           music_start_ms?: number | null
           music_track_id?: string | null
+          music_track_ids?: string[]
           music_volume?: number | null
           nome: string
           original_audio_volume?: number | null
@@ -291,9 +295,11 @@ export type Database = {
           id?: string
           intervalo_max?: number | null
           intervalo_min?: number | null
+          manual_daily_times?: string[]
           music_start_mode?: string | null
           music_start_ms?: number | null
           music_track_id?: string | null
+          music_track_ids?: string[]
           music_volume?: number | null
           nome?: string
           original_audio_volume?: number | null
