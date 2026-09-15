@@ -65,6 +65,53 @@ function selectBestVideoFile(files: PexelsVideoFile[]): PexelsVideoFile | null {
   return files.sort((a, b) => (a.file_size || 0) - (b.file_size || 0))[0];
 }
 
+function derivePexelsTitle(url: string | undefined, videoId: number) {
+  if (!url) return `Pexels Video ${videoId}`;
+
+  try {
+    const segments = new URL(url).pathname.split("/").filter(Boolean);
+    const videoIndex = segments.indexOf("video");
+    const slug = videoIndex >= 0 ? segments[videoIndex + 1] : "";
+    const withoutId = slug.replace(new RegExp("-" + videoId + "$"), "");
+
+    if (withoutId) {
+      return withoutId
+        .split("-")
+        .filter(Boolean)
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(" ");
+    }
+  } catch {
+    // Fall through to the generic title.
+  }
+
+  return `Pexels Video ${videoId}`;
+}
+
+function collectEditorialTags(
+  suppliedVideoData: any,
+  title: string,
+  category: string,
+) {
+  const suppliedTags = Array.isArray(suppliedVideoData?.tags)
+    ? suppliedVideoData.tags.map((tag: any) =>
+        typeof tag === "string" ? tag : tag?.title || tag?.name
+      )
+    : [];
+
+  const titleWords = title
+    .split(/\s+/)
+    .filter(word => word.length > 2 && !/^video$/i.test(word));
+
+  return Array.from(new Set([
+    suppliedVideoData?.search_query,
+    category,
+    title,
+    ...titleWords,
+    ...suppliedTags,
+  ].map(value => String(value || "").trim()).filter(Boolean)));
+}
+
 serve(async (req) => {
   console.log(`[IMPORT] Request received: ${req.method} ${req.url}`);
   console.log(`[IMPORT] SECRETS CHECK: PEXELS_API_KEY=${!!PEXELS_API_KEY}, SUPABASE_URL=${!!SUPABASE_URL}, SUPABASE_SERVICE_ROLE_KEY=${!!SUPABASE_SERVICE_ROLE_KEY}`);
@@ -134,7 +181,7 @@ serve(async (req) => {
 
     console.log(`[IMPORT] user authenticated: ${user.id}`);
 
-    const { videoId, category } = await req.json()
+    const { videoId, category, videoData: suppliedVideoData } = await req.json()
 
     if (!videoId) {
       console.error('[IMPORT] videoId is missing');
@@ -184,6 +231,19 @@ serve(async (req) => {
     }
 
     const videoData: PexelsVideo = await pexelsRes.json()
+    const descriptiveTitle = derivePexelsTitle(videoData.url, videoId)
+    const descriptiveTags = collectEditorialTags(
+      suppliedVideoData,
+      descriptiveTitle,
+      category || 'Outros',
+    )
+    const orientation =
+      videoData.height > videoData.width
+        ? 'portrait'
+        : videoData.width > videoData.height
+        ? 'landscape'
+        : 'square'
+
     console.log('[IMPORT] selecting video file');
     const selectedFile = selectBestVideoFile(videoData.video_files);
 
@@ -235,10 +295,15 @@ serve(async (req) => {
         .from('content_library')
         .insert({
           user_id: user.id,
-          title: `Pexels Video ${videoId}`,
+          title: descriptiveTitle,
           storage_path: fileName,
+          thumbnail_url: videoData.image,
           file_type: 'video',
           category: category || 'Outros',
+          niche: category || 'Outros',
+          tags: descriptiveTags,
+          duration_seconds: videoData.duration,
+          orientation,
           status: 'aprovado',
           source: 'pexels',
           external_id: videoId.toString(),
