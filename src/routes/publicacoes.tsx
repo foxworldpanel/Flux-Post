@@ -38,7 +38,6 @@ const SCHEDULED_STATUSES = new Set([
   "queued",
   "paused",
 ]);
-const SENT_STATUSES = new Set(["publishing", "processing", "published"]);
 const TERMINAL_STATUSES = new Set(["published", "failed", "cancelled", "canceled"]);
 
 const accountLabel = (account: any) => {
