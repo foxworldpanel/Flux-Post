@@ -213,14 +213,35 @@ export default function PublicacoesPage() {
     return grouped;
   }, [publications]);
 
+  const campaignSortTime = (campaign: any, upcoming: boolean) => {
+    const campaignPublications = publicationsByCampaign.get(campaign.id) || [];
+    const publicationTimes = campaignPublications
+      .filter(publication => !upcoming || (
+        SCHEDULED_STATUSES.has(normalizeStatus(publication.status)) &&
+        !publication.provider_post_id
+      ))
+      .map(publication => safeDate(publicationMoment(publication))?.getTime() || 0)
+      .filter(Boolean);
+
+    if (publicationTimes.length > 0) {
+      return upcoming ? Math.min(...publicationTimes) : Math.max(...publicationTimes);
+    }
+
+    return safeDate(campaign.data_inicio || campaign.start_date || campaign.criado_em)?.getTime() || 0;
+  };
+
   const activeCampaigns = useMemo(
-    () => visibleCampaigns.filter(campaign => ACTIVE_CAMPAIGN_STATUSES.has(normalizeStatus(campaign.status))),
-    [visibleCampaigns],
+    () => visibleCampaigns
+      .filter(campaign => ACTIVE_CAMPAIGN_STATUSES.has(normalizeStatus(campaign.status)))
+      .sort((left, right) => campaignSortTime(left, true) - campaignSortTime(right, true)),
+    [visibleCampaigns, publicationsByCampaign],
   );
 
   const finishedCampaigns = useMemo(
-    () => visibleCampaigns.filter(campaign => !ACTIVE_CAMPAIGN_STATUSES.has(normalizeStatus(campaign.status))),
-    [visibleCampaigns],
+    () => visibleCampaigns
+      .filter(campaign => !ACTIVE_CAMPAIGN_STATUSES.has(normalizeStatus(campaign.status)))
+      .sort((left, right) => campaignSortTime(right, false) - campaignSortTime(left, false)),
+    [visibleCampaigns, publicationsByCampaign],
   );
 
   const standalonePublications = useMemo(
