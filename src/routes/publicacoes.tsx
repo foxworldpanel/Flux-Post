@@ -10,7 +10,6 @@ import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
 import { socialService } from "@/services/social";
 
-const STOPPABLE_PUBLICATION_STATUSES = ["agendado", "pending", "scheduled", "waiting_render", "ready_to_post"];
 const normalizeStatus = (status?: string | null) => (status || "").toLowerCase();
 const accountLabel = (account: any) => {
   if (!account) return "Conta";
@@ -69,15 +68,14 @@ export default function PublicacoesPage() {
     const pause = campaign.status === "ativo";
     setChangingCampaign(campaign.id);
     try {
-      const { error: campaignError } = await supabase.from("campanhas").update({ status: pause ? "pausado" : "ativo" }).eq("id", campaign.id);
-      if (campaignError) throw campaignError;
-      if (pause) {
-        const { error } = await supabase.from("publications").update({ status: "paused" }).eq("campaign_id", campaign.id).is("provider_post_id", null).in("status", STOPPABLE_PUBLICATION_STATUSES);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase.from("publications").update({ status: "scheduled" }).eq("campaign_id", campaign.id).is("provider_post_id", null).eq("status", "paused");
-        if (error) throw error;
-      }
+      // One DB transaction changes the campaign and all unsent publications.
+      // Resume also shifts scheduled_for by the paused duration, preventing a backlog burst.
+      const { data, error } = await supabase.rpc("set_campaign_paused", {
+        p_campaign_id: campaign.id,
+        p_paused: pause,
+      });
+      if (error) throw error;
+      if (data && (data as any).ok === false) throw new Error((data as any).error || "Não foi possível alterar a campanha");
       toast.success(pause ? "Campanha pausada" : "Campanha retomada");
       await fetchPublications();
     } catch (err: any) {
