@@ -40,6 +40,8 @@ type MusicTrack = { id: string; nome: string; artista: string; artist_id: string
 type VideoItem = { id: string; title: string; storage_path: string; duration_seconds?: number; };
 type RenderItem = { id: string; source_content_id: string; music_track_id: string; status: string; storage_path: string | null; is_approved?: boolean; error_message?: string | null; };
 
+type EditorialGenerationMode = "music" | "video";
+
 type EditorialCopy = {
   caption: string;
   hashtags: string;
@@ -191,14 +193,24 @@ export default function CampanhaPage() {
       .filter(Boolean);
 
   const [isGeneratingAllEditorial, setIsGeneratingAllEditorial] = useState(false);
+  const [generatingAllEditorialMode, setGeneratingAllEditorialMode] =
+    useState<EditorialGenerationMode | null>(null);
+  const [generatingEditorialModes, setGeneratingEditorialModes] =
+    useState<Record<string, EditorialGenerationMode>>({});
   const [isApprovingAllEditorial, setIsApprovingAllEditorial] = useState(false);
 
   const generateEditorialCopy = async (
     contentId: string,
     contentTitle: string,
+    mode: EditorialGenerationMode,
     silent = false
   ): Promise<boolean> => {
     const current = getEditorialCopy(contentId);
+
+    setGeneratingEditorialModes(previous => ({
+      ...previous,
+      [contentId]: mode,
+    }));
 
     setEditorialCopies(prev => ({
       ...prev,
@@ -215,6 +227,7 @@ export default function CampanhaPage() {
           body: {
             contentId,
             contentTitle,
+            copyMode: mode,
             platform: "generic",
             music: {
               title: selectedMusic?.nome || "",
@@ -259,7 +272,11 @@ export default function CampanhaPage() {
       }));
 
       if (!silent) {
-        toast.success("Legenda e hashtags geradas com Claude.");
+        toast.success(
+          mode === "music"
+            ? "Legenda e hashtags geradas pela música."
+            : "Legenda e hashtags geradas pelo conteúdo do vídeo."
+        );
       }
 
       return true;
@@ -281,6 +298,12 @@ export default function CampanhaPage() {
       }
 
       return false;
+    } finally {
+      setGeneratingEditorialModes(previous => {
+        const next = { ...previous };
+        delete next[contentId];
+        return next;
+      });
     }
   };
 
@@ -332,7 +355,9 @@ export default function CampanhaPage() {
     }
   };
 
-  const generateAllEditorialCopies = async () => {
+  const generateAllEditorialCopies = async (
+    mode: EditorialGenerationMode
+  ) => {
     if (isGeneratingAllEditorial) return;
 
     if (!formData.artist_id) {
@@ -346,6 +371,7 @@ export default function CampanhaPage() {
     }
 
     setIsGeneratingAllEditorial(true);
+    setGeneratingAllEditorialMode(mode);
 
     let successCount = 0;
     let errorCount = 0;
@@ -362,6 +388,7 @@ export default function CampanhaPage() {
         const success = await generateEditorialCopy(
           contentId,
           video.title || "Vídeo",
+          mode,
           true
         );
 
@@ -374,7 +401,7 @@ export default function CampanhaPage() {
 
       if (errorCount === 0) {
         toast.success(
-          `${successCount} ${successCount === 1 ? "conteúdo gerado" : "conteúdos gerados"} com Claude.`
+          `${successCount} ${successCount === 1 ? "conteúdo gerado" : "conteúdos gerados"} ${mode === "music" ? "pela música" : "pelo vídeo"}.`
         );
       } else {
         toast.warning(
@@ -383,6 +410,7 @@ export default function CampanhaPage() {
       }
     } finally {
       setIsGeneratingAllEditorial(false);
+      setGeneratingAllEditorialMode(null);
     }
   };
 
@@ -2172,19 +2200,36 @@ export default function CampanhaPage() {
                     <Button
                       type="button"
                       size="sm"
-                      onClick={generateAllEditorialCopies}
+                      onClick={() => generateAllEditorialCopies("music")}
                       disabled={isGeneratingAllEditorial || !contentQueue.length}
                       className="gap-2"
                     >
-                      {isGeneratingAllEditorial ? (
+                      {generatingAllEditorialMode === "music" ? (
                         <Loader2 size={14} className="animate-spin" />
                       ) : (
-                        <Sparkles size={14} />
+                        <MusicIcon size={14} />
                       )}
+                      {generatingAllEditorialMode === "music"
+                        ? "Gerando pela música..."
+                        : "Gerar todos pela música"}
+                    </Button>
 
-                      {isGeneratingAllEditorial
-                        ? "Gerando todos..."
-                        : "Gerar todos com Claude"}
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => generateAllEditorialCopies("video")}
+                      disabled={isGeneratingAllEditorial || !contentQueue.length}
+                      className="gap-2"
+                    >
+                      {generatingAllEditorialMode === "video" ? (
+                        <Loader2 size={14} className="animate-spin" />
+                      ) : (
+                        <Video size={14} />
+                      )}
+                      {generatingAllEditorialMode === "video"
+                        ? "Gerando pelos vídeos..."
+                        : "Gerar todos pelos vídeos"}
                     </Button>
 
                     <Button
@@ -2221,6 +2266,7 @@ export default function CampanhaPage() {
                     if (!render) return null;
 
                     const copy = getEditorialCopy(id);
+                    const generatingMode = generatingEditorialModes[id];
 
                     return (
                       <div
@@ -2357,21 +2403,46 @@ export default function CampanhaPage() {
                                 variant="outline"
                                 disabled={copy.aiStatus === "generating"}
                                 onClick={() =>
-                                  generateEditorialCopy(video.id, video.title)
+                                  generateEditorialCopy(
+                                    video.id,
+                                    video.title,
+                                    "music"
+                                  )
                                 }
                                 className="gap-2 h-8 text-xs"
                               >
-                                {copy.aiStatus === "generating" ? (
+                                {generatingMode === "music" ? (
                                   <Loader2 size={13} className="animate-spin" />
                                 ) : (
-                                  <Sparkles size={13} />
+                                  <MusicIcon size={13} />
                                 )}
-                                {copy.aiStatus === "generating"
+                                {generatingMode === "music"
                                   ? "Gerando..."
-                                  : copy.aiStatus === "generated" ||
-                                    copy.aiStatus === "edited"
-                                  ? "Gerar outra versão"
-                                  : "Gerar com Claude"}
+                                  : "Gerar pela música"}
+                              </Button>
+
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                disabled={copy.aiStatus === "generating"}
+                                onClick={() =>
+                                  generateEditorialCopy(
+                                    video.id,
+                                    video.title,
+                                    "video"
+                                  )
+                                }
+                                className="gap-2 h-8 text-xs"
+                              >
+                                {generatingMode === "video" ? (
+                                  <Loader2 size={13} className="animate-spin" />
+                                ) : (
+                                  <Video size={13} />
+                                )}
+                                {generatingMode === "video"
+                                  ? "Gerando..."
+                                  : "Gerar pelo vídeo"}
                               </Button>
 
                               <Button
