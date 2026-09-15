@@ -11,7 +11,7 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-const COPY_GENERATOR_BUILD = "v4-priority-hashtags";
+const COPY_GENERATOR_BUILD = "v5-strict-video-hashtags";
 
 type Platform =
   | "instagram"
@@ -383,8 +383,13 @@ PRIMARY COPY SOURCE: VIDEO CONTENT
   niche and tags.
 - The thumbnail is a representative frame only. Do not invent unseen
   actions, locations, people, brands or events.
-- The music may complement the mood, but do not make the track title or
-  artist the central subject unless it is genuinely relevant.
+- Ignore the track title, musical genre and artist genre when selecting
+  descriptive hashtags.
+- Apart from required artist priority hashtags, every hashtag must describe
+  the visible video subject or its concrete theme.
+- Example: a chocolate video should use chocolate/food/dessert hashtags,
+  never Melodic House, Deep House or Electronic Music hashtags.
+- Music attribution is appended separately by the system.
 `
         : `
 PRIMARY COPY SOURCE: MUSIC
@@ -403,6 +408,13 @@ PRIMARY COPY SOURCE: MUSIC
       artistProfile?.blockedHashtags?.length
         ? artistProfile.blockedHashtags.join(" ")
         : "(none)";
+
+    const hashtagSelectionRule =
+      copyMode === "video"
+        ? `- VIDEO MODE: use only hashtags about the visible video content.
+- Do not use track names, music genres or generic electronic-music hashtags.
+- The only artist/music hashtags allowed are those explicitly listed as required/prioritized.`
+        : `- MUSIC MODE: hashtags may describe the track, artist, musical genre and platform context.`;
 
     const standardPrompt = `
 You are the editorial copywriter for a professional music and social media publishing system.
@@ -454,7 +466,7 @@ EDITORIAL RULES:
 - The caption must be ready to publish.
 - Do not write a music attribution/credit line; the system appends it
   automatically in a fixed format.
-- Hashtags must be relevant to the actual content, music and platform.
+${hashtagSelectionRule}
 - Use between 4 and 8 hashtags.
 - Do not repeat hashtags.
 - Return hashtags beginning with #.
@@ -533,10 +545,10 @@ RULES:
 - Do not mention account names or usernames unless the base copy already does.
 - Do not invent facts, places, people, brands, actions or achievements.
 - Do not add a music credit line; the system appends it automatically.
-- Every hashtag set must be relevant and may vary naturally by account.
+- Preserve the approved base hashtag set; do not introduce new hashtags.
 - Always include every required/prioritized hashtag, without duplication.
 - Never use blocked hashtags.
-- Use 4 to 8 hashtags beginning with #.
+- Use hashtags beginning with #.
 - Do not return duplicate captions.
 
 Return ONLY valid JSON in exactly this structure:
@@ -685,7 +697,7 @@ Return ONLY valid JSON in exactly this structure:
             body.music?.title,
           ),
           hashtags: enforceArtistHashtags(
-            variant.hashtags,
+            body.baseCopy?.hashtags || variant.hashtags,
             artistProfile?.priorityHashtags,
             artistProfile?.blockedHashtags,
           ),
