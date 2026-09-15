@@ -12,6 +12,14 @@ import { socialService } from "@/services/social";
 
 const STOPPABLE_PUBLICATION_STATUSES = ["agendado", "pending", "scheduled", "waiting_render", "ready_to_post"];
 const normalizeStatus = (status?: string | null) => (status || "").toLowerCase();
+const accountLabel = (account: any) => {
+  if (!account) return "Conta";
+  const name = account.account_name || "Conta";
+  const rawUsername = account.username?.trim();
+  if (!rawUsername) return name;
+  const username = rawUsername.startsWith("@") ? rawUsername : `@${rawUsername}`;
+  return `${name} • ${username}`;
+};
 
 export default function PublicacoesPage() {
   const [loading, setLoading] = useState(true);
@@ -128,7 +136,7 @@ export default function PublicacoesPage() {
           <div className="space-y-2 flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">{getStatusBadge(pub.status)}<Badge variant="outline" className="border-border text-[10px] text-muted-foreground uppercase font-bold tracking-widest">{pub.platform || pub.social_account?.platform || "-"}</Badge>{pub.campaign_id && campaignNameById.get(pub.campaign_id) && <Badge variant="outline" className="border-border text-[10px] text-muted-foreground">{campaignNameById.get(pub.campaign_id)}</Badge>}</div>
             <h4 className="text-foreground font-medium line-clamp-1">{pub.caption || pub.content?.title || "Sem legenda"}</h4>
-            <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap"><span className="flex items-center gap-1"><Clock size={12} /> {format(new Date(pub.created_at), "dd 'de' MMM, HH:mm", { locale: ptBR })}</span><span className="flex items-center gap-1"><TrendingUp size={12} /> {pub.social_account?.account_name || pub.social_account?.username || "Conta"}</span></div>
+            <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap"><span className="flex items-center gap-1"><Clock size={12} /> {format(new Date(pub.created_at), "dd 'de' MMM, HH:mm", { locale: ptBR })}</span><span className="flex items-center gap-1"><TrendingUp size={12} /> {accountLabel(pub.social_account)}</span></div>
           </div>
           {pub.post_url && <Button variant="outline" size="sm" className="border-border text-foreground text-xs h-8" onClick={() => window.open(pub.post_url, "_blank")}><ExternalLink size={14} className="mr-1" /> Ver Post</Button>}
         </CardContent></Card>)}</div>}
