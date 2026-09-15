@@ -3,11 +3,58 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { corsHeaders, PostPeerClient } from "../_shared/social-helpers.ts";
 import { claimPublicationForPosting } from "../_shared/publication-claim.ts";
 
+const POSTPEER_POST_CREATE_BUILD = "v19-caption-with-hashtags";
+
 const jsonResponse = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
+
+const normalizeHashtags = (value: unknown): string[] => {
+  const rawValues = Array.isArray(value)
+    ? value
+    : typeof value === "string"
+    ? value.replace(/^\{/, "").replace(/\}$/, "").split(/[\s,;]+/)
+    : [];
+
+  const unique = new Map<string, string>();
+
+  for (const rawValue of rawValues) {
+    for (const token of String(rawValue).split(/[\s,;]+/)) {
+      const clean = token
+        .trim()
+        .replace(/^["']+|["']+$/g, "")
+        .replace(/^#+/, "")
+        .replace(/\s+/g, "");
+
+      if (!clean) continue;
+
+      const key = clean.toLocaleLowerCase();
+      if (!unique.has(key)) unique.set(key, "#" + clean);
+    }
+  }
+
+  return Array.from(unique.values());
+};
+
+const buildProviderContent = (caption: unknown, hashtags: unknown): string => {
+  const cleanCaption = typeof caption === "string" ? caption.trim() : "";
+  const existingHashtags = new Set(
+    (cleanCaption.match(/#[^\s#]+/g) || []).map(tag =>
+      tag.replace(/^#+/, "").replace(/[.,;:!?]+$/g, "").toLocaleLowerCase()
+    )
+  );
+
+  const missingHashtags = normalizeHashtags(hashtags).filter(tag =>
+    !existingHashtags.has(tag.slice(1).toLocaleLowerCase())
+  );
+
+  if (!missingHashtags.length) return cleanCaption;
+  return cleanCaption
+    ? cleanCaption + "\n\n" + missingHashtags.join(" ")
+    : missingHashtags.join(" ");
+};
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders, status: 204 });
@@ -89,6 +136,7 @@ serve(async (req) => {
 
     const postpeer = new PostPeerClient(postpeerApiKey);
     const normalizedPlatform = platform.toLowerCase();
+    const providerContent = buildProviderContent(pub.caption, pub.hashtags);
     const youtubeTitle = (pub.caption || "Flux Post").replace(/\s+/g, " ").trim().slice(0, 100) || "Flux Post";
     const platformConfig = normalizedPlatform === "youtube"
       ? { platform, accountId: account.provider_connection_id, platformSpecificData: { title: youtubeTitle, visibility: "public" as const, categoryId: "10", madeForKids: false } }
@@ -96,7 +144,7 @@ serve(async (req) => {
 
     const payload = {
       platforms: [platformConfig],
-      content: pub.caption || "",
+      content: providerContent,
       mediaItems: [{ url: signedUrlData.signedUrl, type: "video" as const }],
       timezone: pub.timezone || "America/Sao_Paulo",
       publishNow: true,
@@ -110,7 +158,15 @@ serve(async (req) => {
       return jsonResponse({ error: "Publication blocked by safety guard", reason: claim.reason }, 409);
     }
 
-    console.log("[postpeer-post-create] Sending publication", { publicationId, platform, accountId: account.provider_connection_id, bucketName, publishNow: true });
+    console.log("[postpeer-post-create] Sending publication", {
+      build: POSTPEER_POST_CREATE_BUILD,
+      publicationId,
+      platform,
+      accountId: account.provider_connection_id,
+      bucketName,
+      hashtagCount: normalizeHashtags(pub.hashtags).length,
+      publishNow: true,
+    });
     const response = await postpeer.createPost(payload);
     if (!response?.postId) throw new Error("PostPeer returned no post ID");
 
@@ -131,7 +187,12 @@ serve(async (req) => {
       return jsonResponse({ error: "Post created on provider but local update failed", provider_post_id: response.postId }, 500);
     }
 
-    return jsonResponse({ success: true, postId: response.postId, status: updatePayload.status });
+    return jsonResponse({
+      success: true,
+      build: POSTPEER_POST_CREATE_BUILD,
+      postId: response.postId,
+      status: updatePayload.status,
+    });
   } catch (err: any) {
     console.error("[postpeer-post-create] Error:", err?.message || String(err));
     return jsonResponse({ error: err?.message || "Internal server error" }, 500);
