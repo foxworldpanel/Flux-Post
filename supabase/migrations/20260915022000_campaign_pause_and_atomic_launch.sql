@@ -112,7 +112,7 @@ BEGIN
       nome=p_campaign->>'nome', artist_id=NULLIF(p_campaign->>'artist_id','')::uuid,
       music_track_id=v_music_id, posts_por_dia=(p_campaign->>'posts_por_dia')::int,
       hora_inicio=(p_campaign->>'hora_inicio')::int, hora_fim=(p_campaign->>'hora_fim')::int,
-      daily_start_time=p_campaign->>'daily_start_time', daily_end_time=p_campaign->>'daily_end_time',
+      daily_start_time=NULLIF(p_campaign->>'daily_start_time','')::time, daily_end_time=NULLIF(p_campaign->>'daily_end_time','')::time,
       schedule_mode=p_campaign->>'schedule_mode', intervalo_min=(p_campaign->>'intervalo_min')::int,
       intervalo_max=(p_campaign->>'intervalo_max')::int, data_inicio=(p_campaign->>'data_inicio')::date,
       data_fim=(p_campaign->>'data_fim')::date, audio_mode=p_campaign->>'audio_mode',
@@ -123,7 +123,7 @@ BEGIN
     DELETE FROM public.campaign_social_accounts WHERE campaign_id=v_campaign_id;
   ELSE
     INSERT INTO public.campanhas(user_id,nome,artist_id,music_track_id,posts_por_dia,hora_inicio,hora_fim,daily_start_time,daily_end_time,schedule_mode,intervalo_min,intervalo_max,data_inicio,data_fim,audio_mode,music_volume,original_audio_volume,music_start_ms,status)
-    VALUES(v_user,p_campaign->>'nome',NULLIF(p_campaign->>'artist_id','')::uuid,v_music_id,(p_campaign->>'posts_por_dia')::int,(p_campaign->>'hora_inicio')::int,(p_campaign->>'hora_fim')::int,p_campaign->>'daily_start_time',p_campaign->>'daily_end_time',p_campaign->>'schedule_mode',(p_campaign->>'intervalo_min')::int,(p_campaign->>'intervalo_max')::int,(p_campaign->>'data_inicio')::date,(p_campaign->>'data_fim')::date,p_campaign->>'audio_mode',(p_campaign->>'music_volume')::numeric,(p_campaign->>'original_audio_volume')::numeric,(p_campaign->>'music_start_ms')::int,'ativo') RETURNING id INTO v_campaign_id;
+    VALUES(v_user,p_campaign->>'nome',NULLIF(p_campaign->>'artist_id','')::uuid,v_music_id,(p_campaign->>'posts_por_dia')::int,(p_campaign->>'hora_inicio')::int,(p_campaign->>'hora_fim')::int,NULLIF(p_campaign->>'daily_start_time','')::time,NULLIF(p_campaign->>'daily_end_time','')::time,p_campaign->>'schedule_mode',(p_campaign->>'intervalo_min')::int,(p_campaign->>'intervalo_max')::int,(p_campaign->>'data_inicio')::date,(p_campaign->>'data_fim')::date,p_campaign->>'audio_mode',(p_campaign->>'music_volume')::numeric,(p_campaign->>'original_audio_volume')::numeric,(p_campaign->>'music_start_ms')::int,'ativo') RETURNING id INTO v_campaign_id;
   END IF;
 
   FOR v_content IN SELECT value FROM jsonb_array_elements(p_contents)
