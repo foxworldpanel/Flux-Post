@@ -29,7 +29,6 @@ export const socialService = {
       .select('*')
       .neq('status', 'archived')
       .order('created_at', { ascending: false });
-    
     if (error) throw error;
     return data as SocialAccount[];
   },
@@ -40,7 +39,6 @@ export const socialService = {
       .select('*')
       .eq('connection_status', 'conectada')
       .eq('status', 'active');
-    
     if (error) throw error;
     return data as SocialAccount[];
   },
@@ -52,7 +50,6 @@ export const socialService = {
       .eq('id', id)
       .select()
       .single();
-    
     if (error) throw error;
     return data;
   },
@@ -62,22 +59,17 @@ export const socialService = {
       .from('social_accounts')
       .update({ status: 'archived' })
       .eq('id', id);
-    
     if (error) throw error;
   },
 
   async startConnection(platform: SocialPlatform) {
-    const { data, error } = await supabase.functions.invoke('tiktok-oauth-start', {
-      body: { platform }
-    });
+    const { data, error } = await supabase.functions.invoke('tiktok-oauth-start', { body: { platform } });
     if (error) throw error;
     return data;
   },
 
   async connectAccount(accountId: string) {
-    const { data, error } = await supabase.functions.invoke('postpeer-connect', {
-      body: { accountId }
-    });
+    const { data, error } = await supabase.functions.invoke('postpeer-connect', { body: { accountId } });
     if (error) throw error;
     return data;
   },
@@ -85,19 +77,13 @@ export const socialService = {
   async disconnectAccount(id: string) {
     const { error } = await supabase
       .from('social_accounts')
-      .update({ 
-        connection_status: 'nao_conectada',
-        provider_connection_id: null 
-      })
+      .update({ connection_status: 'nao_conectada', provider_connection_id: null })
       .eq('id', id);
-    
     if (error) throw error;
   },
 
   async syncAccount(id: string) {
-    const { data, error } = await supabase.functions.invoke('postpeer-sync', {
-      body: { accountId: id }
-    });
+    const { data, error } = await supabase.functions.invoke('postpeer-sync', { body: { accountId: id } });
     if (error) throw error;
     return data;
   },
@@ -115,40 +101,45 @@ export const socialService = {
 
     const { data, error } = await supabase
       .from('publications')
-      .insert({
-        ...payload,
-        user_id: user.id,
-        status: payload.scheduled_for ? 'scheduled' : 'publishing'
-      })
+      .insert({ ...payload, user_id: user.id, status: payload.scheduled_for ? 'scheduled' : 'publishing' })
       .select()
       .single();
-
     if (error) throw error;
 
-      // Agendado: o campaign-dispatcher será o único responsável pelo envio.
-      if (payload.scheduled_for) {
-        return {
-          publication: data,
-          providerResponse: null
-        };
-      }
+    if (payload.scheduled_for) return { publication: data, providerResponse: null };
 
-      // Imediato: envia ao PostPeer agora.
-      const { data: funcData, error: funcError } = await supabase.functions.invoke('postpeer-post-create', {
-        body: { publicationId: data.id }
-      });
-
-      if (funcError) throw funcError;
-
-      return {
-        publication: data,
-        providerResponse: funcData
-      };
+    const { data: funcData, error: funcError } = await supabase.functions.invoke('postpeer-post-create', {
+      body: { publicationId: data.id }
+    });
+    if (funcError) throw funcError;
+    return { publication: data, providerResponse: funcData };
   },
 
   async syncPostStatuses() {
-    const { data, error } = await supabase.functions.invoke('postpeer-post-sync');
-    if (error) throw error;
+    const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+    if (sessionError) throw sessionError;
+    const token = sessionData.session?.access_token;
+    if (!token) throw new Error('Sessão expirada. Faça login novamente.');
+
+    const { data, error } = await supabase.functions.invoke('postpeer-post-sync', {
+      body: {},
+      headers: { Authorization: `Bearer ${token}` }
+    });
+
+    if (error) {
+      let detail = error.message || 'Falha ao chamar sincronizador';
+      const context = (error as any)?.context;
+      if (context instanceof Response) {
+        try {
+          const body = await context.clone().text();
+          detail = `HTTP ${context.status}${body ? ` - ${body}` : ''}`;
+        } catch {
+          detail = `HTTP ${context.status} - ${detail}`;
+        }
+      }
+      throw new Error(detail);
+    }
+    if (data?.error) throw new Error(data.error);
     return data;
   }
 };
