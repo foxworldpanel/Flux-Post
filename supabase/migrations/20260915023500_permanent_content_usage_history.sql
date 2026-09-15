@@ -31,14 +31,8 @@ AS $$
 BEGIN
   IF NEW.user_id IS NOT NULL AND NEW.external_id IS NOT NULL AND btrim(NEW.external_id) <> '' THEN
     INSERT INTO public.content_usage_history(user_id, source, external_id, content_id, first_seen_at, last_seen_at, used_at)
-    VALUES(
-      NEW.user_id,
-      lower(COALESCE(NULLIF(NEW.source,''),'unknown')),
-      NEW.external_id,
-      NEW.id,
-      now(), now(),
-      CASE WHEN NEW.status='used' THEN now() ELSE NULL END
-    )
+    VALUES(NEW.user_id, lower(COALESCE(NULLIF(NEW.source,''),'unknown')), NEW.external_id, NEW.id, now(), now(),
+      CASE WHEN NEW.status='used' THEN now() ELSE NULL END)
     ON CONFLICT (user_id, source, external_id) DO UPDATE SET
       content_id = COALESCE(public.content_usage_history.content_id, EXCLUDED.content_id),
       last_seen_at = now(),
@@ -78,22 +72,42 @@ CREATE TRIGGER trg_remember_publication_external_content
 AFTER INSERT OR UPDATE OF source_external_id, source_provider, status, provider_post_id ON public.publications
 FOR EACH ROW EXECUTE FUNCTION public.remember_publication_external_content();
 
--- Backfill all provider IDs we still know about.
+-- Backfill all provider IDs we still know about. Aggregate first so each primary
+-- key appears only once per INSERT; PostgreSQL rejects an ON CONFLICT statement
+-- that tries to update the same target row twice in one command.
 INSERT INTO public.content_usage_history(user_id, source, external_id, content_id, first_seen_at, last_seen_at, used_at)
-SELECT c.user_id, lower(COALESCE(NULLIF(c.source,''),'unknown')), c.external_id, c.id,
-       COALESCE(c.created_at,now()), now(), CASE WHEN c.status='used' THEN COALESCE(c.last_used_at,now()) ELSE NULL END
+SELECT c.user_id,
+       lower(COALESCE(NULLIF(c.source,''),'unknown')) AS source,
+       c.external_id,
+       (array_agg(c.id ORDER BY c.created_at NULLS LAST))[1] AS content_id,
+       COALESCE(min(c.created_at),now()) AS first_seen_at,
+       now(),
+       max(CASE WHEN c.status='used' THEN COALESCE(c.last_used_at,c.updated_at,c.created_at,now()) ELSE NULL END) AS used_at
 FROM public.content_library c
 WHERE c.user_id IS NOT NULL AND c.external_id IS NOT NULL AND btrim(c.external_id)<>''
+GROUP BY c.user_id, lower(COALESCE(NULLIF(c.source,''),'unknown')), c.external_id
 ON CONFLICT (user_id,source,external_id) DO UPDATE SET
-  content_id=COALESCE(public.content_usage_history.content_id,EXCLUDED.content_id), last_seen_at=now(),
+  content_id=COALESCE(public.content_usage_history.content_id,EXCLUDED.content_id),
+  first_seen_at=LEAST(public.content_usage_history.first_seen_at,EXCLUDED.first_seen_at),
+  last_seen_at=now(),
   used_at=COALESCE(public.content_usage_history.used_at,EXCLUDED.used_at);
 
 INSERT INTO public.content_usage_history(user_id, source, external_id, content_id, first_seen_at, last_seen_at, used_at)
-SELECT p.user_id, lower(COALESCE(NULLIF(p.source_provider,''),'unknown')), p.source_external_id, p.content_id,
-       COALESCE(p.created_at,now()), now(),
-       CASE WHEN p.provider_post_id IS NOT NULL OR p.status IN ('publishing','processing','published') THEN COALESCE(p.published_at,p.updated_at,now()) ELSE NULL END
+SELECT p.user_id,
+       lower(COALESCE(NULLIF(p.source_provider,''),'unknown')) AS source,
+       p.source_external_id,
+       (array_agg(p.content_id ORDER BY p.created_at NULLS LAST) FILTER (WHERE p.content_id IS NOT NULL))[1] AS content_id,
+       COALESCE(min(p.created_at),now()) AS first_seen_at,
+       now(),
+       max(CASE WHEN p.provider_post_id IS NOT NULL OR p.status IN ('publishing','processing','published')
+                THEN COALESCE(p.published_at,p.updated_at,p.created_at,now()) ELSE NULL END) AS used_at
 FROM public.publications p
 WHERE p.user_id IS NOT NULL AND p.source_external_id IS NOT NULL AND btrim(p.source_external_id)<>''
+GROUP BY p.user_id, lower(COALESCE(NULLIF(p.source_provider,''),'unknown')), p.source_external_id
 ON CONFLICT (user_id,source,external_id) DO UPDATE SET
-  content_id=COALESCE(public.content_usage_history.content_id,EXCLUDED.content_id), last_seen_at=now(),
+  content_id=COALESCE(public.content_usage_history.content_id,EXCLUDED.content_id),
+  first_seen_at=LEAST(public.content_usage_history.first_seen_at,EXCLUDED.first_seen_at),
+  last_seen_at=now(),
   used_at=COALESCE(public.content_usage_history.used_at,EXCLUDED.used_at);
+
+NOTIFY pgrst, 'reload schema';
