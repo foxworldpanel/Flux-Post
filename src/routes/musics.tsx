@@ -257,18 +257,21 @@ export default function MusicsPage() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-foreground font-display">
+      <div className="mx-auto w-full max-w-[1440px] space-y-8 px-4 pb-12 pt-6 sm:px-6 sm:pt-8 lg:px-10 xl:px-12">
+        <div className="flex flex-col gap-5 border-b border-border/70 pb-6 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <p className="eyebrow mb-2">Catálogo de áudio</p>
+            <h1 className="text-2xl font-bold text-foreground font-display sm:text-3xl">
               Biblioteca de Músicas
             </h1>
-            <p className="text-muted-foreground">Gerencie suas trilhas sonoras para automação.</p>
+            <p className="mt-1 text-sm text-muted-foreground sm:text-base">
+              Gerencie as trilhas usadas nas campanhas e na rotação automática.
+            </p>
           </div>
 
           <Dialog open={isModalOpen} onOpenChange={setIsSidebarOpen}>
             <DialogTrigger asChild>
-              <Button className="bg-[#7C3AED] hover:bg-[#6D28D9] text-white gap-2">
+              <Button className="w-full shrink-0 gap-2 bg-[#7C3AED] text-white hover:bg-[#6D28D9] sm:w-auto">
                 <Plus size={18} />
                 Adicionar Música
               </Button>
@@ -344,7 +347,7 @@ export default function MusicsPage() {
         </div>
 
         {loading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
             {[1, 2, 3].map((i) => (
               <div key={i} className="h-48 rounded-xl bg-card animate-pulse border border-border" />
             ))}
@@ -364,15 +367,19 @@ export default function MusicsPage() {
             </CardContent>
           </Card>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
             {musics.map((music) => (
               <Card
                 key={music.id}
-                className="bg-card border-border hover:border-border transition-all overflow-hidden group"
+                className="group overflow-hidden border-border bg-card transition-all hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-lg"
               >
-                <CardHeader className="pb-2 relative">
-                  <div className="absolute top-4 right-4 flex gap-2">
-                    <div className="flex flex-col gap-1 items-end">
+                <CardHeader className="space-y-4 pb-3">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#7C3AED]/15 ring-1 ring-[#7C3AED]/15">
+                      <Music className="text-[#7C3AED]" size={24} />
+                    </div>
+
+                    <div className="flex flex-wrap justify-end gap-1.5">
                       {music.campanha_ativa && (
                         <Badge variant="success" className="gap-1">
                           <CheckCircle2 size={12} />
@@ -393,28 +400,30 @@ export default function MusicsPage() {
                           Disponível
                         </Badge>
                       )}
+                      {music.estilo && (
+                        <Badge variant="secondary" className="border-border bg-muted/50 capitalize">
+                          {music.estilo}
+                        </Badge>
+                      )}
                     </div>
-                    <Badge variant="secondary" className="bg-muted/50 border-border capitalize">
-                      {music.estilo}
-                    </Badge>
-                  </div>
-                  <div className="w-12 h-12 rounded-lg bg-[#7C3AED]/20 flex items-center justify-center mb-2">
-                    <Music className="text-[#7C3AED]" size={24} />
-                  </div>
-                  <CardTitle className="text-foreground text-lg font-bold font-display line-clamp-1">
-                    {music.nome}
-                  </CardTitle>
-                  <p className="text-sm text-muted-foreground">
-                    {music.artists?.name || "Artista desconhecido"}
-                  </p>
-                </CardHeader>
-                <CardContent className="pt-0 space-y-4">
-                  <div className="flex justify-between text-xs text-muted-foreground font-medium">
-                    <span>{formatDuration(music.duracao_segundos)}</span>
-                    <span>Usada {music.vezes_usada || 0} vezes</span>
                   </div>
 
-                  <div className="flex gap-2 pt-2 border-t border-border">
+                  <div className="min-w-0">
+                    <CardTitle className="line-clamp-2 text-lg font-bold leading-snug text-foreground font-display">
+                      {music.nome}
+                    </CardTitle>
+                    <p className="mt-1 truncate text-sm text-muted-foreground">
+                      {music.artists?.name || "Artista desconhecido"}
+                    </p>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4 pt-0">
+                  <div className="flex items-center justify-between rounded-xl bg-muted/35 px-3 py-2.5 text-xs font-medium text-muted-foreground">
+                    <span>Duração: {formatDuration(music.duracao_segundos)}</span>
+                    <span>{music.vezes_usada || 0} utilizações</span>
+                  </div>
+
+                  <div className="flex gap-2 border-t border-border pt-3">
                     <Button
                       variant="ghost"
                       className={`flex-1 gap-2 text-xs ${music.campanha_ativa ? "text-emerald-500 hover:text-emerald-400" : "text-muted-foreground hover:text-foreground"} hover:bg-muted/50`}
