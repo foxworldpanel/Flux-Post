@@ -197,6 +197,26 @@ export default function CampanhaPage() {
       .map(tag => tag.trim())
       .filter(Boolean);
 
+  const appendMusicCreditToCaption = (
+    caption: string,
+    music: MusicTrack
+  ) => {
+    const cleanCaption = caption
+      .trim()
+      .replace(/\n*🎵?\s*Música\s*:[^\n]*$/iu, "")
+      .trim();
+    const artist = music.artista?.trim();
+    const title = music.nome?.trim();
+
+    if (!title) return cleanCaption;
+
+    const credit = artist
+      ? `🎵 Música: ${artist} — ${title}`
+      : `🎵 Música: ${title}`;
+
+    return cleanCaption ? `${cleanCaption}\n\n${credit}` : credit;
+  };
+
   const [isGeneratingAllEditorial, setIsGeneratingAllEditorial] = useState(false);
   const [generatingAllEditorialMode, setGeneratingAllEditorialMode] =
     useState<EditorialGenerationMode | null>(null);
@@ -444,7 +464,10 @@ export default function CampanhaPage() {
       for (const contentId of contentIds) {
         const baseCopy = getEditorialCopy(contentId);
         result.set(keyFor(contentId, accounts[0].id), {
-          caption: baseCopy.caption.trim(),
+          caption: appendMusicCreditToCaption(
+            baseCopy.caption,
+            launchMusic
+          ),
           hashtags: mergeArtistHashtags(baseCopy.hashtags),
         });
       }
