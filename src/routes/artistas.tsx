@@ -266,21 +266,45 @@ export default function ArtistasPage() {
                           <span className="text-muted-foreground text-xs italic">Nenhuma hashtag cadastrada</span>
                         )}
                       </div>
+                      {normalizeList(artist.blocked_hashtags).length > 0 && (
+                        <p className="mt-2 text-[11px] text-red-400/70">
+                          {normalizeList(artist.blocked_hashtags).length} {normalizeList(artist.blocked_hashtags).length === 1 ? "hashtag bloqueada" : "hashtags bloqueadas"}
+                        </p>
+                      )}
                     </div>
                   </div>
 
                   <div className="space-y-4">
                     <div>
-                      <label className="text-xs font-semibold text-muted-foreground uppercase flex items-center gap-2 mb-1">
-                        <MessageSquare size={12} /> Identidade
-                      </label>
+                      <div className="flex items-center justify-between gap-3 mb-1">
+                        <label className="text-xs font-semibold text-muted-foreground uppercase flex items-center gap-2">
+                          <MessageSquare size={12} /> Identidade
+                        </label>
+                        <Badge variant="outline" className="border-border text-[10px] text-muted-foreground">
+                          {artist.primary_language || "pt-BR"}
+                        </Badge>
+                      </div>
                       <p className="text-sm text-muted-foreground leading-relaxed italic line-clamp-3">
                         {artist.communication_identity ? `"${artist.communication_identity}"` : "Nenhuma identidade definida."}
                       </p>
                     </div>
+                    <div>
+                      <label className="text-xs font-semibold text-muted-foreground uppercase flex items-center gap-2 mb-1">
+                        <Sparkles size={12} className="text-purple-400" /> Briefing para IA
+                      </label>
+                      <p className="text-sm text-muted-foreground leading-relaxed line-clamp-3">
+                        {artist.ai_briefing || "Nenhum briefing definido."}
+                      </p>
+                    </div>
+                    {artist.description && (
+                      <div>
+                        <label className="text-xs font-semibold text-muted-foreground uppercase mb-1 block">Descrição</label>
+                        <p className="text-sm text-muted-foreground leading-relaxed line-clamp-2">{artist.description}</p>
+                      </div>
+                    )}
                     <div className="pt-2">
                       <Button onClick={() => handleOpenEdit(artist)} variant="outline" className="w-full border-border hover:bg-muted/50 text-slate-300">
-                        Editar Perfil Completo
+                        Editar perfil completo
                       </Button>
                     </div>
                   </div>
