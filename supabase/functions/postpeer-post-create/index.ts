@@ -97,6 +97,33 @@ serve(async (req) => {
     if (!pub) return jsonResponse({ error: "Publication not found or unauthorized" }, 404);
     if (pub.provider_post_id) return jsonResponse({ error: "Post already exists on provider", provider_post_id: pub.provider_post_id }, 409);
 
+    let publicationHashtags: unknown = pub.hashtags;
+
+    // Compatibility for campaigns scheduled before hashtags were copied to publications.
+    // Account-specific publication hashtags remain the primary source.
+    if (
+      normalizeHashtags(publicationHashtags).length === 0 &&
+      pub.campaign_id &&
+      pub.content_id
+    ) {
+      const { data: campaignContent, error: campaignContentError } =
+        await supabaseAdmin
+          .from("campaign_contents")
+          .select("hashtags")
+          .eq("campaign_id", pub.campaign_id)
+          .eq("content_id", pub.content_id)
+          .maybeSingle();
+
+      if (campaignContentError) {
+        console.warn(
+          "[postpeer-post-create] Editorial hashtag fallback failed:",
+          campaignContentError.message,
+        );
+      } else if (campaignContent?.hashtags) {
+        publicationHashtags = campaignContent.hashtags;
+      }
+    }
+
     const { data: account, error: accountError } = await supabaseAdmin.from("social_accounts")
       .select("id,platform,provider,provider_connection_id,provider_profile_id,connection_status")
       .eq("id", pub.social_account_id).maybeSingle();
@@ -136,7 +163,7 @@ serve(async (req) => {
 
     const postpeer = new PostPeerClient(postpeerApiKey);
     const normalizedPlatform = platform.toLowerCase();
-    const providerContent = buildProviderContent(pub.caption, pub.hashtags);
+    const providerContent = buildProviderContent(pub.caption, publicationHashtags);
     const youtubeTitle = (pub.caption || "Flux Post").replace(/\s+/g, " ").trim().slice(0, 100) || "Flux Post";
     const platformConfig = normalizedPlatform === "youtube"
       ? { platform, accountId: account.provider_connection_id, platformSpecificData: { title: youtubeTitle, visibility: "public" as const, categoryId: "10", madeForKids: false } }
@@ -164,7 +191,7 @@ serve(async (req) => {
       platform,
       accountId: account.provider_connection_id,
       bucketName,
-      hashtagCount: normalizeHashtags(pub.hashtags).length,
+      hashtagCount: normalizeHashtags(publicationHashtags).length,
       publishNow: true,
     });
     const response = await postpeer.createPost(payload);
