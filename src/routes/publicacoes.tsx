@@ -3,6 +3,16 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Activity,
   AlertCircle,
   Calendar,
@@ -17,6 +27,7 @@ import {
   RefreshCw,
   Send,
   TrendingUp,
+  Trash2,
   Users,
   XCircle,
 } from "lucide-react";
@@ -77,6 +88,8 @@ export default function PublicacoesPage() {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [changingCampaign, setChangingCampaign] = useState<string | null>(null);
+  const [deletingCampaign, setDeletingCampaign] = useState<string | null>(null);
+  const [campaignToDelete, setCampaignToDelete] = useState<any | null>(null);
   const [expandedCampaign, setExpandedCampaign] = useState<string | null>(null);
   const [showFinished, setShowFinished] = useState(false);
   const [publications, setPublications] = useState<any[]>([]);
@@ -152,6 +165,38 @@ export default function PublicacoesPage() {
       toast.error("Erro ao alterar campanha: " + (err?.message || String(err)));
     } finally {
       setChangingCampaign(null);
+    }
+  };
+
+  const deleteCampaign = async () => {
+    if (!campaignToDelete?.id) return;
+
+    setDeletingCampaign(campaignToDelete.id);
+    try {
+      const { data, error } = await (supabase as any).rpc("delete_campaign_atomic", {
+        p_campaign_id: campaignToDelete.id,
+      });
+      if (error) throw error;
+      if (!data || (data as any).ok !== true) {
+        throw new Error((data as any)?.error || "O banco não confirmou a exclusão");
+      }
+
+      const removed = Number((data as any).removed_publications || 0);
+      const preserved = Number((data as any).preserved_publications || 0);
+      setCampaignToDelete(null);
+      setExpandedCampaign(current =>
+        current === campaignToDelete.id ? null : current
+      );
+      toast.success(
+        preserved > 0
+          ? `Campanha excluída. ${removed} agendamentos removidos e ${preserved} posts publicados preservados no histórico.`
+          : `Campanha excluída. ${removed} agendamentos removidos.`
+      );
+      await fetchPublications();
+    } catch (err: any) {
+      toast.error("Erro ao excluir campanha: " + (err?.message || String(err)));
+    } finally {
+      setDeletingCampaign(null);
     }
   };
 
@@ -421,6 +466,18 @@ export default function PublicacoesPage() {
                 : <Play className="w-4 h-4 mr-2" />}
               {normalizeStatus(campaign.status) === "ativo" ? "Pausar" : "Retomar"}
             </Button>}
+            <Button
+              variant="outline"
+              size="sm"
+              className="border-red-500/30 text-red-400 hover:bg-red-500/10 hover:text-red-300"
+              disabled={deletingCampaign === campaign.id || changingCampaign === campaign.id}
+              onClick={() => setCampaignToDelete(campaign)}
+            >
+              {deletingCampaign === campaign.id
+                ? <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                : <Trash2 className="w-4 h-4 mr-2" />}
+              Excluir
+            </Button>
           </div>
 
           {expanded && <div className="border-t border-border pt-4">
@@ -438,6 +495,39 @@ export default function PublicacoesPage() {
   };
 
   return <DashboardLayout>
+    <AlertDialog
+      open={Boolean(campaignToDelete)}
+      onOpenChange={open => {
+        if (!open && !deletingCampaign) setCampaignToDelete(null);
+      }}
+    >
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Excluir esta campanha?</AlertDialogTitle>
+          <AlertDialogDescription className="space-y-2">
+            <span className="block">
+              A campanha <strong className="text-foreground">{campaignToDelete?.nome || "sem nome"}</strong> será removida permanentemente.
+            </span>
+            <span className="block">
+              Agendamentos ainda não enviados serão cancelados. Posts já publicados nas redes serão preservados no histórico e não serão apagados das plataformas.
+            </span>
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={Boolean(deletingCampaign)}>Manter campanha</AlertDialogCancel>
+          <AlertDialogAction
+            disabled={Boolean(deletingCampaign)}
+            onClick={event => {
+              event.preventDefault();
+              void deleteCampaign();
+            }}
+            className="bg-red-600 text-white hover:bg-red-500"
+          >
+            {deletingCampaign ? "Excluindo..." : "Excluir campanha"}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
     <div className="max-w-7xl mx-auto p-4 md:p-8 space-y-8 animate-in fade-in duration-500">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
         <div>
