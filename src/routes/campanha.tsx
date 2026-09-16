@@ -2282,6 +2282,7 @@ export default function CampanhaPage({ mode = "traditional" }: { mode?: "traditi
       // A partir daqui não fazemos mais gravações parciais. O plano já foi
       // validado acima e é enviado inteiro para uma única transação no banco.
       const campaignPayload = {
+        campaign_type: isStudioFlow ? "studio_ai" : "traditional",
         nome: formData.nome.trim(),
         artist_id: formData.artist_id,
         music_track_id: formData.music_track_id,
@@ -3441,7 +3442,10 @@ export default function CampanhaPage({ mode = "traditional" }: { mode?: "traditi
                                 <p className="text-xs text-primary truncate mt-0.5">
                                   <MusicIcon size={11} className="inline mr-1" />
                                   {slotMusic
-                                    ? `${slotMusic.artista} — ${slotMusic.nome}`
+                                    ? [slotMusic.artista, slotMusic.nome]
+                                        .map(value => String(value || "").trim())
+                                        .filter(value => value && value !== "null")
+                                        .join(" — ") || "Música selecionada"
                                     : "Música não encontrada"}
                                 </p>
                               </div>
@@ -3466,14 +3470,14 @@ export default function CampanhaPage({ mode = "traditional" }: { mode?: "traditi
                   <Sparkles size={17} className="text-primary mt-0.5 flex-shrink-0" />
                   <div>
                     <p className="text-sm font-medium text-foreground">
-                      Legendas exclusivas por conta
+                      {isStudioFlow
+                        ? "Descrições prontas para publicação"
+                        : "Legendas exclusivas por conta"}
                     </p>
                     <p className="text-xs text-muted-foreground mt-1">
-                      Cada conta receberá uma ordem diferente de vídeos e o
-                      Claude criará uma variação natural de legenda para cada
-                      publicação, preservando a música e as hashtags fixas do
-                      artista. Se alguma versão falhar, a campanha não será
-                      lançada parcialmente.
+                      {isStudioFlow
+                        ? "Cada vídeo usará a descrição e as hashtags aprovadas no Studio IA. O lote será agendado sem gerar novos textos e sem alterar o áudio final."
+                        : "Cada conta receberá uma ordem diferente de vídeos e o Claude criará uma variação natural de legenda para cada publicação, preservando a música e as hashtags fixas do artista. Se alguma versão falhar, a campanha não será lançada parcialmente."}
                     </p>
                   </div>
                 </div>
