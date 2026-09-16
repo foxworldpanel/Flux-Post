@@ -218,7 +218,11 @@ export default function StudioIaPage() {
       }
 
       setVoices(data.voices);
-      setSelectedVoiceId(current => current || data.voices[0]?.id || "");
+      setSelectedVoiceId(current =>
+        data.voices.some((voice: ElevenLabsVoice) => voice.id === current)
+          ? current
+          : data.voices[0]?.id || "",
+      );
     } catch (error: any) {
       setVoiceConfigError(error?.message || "ElevenLabs não configurado.");
     } finally {
