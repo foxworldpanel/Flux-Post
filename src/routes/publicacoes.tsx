@@ -391,17 +391,17 @@ export default function PublicacoesPage() {
 
     return <Card
       key={campaign.id}
-      className={"overflow-hidden bg-card border-border transition-colors " + (normalizeStatus(campaign.status) === "ativo" ? "border-primary/35" : "")}
+      className={"h-full overflow-hidden bg-card border-border transition-colors " + (normalizeStatus(campaign.status) === "ativo" ? "border-primary/35" : "")}
     >
-      <CardContent className={compact ? "p-4" : "p-5 md:p-6"}>
-        <div className="flex flex-col gap-5">
-          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
-            <div className="min-w-0">
-              <div className="flex items-center gap-2 flex-wrap mb-2">
-                <h3 className="text-lg font-semibold text-foreground truncate">{campaign.nome || "Campanha sem nome"}</h3>
+      <CardContent className={(compact ? "p-4" : "p-5 md:p-6") + " h-full"}>
+        <div className="flex h-full flex-col gap-5">
+          <div className={compact ? "relative" : "relative min-h-[108px]"}>
+            <div className={nextPublication && normalizeStatus(campaign.status) === "ativo" ? "min-w-0 sm:pr-40" : "min-w-0"}>
+              <div className="mb-2 flex min-w-0 items-center gap-2">
+                <h3 className="min-w-0 flex-1 truncate text-lg font-semibold text-foreground">{campaign.nome || "Campanha sem nome"}</h3>
                 {getCampaignBadge(campaign.status)}
               </div>
-              <div className="flex flex-wrap gap-x-4 gap-y-2 text-xs text-muted-foreground">
+              <div className="flex min-h-10 flex-wrap content-start gap-x-4 gap-y-2 text-xs text-muted-foreground">
                 <span className="flex items-center gap-1.5">
                   <Calendar size={14} className="text-primary" />
                   {shortDate(dateStart)} até {shortDate(dateEnd)}
@@ -417,20 +417,20 @@ export default function PublicacoesPage() {
                 {postsPerDay && <span>{postsPerDay} posts/dia por conta</span>}
               </div>
             </div>
-            {nextPublication && normalizeStatus(campaign.status) === "ativo" && <div className="rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 shrink-0">
+            {nextPublication && normalizeStatus(campaign.status) === "ativo" && <div className="mt-3 w-fit rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 sm:absolute sm:right-0 sm:top-0 sm:mt-0">
               <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Próximo post</p>
               <p className="text-sm font-semibold text-primary">{publicationMomentLabel(nextPublication)}</p>
             </div>}
           </div>
 
-          {!compact && <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+          {!compact && <div className="grid min-h-[68px] grid-cols-2 gap-2 lg:grid-cols-4">
             <div className="rounded-lg bg-muted/40 p-3"><p className="text-xl font-semibold">{campaignPublications.length}</p><p className="text-[11px] text-muted-foreground">Total de posts</p></div>
             <div className="rounded-lg bg-blue-500/5 p-3"><p className="text-xl font-semibold text-blue-400">{scheduled}</p><p className="text-[11px] text-muted-foreground">Agendados</p></div>
             <div className="rounded-lg bg-emerald-500/5 p-3"><p className="text-xl font-semibold text-emerald-400">{published}</p><p className="text-[11px] text-muted-foreground">Publicados</p></div>
             <div className="rounded-lg bg-amber-500/5 p-3"><p className="text-xl font-semibold text-amber-400">{inProgress}</p><p className="text-[11px] text-muted-foreground">Publicando</p></div>
           </div>}
 
-          <div>
+          <div className={compact ? "" : "min-h-[52px]"}>
             <div className="mb-2 flex items-center justify-between text-xs">
               <span className="text-muted-foreground">Progresso de envio</span>
               <span className="font-medium text-foreground">{handled} de {campaignPublications.length} ({progress}%)</span>
@@ -445,7 +445,7 @@ export default function PublicacoesPage() {
             </p>}
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 border-t border-border/70 pt-4">
+          <div className="mt-auto flex flex-wrap items-center gap-2 border-t border-border/70 pt-4">
             <Button
               variant={expanded ? "secondary" : "outline"}
               size="sm"
@@ -567,7 +567,7 @@ export default function PublicacoesPage() {
                 <h3 className="font-semibold text-foreground">Nenhuma campanha em andamento</h3>
                 <Button className="mt-5 bg-[#7C3AED]" onClick={() => window.location.href = "/campanha"}>Criar campanha</Button>
               </div>
-            : <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+            : <div className="grid grid-cols-1 items-stretch gap-4 xl:grid-cols-2">
                 {activeCampaigns.map(campaign => renderCampaignCard(campaign))}
               </div>}
         </section>
@@ -605,7 +605,7 @@ export default function PublicacoesPage() {
             </div>
             {showFinished ? <ChevronUp className="text-muted-foreground" /> : <ChevronDown className="text-muted-foreground" />}
           </button>
-          {showFinished && <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+          {showFinished && <div className="grid grid-cols-1 items-stretch gap-4 xl:grid-cols-2">
             {finishedCampaigns.map(campaign => renderCampaignCard(campaign, true))}
           </div>}
         </section>}
