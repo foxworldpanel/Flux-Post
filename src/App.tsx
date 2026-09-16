@@ -36,7 +36,8 @@ function App() {
               <Route path="/musics" element={<MusicsPage />} />
               <Route path="/musicas" element={<MusicsPage />} />
               <Route path="/accounts" element={<AccountsPage />} />
-              <Route path="/campanha" element={<CampanhaPage />} />
+              <Route path="/campanha" element={<CampanhaPage key="traditional" mode="traditional" />} />
+              <Route path="/studio-publicar" element={<CampanhaPage key="studio" mode="studio" />} />
               <Route path="/schedule" element={<SchedulePage />} />
               <Route path="/agenda" element={<AgendaPage />} />
               <Route path="/processar" element={<ProcessarPage />} />

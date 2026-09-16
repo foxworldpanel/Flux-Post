@@ -91,7 +91,14 @@ const STEPS = [
   { num: 6, label: "Publicar", icon: Megaphone },
 ];
 
-export default function CampanhaPage() {
+const STUDIO_STEPS = [
+  { num: 1, label: "Configurar", icon: Calendar },
+  { num: 5, label: "Revisar", icon: Eye },
+  { num: 6, label: "Publicar", icon: Megaphone },
+];
+
+export default function CampanhaPage({ mode = "traditional" }: { mode?: "traditional" | "studio" }) {
+  const isStudioFlow = mode === "studio";
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -134,7 +141,9 @@ export default function CampanhaPage() {
   const [contentQueue, setContentQueue] = useState<string[]>([]);
   const [studioAssignments, setStudioAssignments] = useState<Record<string, StudioAssignment>>({});
   const [studioProjectName, setStudioProjectName] = useState("");
+  const [studioHandoffError, setStudioHandoffError] = useState("");
   const isStudioCampaign = Object.keys(studioAssignments).length > 0;
+  const visibleSteps = isStudioFlow ? STUDIO_STEPS : STEPS;
 
   // Schedule Preview V2
   // Fonte editável da agenda antes da criação das publications.
@@ -888,7 +897,7 @@ export default function CampanhaPage() {
       setSocialAccounts(accountsRes || []);
       setRenders(rendersRes.data || []);
 
-      const studioHandoff = readStudioCampaignHandoff();
+      const studioHandoff = isStudioFlow ? readStudioCampaignHandoff() : null;
       const availableContentIds = new Set((libraryRes.data || []).map(item => item.id));
       const validStudioItems = studioHandoff?.items.filter(item => {
         const render = (rendersRes.data || []).find(candidate => candidate.id === item.renderId);
@@ -932,6 +941,7 @@ export default function CampanhaPage() {
 
         setStudioAssignments(assignments);
         setStudioProjectName(studioHandoff.projectName);
+        setStudioHandoffError("");
         setSelVideos(new Set(contentIds));
         setContentQueue(contentIds);
         setSelMusicTracks(new Set(musicTrackIds));
@@ -949,16 +959,18 @@ export default function CampanhaPage() {
       } else {
         setStudioAssignments({});
         setStudioProjectName("");
-        if (studioHandoff) {
+        if (isStudioFlow && studioHandoff) {
           window.sessionStorage.removeItem(STUDIO_CAMPAIGN_HANDOFF_KEY);
-          toast.error("O lote do Studio mudou ou não está mais disponível. Abra o Studio IA e envie novamente.");
+          setStudioHandoffError("O lote mudou ou um dos arquivos finais não está mais disponível.");
+        } else if (isStudioFlow) {
+          setStudioHandoffError("Nenhum lote foi enviado pelo Studio IA.");
         }
       }
 
       // Restore latest campaign draft
       const draft = draftRes.data?.[0];
 
-      if (!hasStudioHandoff && draft) {
+      if (!isStudioFlow && draft) {
         setDraftCampaignId(draft.id);
 
         const draftMusicTrackIds =
@@ -1070,7 +1082,7 @@ export default function CampanhaPage() {
         }
 
         console.log("[CAMPAIGN DRAFT] Restaurado:", draft.id);
-      } else if (!hasStudioHandoff) {
+      } else if (!isStudioFlow) {
         setDraftCampaignId(null);
       }
 
@@ -1533,7 +1545,20 @@ export default function CampanhaPage() {
       }
     }
 
+    if (isStudioFlow) {
+      setStep(current => current === 1 ? 5 : 6);
+      return;
+    }
+
     setStep(current => Math.min(6, current + 1));
+  }
+
+  function handlePreviousStep() {
+    if (isStudioFlow) {
+      setStep(current => current === 6 ? 5 : 1);
+      return;
+    }
+    setStep(current => Math.max(1, current - 1));
   }
 
   function stepBlockMessage(): string {
@@ -2286,6 +2311,11 @@ export default function CampanhaPage() {
         `Campanha iniciada! ${publications.length} publicações agendadas.`
       );
 
+      if (isStudioFlow) {
+        window.location.href = "/publicacoes";
+        return;
+      }
+
       await fetchData();
     } catch (e: any) {
       console.error("Erro ao iniciar campanha:", e);
@@ -2317,13 +2347,40 @@ export default function CampanhaPage() {
     </DashboardLayout>
   );
 
+  if (isStudioFlow && !isStudioCampaign) return (
+    <DashboardLayout>
+      <div className="mx-auto flex min-h-[75vh] max-w-2xl items-center justify-center p-6">
+        <Card className="w-full border-violet-500/20 bg-card">
+          <CardContent className="flex flex-col items-center px-6 py-12 text-center">
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-violet-500/15 text-violet-300">
+              <Sparkles size={26} />
+            </div>
+            <h1 className="mt-5 text-2xl font-bold">Publicar vídeos do Studio</h1>
+            <p className="mt-2 max-w-md text-sm leading-6 text-muted-foreground">
+              {studioHandoffError} Abra um projeto no Studio IA, finalize os vídeos e use o botão “Criar campanha”.
+            </p>
+            <Button className="mt-6 gap-2" onClick={() => { window.location.href = "/studio-ia"; }}>
+              <Sparkles size={16} /> Abrir Studio IA
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    </DashboardLayout>
+  );
+
   return (
     <DashboardLayout>
       <div className="max-w-3xl mx-auto p-6 space-y-6 animate-in fade-in duration-300">
         {/* Header */}
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Nova Campanha</h1>
-          <p className="text-sm text-muted-foreground mt-1">Siga as etapas para configurar e lançar sua campanha.</p>
+          <h1 className="text-2xl font-bold text-foreground">
+            {isStudioFlow ? "Publicar lote do Studio" : "Nova Campanha"}
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            {isStudioFlow
+              ? "Configure a agenda, revise as copies e escolha as contas que receberão os vídeos finalizados."
+              : "Siga as etapas para configurar e lançar sua campanha."}
+          </p>
         </div>
 
         {isStudioCampaign && (
@@ -2344,7 +2401,7 @@ export default function CampanhaPage() {
 
         {/* Stepper */}
         <div className="flex items-center gap-0">
-          {STEPS.map((s, i) => {
+          {visibleSteps.map((s, i) => {
             const done = step > s.num;
             const active = step === s.num;
             const Icon = s.icon;
@@ -2360,7 +2417,7 @@ export default function CampanhaPage() {
                   </div>
                   <span className={`text-[11px] mt-1 font-medium ${active ? "text-primary" : done ? "text-muted-foreground" : "text-muted-foreground/50"}`}>{s.label}</span>
                 </div>
-                {i < STEPS.length - 1 && (
+                {i < visibleSteps.length - 1 && (
                   <div className={`h-0.5 flex-1 mb-4 transition-all ${step > s.num ? "bg-primary" : "bg-border"}`} />
                 )}
               </div>
@@ -3351,7 +3408,11 @@ export default function CampanhaPage() {
                 <Button onClick={handleLaunch} disabled={saving || !canAdvance()}
                   className="w-full bg-primary hover:bg-primary/90 text-white py-6 text-base font-bold gap-2">
                   {saving ? <Loader2 size={18} className="animate-spin" /> : <Megaphone size={18} />}
-                  {saving ? "Iniciando..." : "Iniciar Campanha"}
+                  {saving
+                    ? "Iniciando..."
+                    : isStudioFlow
+                    ? "Agendar lote do Studio"
+                    : "Iniciar Campanha"}
                 </Button>
               </div>
             )}
@@ -3361,7 +3422,7 @@ export default function CampanhaPage() {
 
         {/* Navigation */}
         <div className="flex items-center justify-between">
-          <Button variant="outline" className="gap-2 border-border" onClick={() => setStep(s => Math.max(1, s - 1))} disabled={step === 1}>
+          <Button variant="outline" className="gap-2 border-border" onClick={handlePreviousStep} disabled={step === 1}>
             <ChevronLeft size={16} /> Voltar
           </Button>
           <div className="flex items-center gap-3">
@@ -3369,7 +3430,7 @@ export default function CampanhaPage() {
               <span className="text-xs text-muted-foreground">{stepBlockMessage()}</span>
             )}
 
-            <Button
+            {!isStudioFlow && <Button
               type="button"
               variant="outline"
               className="gap-2 border-primary/30 text-primary"
@@ -3387,7 +3448,7 @@ export default function CampanhaPage() {
               }}
             >
               {saving ? "Salvando..." : draftCampaignId ? "Salvar alterações" : "Salvar rascunho"}
-            </Button>
+            </Button>}
           </div>
           {step < 6 && (
             <Button className="gap-2 bg-primary hover:bg-primary/90 text-white" onClick={handleContinueStep} disabled={!canAdvance()}>

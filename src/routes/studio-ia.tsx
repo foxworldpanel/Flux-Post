@@ -811,7 +811,7 @@ export default function StudioIaPage() {
         STUDIO_CAMPAIGN_HANDOFF_KEY,
         JSON.stringify(handoff),
       );
-      navigate("/campanha?source=studio");
+      navigate("/studio-publicar");
     } catch (error: any) {
       toast.error(error?.message || "Não foi possível preparar a campanha.");
     } finally {
@@ -1896,7 +1896,7 @@ export default function StudioIaPage() {
                         {creatingCampaign ? <Loader2 size={16} className="animate-spin" /> : <ArrowRight size={16} />}
                         {creatingCampaign
                           ? "Preparando campanha..."
-                          : `Criar campanha com ${productionScripts.length} vídeos`}
+                          : `Publicar lote com ${productionScripts.length} vídeos`}
                       </Button>
                     </div>
                   </div>
