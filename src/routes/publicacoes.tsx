@@ -90,6 +90,8 @@ export default function PublicacoesPage() {
   const [changingCampaign, setChangingCampaign] = useState<string | null>(null);
   const [deletingCampaign, setDeletingCampaign] = useState<string | null>(null);
   const [campaignToDelete, setCampaignToDelete] = useState<any | null>(null);
+  const [cleaningStale, setCleaningStale] = useState(false);
+  const [showStaleCleanup, setShowStaleCleanup] = useState(false);
   const [expandedCampaign, setExpandedCampaign] = useState<string | null>(null);
   const [showFinished, setShowFinished] = useState(false);
   const [publications, setPublications] = useState<any[]>([]);
@@ -293,6 +295,17 @@ export default function PublicacoesPage() {
     [publications],
   );
 
+  const staleStandalonePublications = useMemo(() => {
+    const staleBefore = Date.now() - 2 * 60 * 1000;
+    return standalonePublications.filter(publication => {
+      if (!["publishing", "processing"].includes(normalizeStatus(publication.status))) {
+        return false;
+      }
+      const updatedAt = safeDate(publication.updated_at || publication.created_at);
+      return Boolean(updatedAt && updatedAt.getTime() < staleBefore);
+    });
+  }, [standalonePublications]);
+
   const scheduledTotal = publications.filter(publication =>
     SCHEDULED_STATUSES.has(normalizeStatus(publication.status))
   ).length;
@@ -308,6 +321,32 @@ export default function PublicacoesPage() {
 
   const toggleHistory = (campaignId: string) => {
     setExpandedCampaign(current => current === campaignId ? null : campaignId);
+  };
+
+  const cleanupStalePublications = async () => {
+    setCleaningStale(true);
+    try {
+      const { data, error } = await (supabase as any).rpc(
+        "cleanup_stale_orphan_publications"
+      );
+      if (error) throw error;
+      if (!data || (data as any).ok !== true) {
+        throw new Error((data as any)?.error || "O banco não confirmou a limpeza");
+      }
+
+      const removed = Number((data as any).removed_publications || 0);
+      setShowStaleCleanup(false);
+      toast.success(
+        removed === 1
+          ? "1 publicação travada foi removida."
+          : `${removed} publicações travadas foram removidas.`
+      );
+      await fetchPublications();
+    } catch (err: any) {
+      toast.error("Erro ao limpar publicações: " + (err?.message || String(err)));
+    } finally {
+      setCleaningStale(false);
+    }
   };
 
   const renderPublicationHistory = (campaignPublications: any[]) => {
@@ -528,6 +567,34 @@ export default function PublicacoesPage() {
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
+    <AlertDialog
+      open={showStaleCleanup}
+      onOpenChange={open => {
+        if (!cleaningStale) setShowStaleCleanup(open);
+      }}
+    >
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Limpar publicações travadas?</AlertDialogTitle>
+          <AlertDialogDescription>
+            Serão removidos {staleStandalonePublications.length} registros órfãos presos em “Publicando”. Posts concluídos nas redes e seu histórico publicado não serão apagados.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={cleaningStale}>Cancelar</AlertDialogCancel>
+          <AlertDialogAction
+            disabled={cleaningStale}
+            onClick={event => {
+              event.preventDefault();
+              void cleanupStalePublications();
+            }}
+            className="bg-red-600 text-white hover:bg-red-500"
+          >
+            {cleaningStale ? "Limpando..." : "Limpar travadas"}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
     <div className="max-w-7xl mx-auto p-4 md:p-8 space-y-8 animate-in fade-in duration-500">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
         <div>
@@ -575,17 +642,29 @@ export default function PublicacoesPage() {
         {standalonePublications.length > 0 && <section className="space-y-3">
           <Card className="bg-card border-border">
             <CardContent className="p-5">
-              <button
-                type="button"
-                className="w-full flex items-center justify-between text-left"
-                onClick={() => toggleHistory("__standalone__")}
-              >
-                <div>
-                  <h2 className="text-lg font-semibold">Publicações avulsas</h2>
-                  <p className="text-sm text-muted-foreground">{standalonePublications.length} posts sem campanha vinculada</p>
-                </div>
-                {expandedCampaign === "__standalone__" ? <ChevronUp /> : <ChevronDown />}
-              </button>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <button
+                  type="button"
+                  className="flex min-w-0 flex-1 items-center justify-between text-left"
+                  onClick={() => toggleHistory("__standalone__")}
+                >
+                  <div>
+                    <h2 className="text-lg font-semibold">Publicações avulsas</h2>
+                    <p className="text-sm text-muted-foreground">{standalonePublications.length} posts sem campanha vinculada</p>
+                  </div>
+                  {expandedCampaign === "__standalone__" ? <ChevronUp /> : <ChevronDown />}
+                </button>
+                {staleStandalonePublications.length > 0 && <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="shrink-0 border-red-500/30 text-red-400 hover:bg-red-500/10 hover:text-red-300"
+                  onClick={() => setShowStaleCleanup(true)}
+                >
+                  <Trash2 size={14} className="mr-2" />
+                  Limpar travadas ({staleStandalonePublications.length})
+                </Button>}
+              </div>
               {expandedCampaign === "__standalone__" && <div className="border-t border-border mt-4 pt-4">
                 {renderPublicationHistory(standalonePublications)}
               </div>}
