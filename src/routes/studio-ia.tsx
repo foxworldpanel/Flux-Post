@@ -1,9 +1,10 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowRight,
   Check,
   Copy,
+  FolderOpen,
   Image as ImageIcon,
   Layers3,
   Library,
@@ -11,9 +12,11 @@ import {
   Mic2,
   Music2,
   Search,
+  Save,
   Sparkles,
   Upload,
   Video,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { DashboardLayout } from "@/components/DashboardLayout";
@@ -34,12 +37,26 @@ import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 
 interface MotivationalScript {
+  id?: string;
   title: string;
   hook: string;
   narration: string;
   closing: string;
   visualKeywords: string[];
   estimatedSeconds: number;
+  status: "draft" | "approved" | "rejected" | "voiced" | "rendered";
+}
+
+interface SavedProject {
+  id: string;
+  name: string;
+  theme: string;
+  tone: string;
+  audience: string;
+  duration_seconds: number;
+  include_cta: boolean;
+  status: string;
+  created_at: string;
 }
 
 const productionSteps = [
@@ -72,19 +89,143 @@ const productionSteps = [
 export default function StudioIaPage() {
   const navigate = useNavigate();
   const [theme, setTheme] = useState("recomeço, coragem e confiança");
+  const [projectName, setProjectName] = useState("Lote motivacional Sourcee");
   const [tone, setTone] = useState("emocional e acolhedor");
   const [audience, setAudience] = useState("adultos buscando motivação diária");
   const [duration, setDuration] = useState("30");
   const [quantity, setQuantity] = useState("3");
   const [includeCta, setIncludeCta] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [scripts, setScripts] = useState<MotivationalScript[]>([]);
+  const [savedProjectId, setSavedProjectId] = useState<string | null>(null);
+  const [recentProjects, setRecentProjects] = useState<SavedProject[]>([]);
+  const [loadingProjectId, setLoadingProjectId] = useState<string | null>(null);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
 
   const totalMinutes = useMemo(
     () => Math.ceil((Number(duration) * Number(quantity)) / 60),
     [duration, quantity],
   );
+
+  const approvedCount = scripts.filter(script => script.status === "approved").length;
+
+  const fetchRecentProjects = async () => {
+    const { data, error } = await (supabase as any)
+      .from("ai_studio_projects")
+      .select("id,name,theme,tone,audience,duration_seconds,include_cta,status,created_at")
+      .order("created_at", { ascending: false })
+      .limit(6);
+
+    if (!error) setRecentProjects(data || []);
+  };
+
+  useEffect(() => {
+    fetchRecentProjects();
+  }, []);
+
+  const setScriptStatus = (
+    index: number,
+    status: MotivationalScript["status"],
+  ) => {
+    if (savedProjectId) {
+      toast.info("Projeto já salvo. Abra um novo lote para alterar a revisão.");
+      return;
+    }
+
+    setScripts(current =>
+      current.map((script, scriptIndex) =>
+        scriptIndex === index ? { ...script, status } : script,
+      ),
+    );
+  };
+
+  const saveProject = async () => {
+    if (!scripts.length) return;
+    if (savedProjectId) {
+      toast.info("Este projeto já está salvo.");
+      return;
+    }
+
+    try {
+      setSaving(true);
+      const { data, error } = await (supabase.rpc as any)(
+        "save_ai_studio_project",
+        {
+          p_project: {
+            name: projectName.trim() || "Lote motivacional Sourcee",
+            theme: theme.trim(),
+            tone,
+            audience: audience.trim(),
+            durationSeconds: Number(duration),
+            includeCta,
+          },
+          p_scripts: scripts,
+        },
+      );
+
+      if (error) throw error;
+      if (!data?.projectId) throw new Error("O projeto não retornou um identificador.");
+
+      setSavedProjectId(data.projectId);
+      await fetchRecentProjects();
+      toast.success(
+        `Projeto salvo com ${approvedCount} ${approvedCount === 1 ? "roteiro aprovado" : "roteiros aprovados"}.`,
+      );
+    } catch (error: any) {
+      console.error("[Studio IA] Save project failed", error);
+      toast.error(error?.message || "Não foi possível salvar o projeto.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const loadProject = async (project: SavedProject) => {
+    try {
+      setLoadingProjectId(project.id);
+      const { data, error } = await (supabase as any)
+        .from("ai_studio_scripts")
+        .select(
+          "id,title,hook,narration,closing,visual_keywords,estimated_seconds,status,position",
+        )
+        .eq("project_id", project.id)
+        .order("position", { ascending: true });
+
+      if (error) throw error;
+
+      setProjectName(project.name);
+      setTheme(project.theme);
+      setTone(project.tone);
+      setAudience(project.audience);
+      setDuration(String(project.duration_seconds));
+      setIncludeCta(project.include_cta);
+      setQuantity(String(data?.length || 1));
+      setScripts(
+        (data || []).map((script: any) => ({
+          id: script.id,
+          title: script.title,
+          hook: script.hook || "",
+          narration: script.narration,
+          closing: script.closing || "",
+          visualKeywords: script.visual_keywords || [],
+          estimatedSeconds: script.estimated_seconds,
+          status: script.status,
+        })),
+      );
+      setSavedProjectId(project.id);
+      toast.success("Projeto carregado.");
+    } catch (error: any) {
+      toast.error(error?.message || "Não foi possível abrir o projeto.");
+    } finally {
+      setLoadingProjectId(null);
+    }
+  };
+
+  const startNewProject = () => {
+    setScripts([]);
+    setSavedProjectId(null);
+    setProjectName("Lote motivacional Sourcee");
+  };
 
   const generateScripts = async () => {
     if (!theme.trim()) {
@@ -125,7 +266,13 @@ export default function StudioIaPage() {
         throw new Error(data?.error || "A IA não retornou roteiros válidos.");
       }
 
-      setScripts(data.scripts);
+      setSavedProjectId(null);
+      setScripts(
+        data.scripts.map((script: Omit<MotivationalScript, "status">) => ({
+          ...script,
+          status: "draft" as const,
+        })),
+      );
       toast.success(`${data.scripts.length} roteiros criados para revisão.`);
     } catch (error: any) {
       console.error("[Studio IA] Motivational generation failed", error);
@@ -245,6 +392,17 @@ export default function StudioIaPage() {
 
             <CardContent className="space-y-5 p-5 sm:p-6">
               <div className="space-y-2">
+                <Label htmlFor="project-name">Nome do projeto</Label>
+                <Input
+                  id="project-name"
+                  value={projectName}
+                  onChange={(event) => setProjectName(event.target.value)}
+                  placeholder="Ex.: Motivação Sourcee — Semana 1"
+                  disabled={Boolean(savedProjectId)}
+                />
+              </div>
+
+              <div className="space-y-2">
                 <Label htmlFor="theme">Tema central</Label>
                 <Textarea
                   id="theme"
@@ -330,12 +488,34 @@ export default function StudioIaPage() {
           </Card>
 
           <div className="space-y-4">
-            <div className="flex items-end justify-between gap-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <p className="eyebrow mb-2">Revisão editorial</p>
                 <h2 className="font-display text-2xl font-bold">Roteiros gerados</h2>
               </div>
-              {scripts.length > 0 && <Badge variant="outline">{scripts.length} prontos</Badge>}
+              {scripts.length > 0 && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant="outline">{approvedCount}/{scripts.length} aprovados</Badge>
+                  {savedProjectId ? (
+                    <>
+                      <Badge className="bg-emerald-500/10 text-emerald-400">Salvo</Badge>
+                      <Button size="sm" variant="outline" onClick={startNewProject}>
+                        Novo lote
+                      </Button>
+                    </>
+                  ) : (
+                    <Button
+                      size="sm"
+                      className="gap-2 bg-violet-600 text-white hover:bg-violet-500"
+                      disabled={saving}
+                      onClick={saveProject}
+                    >
+                      {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
+                      Salvar projeto
+                    </Button>
+                  )}
+                </div>
+              )}
             </div>
 
             {scripts.length === 0 ? (
@@ -367,14 +547,16 @@ export default function StudioIaPage() {
                             </Badge>
                           </div>
                         </div>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => copyScript(script, index)}
-                          aria-label="Copiar roteiro"
-                        >
-                          {copiedIndex === index ? <Check size={16} /> : <Copy size={16} />}
-                        </Button>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => copyScript(script, index)}
+                            aria-label="Copiar roteiro"
+                          >
+                            {copiedIndex === index ? <Check size={16} /> : <Copy size={16} />}
+                          </Button>
+                        </div>
                       </div>
 
                       <p className="mt-4 whitespace-pre-wrap text-sm leading-7 text-foreground/90">
@@ -390,12 +572,98 @@ export default function StudioIaPage() {
                           ))}
                         </div>
                       )}
+
+                      <div className="mt-4 flex items-center justify-between gap-3 border-t border-border pt-4">
+                        <Badge
+                          variant="outline"
+                          className={
+                            script.status === "approved"
+                              ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-400"
+                              : script.status === "rejected"
+                              ? "border-red-500/20 bg-red-500/10 text-red-400"
+                              : "text-muted-foreground"
+                          }
+                        >
+                          {script.status === "approved"
+                            ? "Aprovado"
+                            : script.status === "rejected"
+                            ? "Descartado"
+                            : "Aguardando revisão"}
+                        </Badge>
+
+                        {!savedProjectId && (
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="gap-1.5 text-red-400 hover:bg-red-500/10 hover:text-red-300"
+                              onClick={() => setScriptStatus(index, "rejected")}
+                            >
+                              <X size={14} />
+                              Descartar
+                            </Button>
+                            <Button
+                              size="sm"
+                              className="gap-1.5 bg-emerald-600 text-white hover:bg-emerald-500"
+                              onClick={() => setScriptStatus(index, "approved")}
+                            >
+                              <Check size={14} />
+                              Aprovar
+                            </Button>
+                          </div>
+                        )}
+                      </div>
                     </CardContent>
                   </Card>
                 ))}
               </div>
             )}
           </div>
+        </section>
+
+        <section>
+          <div className="mb-4 flex items-end justify-between gap-4">
+            <div>
+              <p className="eyebrow mb-2">Produções salvas</p>
+              <h2 className="font-display text-2xl font-bold">Projetos recentes</h2>
+            </div>
+            <Badge variant="outline">{recentProjects.length} recentes</Badge>
+          </div>
+
+          {recentProjects.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-border bg-card/40 px-6 py-8 text-center text-sm text-muted-foreground">
+              Os projetos salvos aparecerão aqui e poderão ser reabertos para as próximas etapas.
+            </div>
+          ) : (
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {recentProjects.map(project => (
+                <button
+                  key={project.id}
+                  type="button"
+                  onClick={() => loadProject(project)}
+                  className="group flex items-center gap-4 rounded-2xl border border-border bg-card p-4 text-left transition hover:-translate-y-0.5 hover:border-violet-500/30 hover:bg-accent"
+                >
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-violet-500/10 text-violet-400">
+                    {loadingProjectId === project.id ? (
+                      <Loader2 size={19} className="animate-spin" />
+                    ) : (
+                      <FolderOpen size={19} />
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-display font-bold">{project.name}</p>
+                    <p className="mt-1 line-clamp-1 text-xs text-muted-foreground">
+                      {project.theme}
+                    </p>
+                    <p className="mt-2 text-[11px] text-muted-foreground">
+                      {project.duration_seconds}s · {new Date(project.created_at).toLocaleDateString("pt-BR")}
+                    </p>
+                  </div>
+                  <ArrowRight size={16} className="shrink-0 text-muted-foreground transition group-hover:translate-x-1 group-hover:text-violet-400" />
+                </button>
+              ))}
+            </div>
+          )}
         </section>
 
         <section>
