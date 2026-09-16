@@ -7,6 +7,7 @@ import {
   Check,
   CheckCircle2,
   Copy,
+  Download,
   FolderOpen,
   Layers3,
   ListChecks,
@@ -128,6 +129,14 @@ const captionPositionCss: Record<string, string> = {
   bottom: "bottom-14",
 };
 
+const renderStatusLabels: Record<string, string> = {
+  queued: "Na fila",
+  processing: "Renderizando",
+  ready: "Pronto",
+  failed: "Falhou",
+  cancelled: "Cancelado",
+};
+
 const shuffled = <T,>(items: T[]) => {
   const result = [...items];
   for (let index = result.length - 1; index > 0; index -= 1) {
@@ -190,12 +199,14 @@ export default function StudioIaPage() {
   const [subtitlePosition, setSubtitlePosition] = useState("bottom");
   const [renderingScriptId, setRenderingScriptId] = useState<string | null>(null);
   const [renderStatus, setRenderStatus] = useState<Record<string, string>>({});
+  const [renderErrors, setRenderErrors] = useState<Record<string, string>>({});
   const [previewUrls, setPreviewUrls] = useState<Record<string, string>>({});
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [projectAction, setProjectAction] = useState<"cancel" | "delete" | null>(null);
   const [selectedBatchVideoIds, setSelectedBatchVideoIds] = useState<string[]>([]);
   const [selectedBatchMusicIds, setSelectedBatchMusicIds] = useState<string[]>([]);
   const [batchAction, setBatchAction] = useState<"voice" | "render" | null>(null);
+  const [refreshingRenders, setRefreshingRenders] = useState(false);
   const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0, label: "" });
 
   const totalMinutes = useMemo(
@@ -456,6 +467,10 @@ export default function StudioIaPage() {
     if (error || !data) return null;
 
     setRenderStatus(current => ({ ...current, [scriptId]: data.status }));
+    setRenderErrors(current => ({
+      ...current,
+      [scriptId]: data.status === "failed" ? data.error_message || "Falha no render" : "",
+    }));
     if (data.status === "ready" && data.storage_path) {
       const { data: signed } = await supabase.storage
         .from("rendered")
@@ -463,6 +478,13 @@ export default function StudioIaPage() {
       if (signed?.signedUrl) {
         setPreviewUrls(current => ({ ...current, [scriptId]: signed.signedUrl }));
       }
+      setScripts(current =>
+        current.map(item =>
+          item.id === scriptId
+            ? { ...item, status: "rendered", mediaRenderId: renderId }
+            : item,
+        ),
+      );
     }
     return data;
   };
@@ -513,6 +535,7 @@ export default function StudioIaPage() {
       delete next[script.id!];
       return next;
     });
+    setRenderErrors(current => ({ ...current, [script.id!]: "" }));
     const { data, error } = await (supabase.rpc as any)("start_ai_studio_render", {
         p_script_id: script.id,
         p_content_id: videoId,
@@ -694,6 +717,45 @@ export default function StudioIaPage() {
     }
   };
 
+  const refreshBatchRenders = async () => {
+    const items = productionScripts.filter(script => script.id && script.mediaRenderId);
+    if (!items.length) {
+      toast.info("O lote ainda não possui vídeos enviados ao renderizador.");
+      return;
+    }
+
+    try {
+      setRefreshingRenders(true);
+      const results = await Promise.all(
+        items.map(async script => ({
+          script,
+          render: await loadRender(script.id!, script.mediaRenderId!),
+        })),
+      );
+      const ready = results.filter(item => item.render?.status === "ready").length;
+      const pending = results.filter(item =>
+        ["queued", "processing"].includes(item.render?.status),
+      );
+
+      pending.forEach(item => {
+        void pollRender(item.script.id!, item.script.mediaRenderId!, {
+          silent: true,
+          attempts: 160,
+        });
+      });
+
+      toast.success(
+        ready === items.length
+          ? "Todos os previews estão prontos."
+          : `${ready} de ${items.length} prontos. ${pending.length} continuam na fila.`,
+      );
+    } catch (error: any) {
+      toast.error(error?.message || "Não foi possível atualizar os vídeos do lote.");
+    } finally {
+      setRefreshingRenders(false);
+    }
+  };
+
   const loadProject = async (project: SavedProject, silent = false) => {
     try {
       setLoadingProjectId(project.id);
@@ -714,6 +776,9 @@ export default function StudioIaPage() {
       setDuration(String(project.duration_seconds));
       setIncludeCta(project.include_cta);
       setQuantity(String(data?.length || 1));
+      setPreviewUrls({});
+      setRenderStatus({});
+      setRenderErrors({});
       setScripts(
         (data || []).map((script: any) => ({
           id: script.id,
@@ -757,10 +822,24 @@ export default function StudioIaPage() {
         setSubtitleFontSize(firstProductionScript.subtitle_font_size ?? 22);
         setSubtitleColor(firstProductionScript.subtitle_color || "white");
         setSubtitlePosition(firstProductionScript.subtitle_position || "bottom");
-        if (firstProductionScript.media_render_id) {
-          void loadRender(firstProductionScript.id, firstProductionScript.media_render_id);
-        }
       }
+      const renderItems = (data || []).filter((script: any) => script.media_render_id);
+      void Promise.all(
+        renderItems.map(async (script: any) => ({
+          script,
+          render: await loadRender(script.id, script.media_render_id),
+        })),
+      ).then(results => {
+        results
+          .filter(item => ["queued", "processing"].includes(item.render?.status))
+          .forEach(item => {
+            stoppedRenderPolls.current.delete(item.script.media_render_id);
+            void pollRender(item.script.id, item.script.media_render_id, {
+              silent: true,
+              attempts: 160,
+            });
+          });
+      });
       if (!silent) toast.success("Projeto carregado.");
     } catch (error: any) {
       toast.error(error?.message || "Não foi possível abrir o projeto.");
@@ -784,6 +863,7 @@ export default function StudioIaPage() {
     setBatchProgress({ current: 0, total: 0, label: "" });
     setPreviewUrls({});
     setRenderStatus({});
+    setRenderErrors({});
     setRenderingScriptId(null);
   };
 
@@ -1618,6 +1698,122 @@ export default function StudioIaPage() {
                     {batchAction === "render" ? "Preparando o lote..." : `Produzir ${productionScripts.length} vídeos`}
                   </Button>
                 </div>
+
+                {productionScripts.some(script => script.mediaRenderId) && (
+                  <div className="space-y-4 border-t border-border pt-6">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <Play size={17} className="text-violet-300" />
+                          <h3 className="font-display text-xl font-bold">Previews do lote</h3>
+                        </div>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Os vídeos aparecem automaticamente conforme o worker conclui cada render.
+                        </p>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-fit gap-2"
+                        disabled={refreshingRenders}
+                        onClick={refreshBatchRenders}
+                      >
+                        <RefreshCw size={14} className={refreshingRenders ? "animate-spin" : ""} />
+                        Atualizar resultados
+                      </Button>
+                    </div>
+
+                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                      {productionScripts.map((script, index) => {
+                        const status = script.id
+                          ? renderStatus[script.id] || (script.status === "rendered" ? "ready" : "queued")
+                          : "queued";
+                        const previewUrl = script.id ? previewUrls[script.id] : "";
+                        const thumbnail = videoChoices.find(video => video.id === script.contentId)?.thumbnail_url;
+                        const videoName = videoChoices.find(video => video.id === script.contentId)?.title;
+                        const musicName = musicChoices.find(music => music.id === script.musicTrackId)?.nome;
+                        const errorMessage = script.id ? renderErrors[script.id] : "";
+                        const isPending = status === "queued" || status === "processing";
+
+                        return (
+                          <div key={script.id || `${script.title}-${index}`} className="overflow-hidden rounded-2xl border border-border bg-background/40">
+                            <div className="relative aspect-[9/16] bg-black">
+                              {previewUrl ? (
+                                <video
+                                  className="absolute inset-0 h-full w-full object-cover"
+                                  controls
+                                  playsInline
+                                  preload="metadata"
+                                  src={previewUrl}
+                                />
+                              ) : thumbnail ? (
+                                <img src={thumbnail} alt="" className="absolute inset-0 h-full w-full object-cover opacity-55" />
+                              ) : (
+                                <div className="absolute inset-0 flex items-center justify-center text-zinc-600">
+                                  <Video size={32} />
+                                </div>
+                              )}
+
+                              <div className="absolute left-3 top-3 z-10 flex items-center gap-2 rounded-full border border-white/10 bg-black/70 px-2.5 py-1 text-[10px] font-bold text-white backdrop-blur">
+                                {isPending && <Loader2 size={11} className="animate-spin text-violet-300" />}
+                                {renderStatusLabels[status] || status}
+                              </div>
+
+                              {!previewUrl && (
+                                <div className="absolute inset-0 flex items-center justify-center p-5 text-center">
+                                  <div className="rounded-2xl border border-white/10 bg-black/60 px-4 py-3 backdrop-blur-sm">
+                                    {isPending ? (
+                                      <Loader2 size={24} className="mx-auto animate-spin text-violet-300" />
+                                    ) : status === "failed" ? (
+                                      <X size={24} className="mx-auto text-red-400" />
+                                    ) : (
+                                      <Video size={24} className="mx-auto text-white/60" />
+                                    )}
+                                    <p className="mt-2 text-xs font-semibold text-white">
+                                      {isPending ? "Preparando o vídeo" : renderStatusLabels[status] || "Aguardando"}
+                                    </p>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="space-y-3 p-3">
+                              <div className="flex items-start gap-2">
+                                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-violet-500/15 text-[10px] font-bold text-violet-300">
+                                  {index + 1}
+                                </span>
+                                <div className="min-w-0">
+                                  <p className="truncate text-xs font-bold">{script.title}</p>
+                                  <p className="mt-1 truncate text-[10px] text-muted-foreground">{videoName || "Cena selecionada"}</p>
+                                  <p className="mt-0.5 truncate text-[10px] text-muted-foreground">{musicName || "Música selecionada"}</p>
+                                </div>
+                              </div>
+
+                              {errorMessage && (
+                                <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-2.5 py-2 text-[10px] leading-4 text-red-300">
+                                  {errorMessage}
+                                </p>
+                              )}
+
+                              {previewUrl && (
+                                <a
+                                  href={previewUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  download
+                                  className="flex h-8 w-full items-center justify-center gap-1.5 rounded-lg border border-border text-[11px] font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                                >
+                                  <Download size={13} />
+                                  Abrir ou baixar
+                                </a>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </section>
