@@ -8,12 +8,17 @@ import {
   CheckCircle2,
   Copy,
   FolderOpen,
+  Layers3,
+  ListChecks,
   Loader2,
   Mic2,
+  Music2,
+  Play,
   RefreshCw,
   Search,
   Save,
   Sparkles,
+  Shuffle,
   Trash2,
   Upload,
   Video,
@@ -26,6 +31,8 @@ import { DashboardLayout } from "@/components/DashboardLayout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Progress } from "@/components/ui/progress";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -121,6 +128,31 @@ const captionPositionCss: Record<string, string> = {
   bottom: "bottom-14",
 };
 
+const shuffled = <T,>(items: T[]) => {
+  const result = [...items];
+  for (let index = result.length - 1; index > 0; index -= 1) {
+    const randomIndex = Math.floor(Math.random() * (index + 1));
+    [result[index], result[randomIndex]] = [result[randomIndex], result[index]];
+  }
+  return result;
+};
+
+const distributeRandomly = (ids: string[], total: number) => {
+  const result: string[] = [];
+  while (result.length < total) {
+    const nextCycle = shuffled(ids);
+    if (
+      nextCycle.length > 1 &&
+      result.length > 0 &&
+      result[result.length - 1] === nextCycle[0]
+    ) {
+      [nextCycle[0], nextCycle[1]] = [nextCycle[1], nextCycle[0]];
+    }
+    result.push(...nextCycle);
+  }
+  return result.slice(0, total);
+};
+
 export default function StudioIaPage() {
   const navigate = useNavigate();
   const autoOpenedProject = useRef(false);
@@ -161,6 +193,10 @@ export default function StudioIaPage() {
   const [previewUrls, setPreviewUrls] = useState<Record<string, string>>({});
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [projectAction, setProjectAction] = useState<"cancel" | "delete" | null>(null);
+  const [selectedBatchVideoIds, setSelectedBatchVideoIds] = useState<string[]>([]);
+  const [selectedBatchMusicIds, setSelectedBatchMusicIds] = useState<string[]>([]);
+  const [batchAction, setBatchAction] = useState<"voice" | "render" | null>(null);
+  const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0, label: "" });
 
   const totalMinutes = useMemo(
     () => Math.ceil((Number(duration) * Number(quantity)) / 60),
@@ -168,11 +204,16 @@ export default function StudioIaPage() {
   );
 
   const approvedCount = scripts.filter(script => ["approved", "voiced", "rendered"].includes(script.status)).length;
+  const voicedCount = scripts.filter(script => ["voiced", "rendered"].includes(script.status)).length;
+  const renderedCount = scripts.filter(script => script.status === "rendered").length;
 
   const productionScripts = scripts.filter(
     script => script.id && ["approved", "voiced", "rendered"].includes(script.status),
   );
   const activeScript = productionScripts.find(script => script.id === activeScriptId) || productionScripts[0];
+  const batchPercent = batchProgress.total
+    ? Math.round((batchProgress.current / batchProgress.total) * 100)
+    : 0;
 
   const fetchProductionChoices = async () => {
     const [videosResult, musicResult] = await Promise.all([
@@ -279,54 +320,57 @@ export default function StudioIaPage() {
     }
   }, [savedProjectId, scripts.length]);
 
-  const requestNarration = async (script: MotivationalScript) => {
+  const generateNarrationAsset = async (script: MotivationalScript) => {
     if (!script.id) {
-      toast.error("Salve e reabra o projeto antes de gerar a narração.");
-      return;
+      throw new Error("Salve e reabra o projeto antes de gerar a narração.");
     }
 
     const getExisting = script.status === "voiced" || script.status === "rendered";
     const selectedVoice = voices.find(voice => voice.id === selectedVoiceId);
     if (!getExisting && !selectedVoiceId) {
-      toast.error("Selecione uma voz do ElevenLabs.");
-      return;
+      throw new Error("Selecione uma voz do ElevenLabs.");
     }
 
-    try {
-      setGeneratingScriptId(script.id);
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      if (!session) throw new Error("Sessão expirada. Entre novamente.");
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    if (!session) throw new Error("Sessão expirada. Entre novamente.");
 
-      const { data, error } = await supabase.functions.invoke("ai-studio-voice", {
-        body: getExisting
-          ? { action: "get_audio", scriptId: script.id }
-          : {
-              action: "generate",
-              scriptId: script.id,
-              voiceId: selectedVoiceId,
-              voiceName: selectedVoice?.name || "",
-            },
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      });
+    const { data, error } = await supabase.functions.invoke("ai-studio-voice", {
+      body: getExisting
+        ? { action: "get_audio", scriptId: script.id }
+        : {
+            action: "generate",
+            scriptId: script.id,
+            voiceId: selectedVoiceId,
+            voiceName: selectedVoice?.name || "",
+          },
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    });
 
-      if (error) {
-        throw new Error(
-          await edgeFunctionMessage(error, "Não foi possível gerar a narração."),
-        );
-      }
-      if (!data?.success || !data.audioUrl) {
-        throw new Error(data?.error || "A narração não retornou um áudio válido.");
-      }
-
-      setAudioUrls(current => ({ ...current, [script.id!]: data.audioUrl }));
-      setScripts(current =>
-        current.map(item =>
-          item.id === script.id ? { ...item, status: "voiced" } : item,
-        ),
+    if (error) {
+      throw new Error(
+        await edgeFunctionMessage(error, "Não foi possível gerar a narração."),
       );
-      setActiveScriptId(script.id);
+    }
+    if (!data?.success || !data.audioUrl) {
+      throw new Error(data?.error || "A narração não retornou um áudio válido.");
+    }
+
+    setAudioUrls(current => ({ ...current, [script.id!]: data.audioUrl }));
+    setScripts(current =>
+      current.map(item =>
+        item.id === script.id ? { ...item, status: "voiced" } : item,
+      ),
+    );
+    return data;
+  };
+
+  const requestNarration = async (script: MotivationalScript) => {
+    try {
+      setGeneratingScriptId(script.id || null);
+      const data = await generateNarrationAsset(script);
+      setActiveScriptId(script.id || "");
       toast.success(data.reused ? "Narração recuperada." : "Narração gerada e salva.");
     } catch (error: any) {
       toast.error(error?.message || "Erro na geração da narração.");
@@ -423,8 +467,13 @@ export default function StudioIaPage() {
     return data;
   };
 
-  const pollRender = async (scriptId: string, renderId: string) => {
-    for (let attempt = 0; attempt < 40; attempt += 1) {
+  const pollRender = async (
+    scriptId: string,
+    renderId: string,
+    options: { silent?: boolean; attempts?: number } = {},
+  ) => {
+    const { silent = false, attempts = 40 } = options;
+    for (let attempt = 0; attempt < attempts; attempt += 1) {
       if (stoppedRenderPolls.current.has(renderId)) return;
       const render = await loadRender(scriptId, renderId);
       if (render?.status === "ready") {
@@ -435,19 +484,72 @@ export default function StudioIaPage() {
               : item,
           ),
         );
-        toast.success("Vídeo finalizado. O preview está pronto.");
-        return;
+        if (!silent) toast.success("Vídeo finalizado. O preview está pronto.");
+        return "ready";
       }
       if (render?.status === "failed") {
         throw new Error(render.error_message || "O renderizador não conseguiu montar o vídeo.");
       }
       if (render?.status === "cancelled") {
-        toast.info("Produção cancelada.");
-        return;
+        if (!silent) toast.info("Produção cancelada.");
+        return "cancelled";
       }
       await new Promise(resolve => window.setTimeout(resolve, 3000));
     }
-    toast.info("O vídeo continua na fila. O acompanhamento foi liberado para não prender a tela.");
+    if (!silent) {
+      toast.info("O vídeo continua na fila. O acompanhamento foi liberado para não prender a tela.");
+    }
+    return "queued";
+  };
+
+  const enqueueRender = async (
+    script: MotivationalScript,
+    videoId: string,
+    musicId: string,
+  ) => {
+    if (!script.id) throw new Error("Roteiro sem identificador.");
+    setPreviewUrls(current => {
+      const next = { ...current };
+      delete next[script.id!];
+      return next;
+    });
+    const { data, error } = await (supabase.rpc as any)("start_ai_studio_render", {
+        p_script_id: script.id,
+        p_content_id: videoId,
+        p_music_track_id: musicId,
+        p_music_volume: musicVolume,
+        p_music_start_ms: musicStartSeconds * 1000,
+        p_subtitles_enabled: subtitlesEnabled,
+        p_subtitle_font: subtitleFont,
+        p_subtitle_font_size: subtitleFontSize,
+        p_subtitle_color: subtitleColor,
+        p_subtitle_position: subtitlePosition,
+    });
+    if (error) throw error;
+    if (!data?.renderId) throw new Error("O render não retornou um identificador.");
+
+    setScripts(current =>
+      current.map(item =>
+          item.id === script.id
+            ? {
+                ...item,
+                contentId: videoId,
+                musicTrackId: musicId,
+                musicVolume,
+                musicStartMs: musicStartSeconds * 1000,
+                subtitlesEnabled,
+                subtitleFont,
+                subtitleFontSize,
+                subtitleColor,
+                subtitlePosition,
+                mediaRenderId: data.renderId,
+              }
+            : item,
+      ),
+    );
+    setRenderStatus(current => ({ ...current, [script.id!]: data.status || "queued" }));
+    stoppedRenderPolls.current.delete(data.renderId);
+    return data;
   };
 
   const startRender = async () => {
@@ -467,53 +569,128 @@ export default function StudioIaPage() {
 
     try {
       setRenderingScriptId(activeScript.id);
-      setPreviewUrls(current => {
-        const next = { ...current };
-        delete next[activeScript.id!];
-        return next;
-      });
-      const { data, error } = await (supabase.rpc as any)("start_ai_studio_render", {
-        p_script_id: activeScript.id,
-        p_content_id: selectedVideoId,
-        p_music_track_id: selectedMusicId,
-        p_music_volume: musicVolume,
-        p_music_start_ms: musicStartSeconds * 1000,
-        p_subtitles_enabled: subtitlesEnabled,
-        p_subtitle_font: subtitleFont,
-        p_subtitle_font_size: subtitleFontSize,
-        p_subtitle_color: subtitleColor,
-        p_subtitle_position: subtitlePosition,
-      });
-      if (error) throw error;
-      if (!data?.renderId) throw new Error("O render não retornou um identificador.");
-
-      setScripts(current =>
-        current.map(item =>
-          item.id === activeScript.id
-            ? {
-                ...item,
-                contentId: selectedVideoId,
-                musicTrackId: selectedMusicId,
-                musicVolume,
-                musicStartMs: musicStartSeconds * 1000,
-                subtitlesEnabled,
-                subtitleFont,
-                subtitleFontSize,
-                subtitleColor,
-                subtitlePosition,
-                mediaRenderId: data.renderId,
-              }
-            : item,
-        ),
-      );
-      setRenderStatus(current => ({ ...current, [activeScript.id!]: data.status || "queued" }));
-      stoppedRenderPolls.current.delete(data.renderId);
+      const data = await enqueueRender(activeScript, selectedVideoId, selectedMusicId);
       toast.info(data.reused ? "Abrindo vídeo já produzido." : "Vídeo enviado para produção.");
       await pollRender(activeScript.id, data.renderId);
     } catch (error: any) {
       toast.error(error?.message || "Não foi possível gerar o vídeo.");
     } finally {
       setRenderingScriptId(null);
+    }
+  };
+
+  const toggleBatchVideo = (videoId: string) => {
+    setSelectedBatchVideoIds(current =>
+      current.includes(videoId)
+        ? current.filter(id => id !== videoId)
+        : [...current, videoId],
+    );
+  };
+
+  const toggleBatchMusic = (musicId: string) => {
+    setSelectedBatchMusicIds(current =>
+      current.includes(musicId)
+        ? current.filter(id => id !== musicId)
+        : [...current, musicId],
+    );
+  };
+
+  const narrateMissingScripts = async () => {
+    const pending = productionScripts.filter(script => script.status === "approved");
+    if (!pending.length) return 0;
+    if (!selectedVoiceId) throw new Error("Selecione uma voz do ElevenLabs.");
+
+    for (let index = 0; index < pending.length; index += 1) {
+      const script = pending[index];
+      setBatchProgress({
+        current: index,
+        total: pending.length,
+        label: `Narrando ${index + 1} de ${pending.length}: ${script.title}`,
+      });
+      await generateNarrationAsset(script);
+      setBatchProgress(current => ({ ...current, current: index + 1 }));
+    }
+    return pending.length;
+  };
+
+  const generateAllNarrations = async () => {
+    try {
+      setBatchAction("voice");
+      const generated = await narrateMissingScripts();
+      toast.success(
+        generated > 0
+          ? `${generated} ${generated === 1 ? "narração gerada" : "narrações geradas"}.`
+          : "Todas as narrações já estavam prontas.",
+      );
+    } catch (error: any) {
+      toast.error(error?.message || "Não foi possível gerar as narrações do lote.");
+    } finally {
+      setBatchAction(null);
+    }
+  };
+
+  const produceBatch = async () => {
+    const targets = productionScripts;
+    if (!targets.length) {
+      toast.error("Aprove e salve os roteiros antes de produzir o lote.");
+      return;
+    }
+    if (selectedBatchVideoIds.length < targets.length) {
+      toast.error(
+        `Selecione ${targets.length} vídeos diferentes. Foram selecionados ${selectedBatchVideoIds.length}.`,
+      );
+      return;
+    }
+    if (!selectedBatchMusicIds.length) {
+      toast.error("Selecione pelo menos uma música para o rodízio.");
+      return;
+    }
+
+    try {
+      setBatchAction("render");
+      await narrateMissingScripts();
+
+      const videoOrder = shuffled(selectedBatchVideoIds).slice(0, targets.length);
+      const musicOrder = distributeRandomly(selectedBatchMusicIds, targets.length);
+      const queued: Array<{ scriptId: string; renderId: string }> = [];
+
+      for (let index = 0; index < targets.length; index += 1) {
+        const script = targets[index];
+        setBatchProgress({
+          current: index,
+          total: targets.length,
+          label: `Montando ${index + 1} de ${targets.length}: ${script.title}`,
+        });
+        const data = await enqueueRender(script, videoOrder[index], musicOrder[index]);
+        queued.push({ scriptId: script.id!, renderId: data.renderId });
+        setBatchProgress(current => ({ ...current, current: index + 1 }));
+      }
+
+      setBatchProgress({
+        current: targets.length,
+        total: targets.length,
+        label: `${targets.length} vídeos enviados para o renderizador`,
+      });
+      toast.success(
+        `Lote de ${targets.length} vídeos enviado. O worker finalizará a fila em segundo plano.`,
+      );
+
+      void Promise.allSettled(
+        queued.map(item =>
+          pollRender(item.scriptId, item.renderId, { silent: true, attempts: 160 }),
+        ),
+      ).then(results => {
+        const ready = results.filter(
+          result => result.status === "fulfilled" && result.value === "ready",
+        ).length;
+        if (ready > 0) {
+          toast.success(`${ready} ${ready === 1 ? "vídeo finalizado" : "vídeos finalizados"} no lote.`);
+        }
+      });
+    } catch (error: any) {
+      toast.error(error?.message || "Não foi possível iniciar a produção em lote.");
+    } finally {
+      setBatchAction(null);
     }
   };
 
@@ -559,6 +736,12 @@ export default function StudioIaPage() {
           subtitlePosition: script.subtitle_position,
         })),
       );
+      setSelectedBatchVideoIds(
+        Array.from(new Set((data || []).map((script: any) => script.content_id).filter(Boolean))),
+      );
+      setSelectedBatchMusicIds(
+        Array.from(new Set((data || []).map((script: any) => script.music_track_id).filter(Boolean))),
+      );
       setSavedProjectId(project.id);
       const firstProductionScript = (data || []).find((script: any) =>
         ["approved", "voiced", "rendered"].includes(script.status),
@@ -595,6 +778,10 @@ export default function StudioIaPage() {
     setSelectedVideoId("");
     setSelectedMusicId("");
     setMusicStartSeconds(0);
+    setSelectedBatchVideoIds([]);
+    setSelectedBatchMusicIds([]);
+    setBatchAction(null);
+    setBatchProgress({ current: 0, total: 0, label: "" });
     setPreviewUrls({});
     setRenderStatus({});
     setRenderingScriptId(null);
@@ -766,11 +953,11 @@ export default function StudioIaPage() {
 
         <section className="grid gap-2 rounded-2xl border border-border bg-card p-3 sm:grid-cols-5">
           {[
-            { label: "1. Roteiro", icon: Sparkles, done: scripts.length > 0 },
-            { label: "2. Aprovação", icon: CheckCircle2, done: approvedCount > 0 },
-            { label: "3. Narração", icon: Volume2, done: scripts.some(item => ["voiced", "rendered"].includes(item.status)) },
-            { label: "4. Mídia e trilha", icon: Video, done: Boolean(selectedVideoId && selectedMusicId) },
-            { label: "5. Vídeo final", icon: Wand2, done: scripts.some(item => item.status === "rendered") },
+            { label: `1. Roteiros · ${scripts.length}`, icon: Sparkles, done: scripts.length > 0 },
+            { label: `2. Aprovados · ${approvedCount}`, icon: CheckCircle2, done: approvedCount > 0 },
+            { label: `3. Narrações · ${voicedCount}/${approvedCount}`, icon: Volume2, done: approvedCount > 0 && voicedCount === approvedCount },
+            { label: `4. Mídias · ${selectedBatchVideoIds.length}`, icon: Video, done: approvedCount > 0 && selectedBatchVideoIds.length >= approvedCount },
+            { label: `5. Prontos · ${renderedCount}/${approvedCount}`, icon: Wand2, done: approvedCount > 0 && renderedCount === approvedCount },
           ].map(item => (
             <div
               key={item.label}
@@ -982,74 +1169,30 @@ export default function StudioIaPage() {
                       </AlertDialog>
                     </>
                   ) : (
-                    <Button
-                      size="sm"
-                      className="gap-2 bg-violet-600 text-white hover:bg-violet-500"
-                      disabled={saving}
-                      onClick={saveProject}
-                    >
-                      {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
-                      Salvar projeto
-                    </Button>
+                    <>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="gap-2 border-emerald-500/25 text-emerald-400 hover:bg-emerald-500/10 hover:text-emerald-300"
+                        onClick={() => setScripts(current => current.map(script => ({ ...script, status: "approved" })))}
+                      >
+                        <CheckCircle2 size={15} />
+                        Aprovar todos
+                      </Button>
+                      <Button
+                        size="sm"
+                        className="gap-2 bg-violet-600 text-white hover:bg-violet-500"
+                        disabled={saving || approvedCount === 0}
+                        onClick={saveProject}
+                      >
+                        {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
+                        Salvar projeto
+                      </Button>
+                    </>
                   )}
                 </div>
               )}
             </div>
-
-            {savedProjectId && scripts.some(script => ["approved", "voiced", "rendered"].includes(script.status)) && (
-              <Card className="border-violet-500/20 bg-violet-500/5">
-                <CardContent className="p-4">
-                  <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
-                    <div className="min-w-0 flex-1 space-y-2">
-                      <Label>Voz do ElevenLabs</Label>
-                      <Select
-                        value={selectedVoiceId}
-                        onValueChange={setSelectedVoiceId}
-                        disabled={loadingVoices || voices.length === 0}
-                      >
-                        <SelectTrigger>
-                          <SelectValue
-                            placeholder={loadingVoices ? "Carregando vozes..." : "Selecione uma voz"}
-                          />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {voices.map(voice => (
-                            <SelectItem key={voice.id} value={voice.id}>
-                              {voice.name} · {voice.labels?.accent || voice.labels?.language || voice.category}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <Button
-                      variant="outline"
-                      className="gap-2"
-                      disabled={loadingVoices}
-                      onClick={fetchVoices}
-                    >
-                      <RefreshCw size={15} className={loadingVoices ? "animate-spin" : ""} />
-                      Atualizar vozes
-                    </Button>
-                  </div>
-
-                  {voiceConfigError && (
-                    <p className="mt-3 rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-300">
-                      {voiceConfigError}
-                    </p>
-                  )}
-
-                  {voices.find(voice => voice.id === selectedVoiceId)?.previewUrl && (
-                    <audio
-                      className="mt-3 h-9 w-full"
-                      controls
-                      preload="none"
-                      src={voices.find(voice => voice.id === selectedVoiceId)?.previewUrl || undefined}
-                    />
-                  )}
-                </CardContent>
-              </Card>
-            )}
 
             {scripts.length === 0 ? (
               <Card className="border-dashed bg-card/50">
@@ -1188,15 +1331,314 @@ export default function StudioIaPage() {
 
         {savedProjectId && productionScripts.length > 0 && (
           <section className="space-y-4">
-            <div>
-              <p className="eyebrow mb-2">Montagem conectada</p>
-              <h2 className="font-display text-2xl font-bold">Produzir vídeo</h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Finalize um roteiro por vez. As escolhas ficam salvas no projeto.
-              </p>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <p className="eyebrow mb-2">Linha de produção</p>
+                <h2 className="font-display text-2xl font-bold">Produção em lote</h2>
+                <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
+                  {productionScripts.length} roteiros aprovados geram {productionScripts.length} vídeos. Selecione a voz,
+                  {` ${productionScripts.length} cenas diferentes`} e as músicas que entrarão no rodízio.
+                </p>
+              </div>
+              <Badge className="w-fit border-violet-500/20 bg-violet-500/10 px-3 py-1 text-violet-300">
+                <Layers3 size={14} className="mr-1.5" />
+                Lote com {productionScripts.length} vídeos
+              </Badge>
             </div>
 
-            <Card className="overflow-hidden border-violet-500/20 bg-card">
+            <Card className="overflow-hidden border-violet-500/25 bg-card shadow-[0_20px_70px_-45px_rgba(139,92,246,0.65)]">
+              <div className="grid gap-px border-b border-border bg-border sm:grid-cols-4">
+                {[
+                  { label: "Roteiros", value: productionScripts.length, icon: ListChecks, ready: true },
+                  { label: "Narrações", value: `${voicedCount}/${productionScripts.length}`, icon: Volume2, ready: voicedCount === productionScripts.length },
+                  { label: "Vídeos selecionados", value: `${selectedBatchVideoIds.length}/${productionScripts.length}`, icon: Video, ready: selectedBatchVideoIds.length >= productionScripts.length },
+                  { label: "Músicas no rodízio", value: selectedBatchMusicIds.length, icon: Music2, ready: selectedBatchMusicIds.length > 0 },
+                ].map(item => (
+                  <div key={item.label} className="flex items-center gap-3 bg-card px-5 py-4">
+                    <div className={`flex h-9 w-9 items-center justify-center rounded-xl ${item.ready ? "bg-emerald-500/10 text-emerald-400" : "bg-muted text-muted-foreground"}`}>
+                      <item.icon size={17} />
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">{item.label}</p>
+                      <p className="mt-0.5 text-lg font-bold">{item.value}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <CardContent className="space-y-6 p-5 sm:p-6">
+                <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <span className="flex h-6 w-6 items-center justify-center rounded-full bg-violet-500/15 text-xs font-bold text-violet-300">1</span>
+                      <Label>Voz padrão do lote</Label>
+                    </div>
+                    <Select
+                      value={selectedVoiceId}
+                      onValueChange={setSelectedVoiceId}
+                      disabled={loadingVoices || voices.length === 0}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder={loadingVoices ? "Carregando vozes..." : "Selecione a voz do ElevenLabs"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {voices.map(voice => (
+                          <SelectItem key={voice.id} value={voice.id}>
+                            {voice.name} · {voice.labels?.accent || voice.labels?.language || voice.category}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button variant="outline" className="gap-2" disabled={loadingVoices || batchAction !== null} onClick={fetchVoices}>
+                      <RefreshCw size={15} className={loadingVoices ? "animate-spin" : ""} />
+                      Atualizar vozes
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="gap-2 border-violet-500/30 text-violet-300 hover:bg-violet-500/10 hover:text-violet-200"
+                      disabled={batchAction !== null || voicedCount === productionScripts.length}
+                      onClick={generateAllNarrations}
+                    >
+                      {batchAction === "voice" ? <Loader2 size={15} className="animate-spin" /> : <Volume2 size={15} />}
+                      Gerar todas as narrações
+                    </Button>
+                  </div>
+                </div>
+
+                {voiceConfigError && (
+                  <p className="rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-300">
+                    {voiceConfigError}
+                  </p>
+                )}
+
+                {voices.find(voice => voice.id === selectedVoiceId)?.previewUrl && (
+                  <audio
+                    className="h-9 w-full"
+                    controls
+                    preload="none"
+                    src={voices.find(voice => voice.id === selectedVoiceId)?.previewUrl || undefined}
+                  />
+                )}
+
+                <div className="grid gap-5 xl:grid-cols-2">
+                  <div className="overflow-hidden rounded-2xl border border-border">
+                    <div className="flex items-center justify-between gap-3 border-b border-border bg-muted/20 px-4 py-3">
+                      <div>
+                        <div className="flex items-center gap-2 text-sm font-semibold">
+                          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-violet-500/15 text-xs font-bold text-violet-300">2</span>
+                          Cenas da Biblioteca
+                        </div>
+                        <p className="mt-1 text-xs text-muted-foreground">Uma cena diferente para cada roteiro.</p>
+                      </div>
+                      <div className="flex gap-1.5">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setSelectedBatchVideoIds(videoChoices.slice(0, productionScripts.length).map(video => video.id))}
+                        >
+                          Selecionar {productionScripts.length}
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={() => setSelectedBatchVideoIds([])}>Limpar</Button>
+                      </div>
+                    </div>
+                    <div className="grid max-h-72 gap-2 overflow-y-auto p-3 sm:grid-cols-2">
+                      {videoChoices.map(video => {
+                        const selected = selectedBatchVideoIds.includes(video.id);
+                        return (
+                          <label
+                            key={video.id}
+                            className={`flex min-w-0 cursor-pointer items-center gap-3 rounded-xl border p-2.5 text-left transition ${selected ? "border-violet-500/50 bg-violet-500/10" : "border-border bg-background/40 hover:bg-muted/40"}`}
+                          >
+                            <Checkbox checked={selected} onCheckedChange={() => toggleBatchVideo(video.id)} />
+                            <div className="h-12 w-9 shrink-0 overflow-hidden rounded-md bg-muted">
+                              {video.thumbnail_url && <img src={video.thumbnail_url} alt="" className="h-full w-full object-cover" />}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="truncate text-xs font-semibold">{video.title}</p>
+                              <p className="mt-1 text-[10px] text-muted-foreground">
+                                {video.source || "Biblioteca"}{video.duration_seconds ? ` · ${Math.round(video.duration_seconds)}s` : ""}
+                              </p>
+                            </div>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="overflow-hidden rounded-2xl border border-border">
+                    <div className="flex items-center justify-between gap-3 border-b border-border bg-muted/20 px-4 py-3">
+                      <div>
+                        <div className="flex items-center gap-2 text-sm font-semibold">
+                          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-violet-500/15 text-xs font-bold text-violet-300">3</span>
+                          Rodízio de músicas
+                        </div>
+                        <p className="mt-1 text-xs text-muted-foreground">Ordem aleatória, sem repetir até usar todas.</p>
+                      </div>
+                      <div className="flex gap-1.5">
+                        <Button size="sm" variant="ghost" onClick={() => setSelectedBatchMusicIds(musicChoices.map(music => music.id))}>Todas</Button>
+                        <Button size="sm" variant="ghost" onClick={() => setSelectedBatchMusicIds([])}>Limpar</Button>
+                      </div>
+                    </div>
+                    <div className="grid max-h-72 gap-2 overflow-y-auto p-3 sm:grid-cols-2">
+                      {musicChoices.map(music => {
+                        const selected = selectedBatchMusicIds.includes(music.id);
+                        return (
+                          <label
+                            key={music.id}
+                            className={`flex min-w-0 cursor-pointer items-center gap-3 rounded-xl border p-3 text-left transition ${selected ? "border-violet-500/50 bg-violet-500/10" : "border-border bg-background/40 hover:bg-muted/40"}`}
+                          >
+                            <Checkbox checked={selected} onCheckedChange={() => toggleBatchMusic(music.id)} />
+                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-violet-500/10 text-violet-300">
+                              <Music2 size={16} />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="truncate text-xs font-semibold">{music.nome}</p>
+                              <p className="mt-1 truncate text-[10px] text-muted-foreground">{music.artista || music.estilo || "Trilha"}</p>
+                            </div>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-border bg-muted/10 p-4">
+                  <div className="mb-4 flex items-center gap-2 text-sm font-semibold">
+                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-violet-500/15 text-xs font-bold text-violet-300">4</span>
+                    Padrão aplicado aos {productionScripts.length} vídeos
+                  </div>
+                  <div className="grid gap-5 lg:grid-cols-4">
+                    <div className="space-y-3 lg:col-span-2">
+                      <div className="flex items-center justify-between">
+                        <Label>Volume da música</Label>
+                        <span className="text-xs font-semibold text-violet-300">{musicVolume}%</span>
+                      </div>
+                      <Slider min={0} max={40} step={1} value={[musicVolume]} onValueChange={value => setMusicVolume(value[0])} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="batch-music-start">Início da música</Label>
+                      <div className="relative">
+                        <Input
+                          id="batch-music-start"
+                          type="number"
+                          min={0}
+                          max={3600}
+                          value={musicStartSeconds}
+                          onChange={event => setMusicStartSeconds(Math.min(3600, Math.max(0, Math.floor(Number(event.target.value) || 0))))}
+                          className="pr-16"
+                        />
+                        <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs text-muted-foreground">seg.</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between gap-4 rounded-xl border border-border px-3 py-2">
+                      <div>
+                        <Label>Legendas</Label>
+                        <p className="mt-1 text-[10px] text-muted-foreground">Sincronizadas com a voz</p>
+                      </div>
+                      <Switch checked={subtitlesEnabled} onCheckedChange={setSubtitlesEnabled} />
+                    </div>
+                  </div>
+
+                  {subtitlesEnabled && (
+                    <div className="mt-5 grid gap-4 border-t border-border pt-5 sm:grid-cols-2 lg:grid-cols-4">
+                      <div className="space-y-2">
+                        <Label>Fonte</Label>
+                        <Select value={subtitleFont} onValueChange={setSubtitleFont}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="DejaVu Sans">Moderna</SelectItem>
+                            <SelectItem value="Liberation Sans">Clean</SelectItem>
+                            <SelectItem value="Liberation Serif">Editorial</SelectItem>
+                            <SelectItem value="DejaVu Sans Mono">Digital</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Posição</Label>
+                        <Select value={subtitlePosition} onValueChange={setSubtitlePosition}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="top">Superior</SelectItem>
+                            <SelectItem value="center">Centro</SelectItem>
+                            <SelectItem value="bottom">Inferior</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between"><Label>Tamanho</Label><span className="text-xs text-violet-300">{subtitleFontSize}px</span></div>
+                        <Slider min={16} max={36} step={1} value={[subtitleFontSize]} onValueChange={value => setSubtitleFontSize(value[0])} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Cor</Label>
+                        <div className="flex h-10 items-center gap-2">
+                          {Object.entries(captionColorCss).map(([name, color]) => (
+                            <button
+                              key={name}
+                              type="button"
+                              aria-label={`Cor ${name}`}
+                              onClick={() => setSubtitleColor(name)}
+                              className={`h-8 w-8 rounded-full border-2 transition ${subtitleColor === name ? "scale-110 border-violet-400" : "border-border"}`}
+                              style={{ backgroundColor: color }}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {batchProgress.total > 0 && (
+                  <div className="rounded-2xl border border-violet-500/20 bg-violet-500/5 p-4">
+                    <div className="mb-2 flex items-center justify-between gap-3 text-xs">
+                      <span className="truncate font-semibold text-violet-200">{batchProgress.label}</span>
+                      <span className="shrink-0 text-muted-foreground">{batchProgress.current}/{batchProgress.total}</span>
+                    </div>
+                    <Progress value={batchPercent} className="h-2" />
+                  </div>
+                )}
+
+                <div className="flex flex-col gap-3 rounded-2xl bg-gradient-to-r from-violet-600/15 via-fuchsia-500/10 to-transparent p-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-start gap-3">
+                    <Shuffle size={20} className="mt-0.5 shrink-0 text-violet-300" />
+                    <div>
+                      <p className="text-sm font-semibold">Distribuição automática e sem repetição de cena</p>
+                      <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                        O Studio combina roteiro, narração, vídeo, música e legenda e envia todo o lote para a fila.
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    className="h-12 shrink-0 gap-2 bg-violet-600 px-6 text-white hover:bg-violet-500"
+                    disabled={batchAction !== null}
+                    onClick={produceBatch}
+                  >
+                    {batchAction === "render" ? <Loader2 size={18} className="animate-spin" /> : <Play size={18} />}
+                    {batchAction === "render" ? "Preparando o lote..." : `Produzir ${productionScripts.length} vídeos`}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </section>
+        )}
+
+        {savedProjectId && productionScripts.length > 0 && (
+          <details className="group space-y-4 rounded-2xl border border-border bg-card/40 p-4 sm:p-5">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-4 rounded-xl outline-none">
+              <div>
+                <p className="eyebrow mb-2">Controle avançado</p>
+                <h2 className="font-display text-xl font-bold">Ajustar um vídeo individualmente</h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Abra somente quando quiser trocar a cena, a música ou a legenda de um roteiro específico.
+                </p>
+              </div>
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-border text-muted-foreground transition group-open:rotate-90 group-open:border-violet-500/30 group-open:text-violet-300">
+                <ArrowRight size={18} />
+              </div>
+            </summary>
+
+            <Card className="mt-4 overflow-hidden border-violet-500/20 bg-card">
               <div className="grid border-b border-border bg-muted/20 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
                 <div className="p-5 sm:p-6">
                   <Label>Roteiro em produção</Label>
@@ -1462,7 +1904,7 @@ export default function StudioIaPage() {
                 </div>
               </CardContent>
             </Card>
-          </section>
+          </details>
         )}
 
         <section>
