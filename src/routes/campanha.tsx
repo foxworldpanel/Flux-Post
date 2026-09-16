@@ -872,6 +872,7 @@ export default function CampanhaPage({ mode = "traditional" }: { mode?: "traditi
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
+      const studioHandoff = isStudioFlow ? readStudioCampaignHandoff() : null;
       const studioContentIds = Array.from(
         new Set(studioHandoff?.items.map(item => item.contentId).filter(Boolean) || []),
       );
@@ -910,7 +911,6 @@ export default function CampanhaPage({ mode = "traditional" }: { mode?: "traditi
       setSocialAccounts(accountsRes || []);
       setRenders(rendersRes.data || []);
 
-      const studioHandoff = isStudioFlow ? readStudioCampaignHandoff() : null;
       const availableContentIds = new Set((libraryRes.data || []).map(item => item.id));
       const validStudioItems = studioHandoff?.items.filter(item => {
         const render = (rendersRes.data || []).find(candidate => candidate.id === item.renderId);
