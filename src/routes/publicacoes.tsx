@@ -90,8 +90,8 @@ export default function PublicacoesPage() {
   const [changingCampaign, setChangingCampaign] = useState<string | null>(null);
   const [deletingCampaign, setDeletingCampaign] = useState<string | null>(null);
   const [campaignToDelete, setCampaignToDelete] = useState<any | null>(null);
-  const [cleaningStale, setCleaningStale] = useState(false);
-  const [showStaleCleanup, setShowStaleCleanup] = useState(false);
+  const [cleaningStandalone, setCleaningStandalone] = useState(false);
+  const [showStandaloneCleanup, setShowStandaloneCleanup] = useState(false);
   const [expandedCampaign, setExpandedCampaign] = useState<string | null>(null);
   const [showFinished, setShowFinished] = useState(false);
   const [publications, setPublications] = useState<any[]>([]);
@@ -295,17 +295,6 @@ export default function PublicacoesPage() {
     [publications],
   );
 
-  const staleStandalonePublications = useMemo(() => {
-    const staleBefore = Date.now() - 2 * 60 * 1000;
-    return standalonePublications.filter(publication => {
-      if (!["publishing", "processing"].includes(normalizeStatus(publication.status))) {
-        return false;
-      }
-      const updatedAt = safeDate(publication.updated_at || publication.created_at);
-      return Boolean(updatedAt && updatedAt.getTime() < staleBefore);
-    });
-  }, [standalonePublications]);
-
   const scheduledTotal = publications.filter(publication =>
     SCHEDULED_STATUSES.has(normalizeStatus(publication.status))
   ).length;
@@ -323,11 +312,11 @@ export default function PublicacoesPage() {
     setExpandedCampaign(current => current === campaignId ? null : campaignId);
   };
 
-  const cleanupStalePublications = async () => {
-    setCleaningStale(true);
+  const clearStandalonePublications = async () => {
+    setCleaningStandalone(true);
     try {
       const { data, error } = await (supabase as any).rpc(
-        "cleanup_stale_orphan_publications"
+        "clear_orphan_publications"
       );
       if (error) throw error;
       if (!data || (data as any).ok !== true) {
@@ -335,17 +324,17 @@ export default function PublicacoesPage() {
       }
 
       const removed = Number((data as any).removed_publications || 0);
-      setShowStaleCleanup(false);
+      setShowStandaloneCleanup(false);
       toast.success(
         removed === 1
-          ? "1 publicação travada foi removida."
-          : `${removed} publicações travadas foram removidas.`
+          ? "1 publicação avulsa foi removida."
+          : `${removed} publicações avulsas foram removidas.`
       );
       await fetchPublications();
     } catch (err: any) {
       toast.error("Erro ao limpar publicações: " + (err?.message || String(err)));
     } finally {
-      setCleaningStale(false);
+      setCleaningStandalone(false);
     }
   };
 
@@ -568,29 +557,29 @@ export default function PublicacoesPage() {
       </AlertDialogContent>
     </AlertDialog>
     <AlertDialog
-      open={showStaleCleanup}
+      open={showStandaloneCleanup}
       onOpenChange={open => {
-        if (!cleaningStale) setShowStaleCleanup(open);
+        if (!cleaningStandalone) setShowStandaloneCleanup(open);
       }}
     >
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Limpar publicações travadas?</AlertDialogTitle>
+          <AlertDialogTitle>Limpar todas as publicações avulsas?</AlertDialogTitle>
           <AlertDialogDescription>
-            Serão removidos {staleStandalonePublications.length} registros órfãos presos em “Publicando”. Posts concluídos nas redes e seu histórico publicado não serão apagados.
+            Serão removidos permanentemente {standalonePublications.length} registros sem campanha do Flux Post, incluindo publicados, falhos e travados. Publicações que já chegaram às redes sociais não serão apagadas das plataformas.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={cleaningStale}>Cancelar</AlertDialogCancel>
+          <AlertDialogCancel disabled={cleaningStandalone}>Cancelar</AlertDialogCancel>
           <AlertDialogAction
-            disabled={cleaningStale}
+            disabled={cleaningStandalone}
             onClick={event => {
               event.preventDefault();
-              void cleanupStalePublications();
+              void clearStandalonePublications();
             }}
             className="bg-red-600 text-white hover:bg-red-500"
           >
-            {cleaningStale ? "Limpando..." : "Limpar travadas"}
+            {cleaningStandalone ? "Limpando..." : "Limpar tudo"}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
@@ -654,15 +643,15 @@ export default function PublicacoesPage() {
                   </div>
                   {expandedCampaign === "__standalone__" ? <ChevronUp /> : <ChevronDown />}
                 </button>
-                {staleStandalonePublications.length > 0 && <Button
+                {standalonePublications.length > 0 && <Button
                   type="button"
                   variant="outline"
                   size="sm"
                   className="shrink-0 border-red-500/30 text-red-400 hover:bg-red-500/10 hover:text-red-300"
-                  onClick={() => setShowStaleCleanup(true)}
+                  onClick={() => setShowStandaloneCleanup(true)}
                 >
                   <Trash2 size={14} className="mr-2" />
-                  Limpar travadas ({staleStandalonePublications.length})
+                  Limpar tudo ({standalonePublications.length})
                 </Button>}
               </div>
               {expandedCampaign === "__standalone__" && <div className="border-t border-border mt-4 pt-4">
