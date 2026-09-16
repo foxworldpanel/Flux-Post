@@ -62,23 +62,41 @@ serve(async (req) => {
           });
         }
 
-        // Get content & music details
+        // Get content, music and optional Studio IA narration details.
         const { data: content } = await supabase.from('content_library').select('*').eq('id', jobData.source_content_id).single();
-        const { data: music } = await supabase.from('music_tracks').select('*').eq('id', jobData.music_track_id).single();
+        const { data: music } = jobData.music_track_id
+          ? await supabase.from('music_tracks').select('*').eq('id', jobData.music_track_id).single()
+          : { data: null };
+        const voiceAssetId = jobData.render_options?.voiceAssetId;
+        const { data: voiceAsset } = voiceAssetId
+          ? await supabase
+              .from('ai_studio_voice_assets')
+              .select('id,storage_bucket,storage_path,alignment,status')
+              .eq('id', voiceAssetId)
+              .eq('user_id', jobData.user_id)
+              .maybeSingle()
+          : { data: null };
 
-        if (!content || !music) throw new Error("Input files not found in library");
+        if (!content || (jobData.music_track_id && !music)) {
+          throw new Error("Input files not found in library");
+        }
+        if (voiceAssetId && (!voiceAsset || voiceAsset.status !== 'ready' || !voiceAsset.storage_path)) {
+          throw new Error("Studio IA narration is not ready");
+        }
 
         // 1. Verify objects exist physically and generate short-lived signed URLs (1 hour)
         const { data: videoFiles } = await supabase.storage.from('content-library').list(pathDir(content.storage_path), {
           search: pathBase(content.storage_path)
         });
 
-        const { data: musicFiles } = await supabase.storage.from('musicas').list(pathDir(music.storage_path), {
-          search: pathBase(music.storage_path)
-        });
+        const { data: musicFiles } = music?.storage_path
+          ? await supabase.storage.from('musicas').list(pathDir(music.storage_path), {
+              search: pathBase(music.storage_path)
+            })
+          : { data: [] };
 
         const videoExists = videoFiles && videoFiles.length > 0;
-        const musicExists = musicFiles && musicFiles.length > 0;
+        const musicExists = !jobData.music_track_id || Boolean(musicFiles && musicFiles.length > 0);
 
         if (!videoExists || !musicExists) {
           const missing = !videoExists && !musicExists ? "Video and Music" : (!videoExists ? "Video" : "Music");
@@ -99,13 +117,23 @@ serve(async (req) => {
 
         // Generate signed URLs with 2 hours expiry to be safe for slow downloads
         const { data: videoUrl } = await supabase.storage.from('content-library').createSignedUrl(content.storage_path, 7200);
-        const { data: musicUrl } = await supabase.storage.from('musicas').createSignedUrl(music.storage_path, 7200);
+        const { data: musicUrl } = music?.storage_path
+          ? await supabase.storage.from('musicas').createSignedUrl(music.storage_path, 7200)
+          : { data: null };
+        const { data: narrationUrl } = voiceAsset?.storage_path
+          ? await supabase.storage
+              .from(voiceAsset.storage_bucket || 'ai-studio-audio')
+              .createSignedUrl(voiceAsset.storage_path, 7200)
+          : { data: null };
 
         return new Response(JSON.stringify({ 
           job: jobData, 
           inputs: {
             video_url: videoUrl?.signedUrl,
-            music_url: musicUrl?.signedUrl
+            music_url: musicUrl?.signedUrl || null,
+            narration_url: narrationUrl?.signedUrl || null,
+            alignment: voiceAsset?.alignment || null,
+            subtitles_enabled: Boolean(jobData.render_options?.subtitlesEnabled)
           }
         }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
@@ -143,6 +171,33 @@ serve(async (req) => {
         }).eq('id', job_id);
 
         if (upError) throw upError;
+
+        const { data: studioScript } = await supabase
+          .from('ai_studio_scripts')
+          .select('id,project_id')
+          .eq('media_render_id', job_id)
+          .maybeSingle();
+
+        if (studioScript) {
+          await supabase
+            .from('ai_studio_scripts')
+            .update({ status: 'rendered', updated_at: new Date().toISOString() })
+            .eq('id', studioScript.id);
+
+          const { count } = await supabase
+            .from('ai_studio_scripts')
+            .select('id', { count: 'exact', head: true })
+            .eq('project_id', studioScript.project_id)
+            .in('status', ['approved', 'voiced']);
+
+          await supabase
+            .from('ai_studio_projects')
+            .update({
+              status: count === 0 ? 'completed' : 'producing',
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', studioScript.project_id);
+        }
 
         return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
