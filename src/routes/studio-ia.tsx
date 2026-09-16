@@ -11,11 +11,13 @@ import {
   Loader2,
   Mic2,
   Music2,
+  RefreshCw,
   Search,
   Save,
   Sparkles,
   Upload,
   Video,
+  Volume2,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -57,6 +59,15 @@ interface SavedProject {
   include_cta: boolean;
   status: string;
   created_at: string;
+}
+
+interface ElevenLabsVoice {
+  id: string;
+  name: string;
+  category: string;
+  description: string;
+  previewUrl: string | null;
+  labels: Record<string, string>;
 }
 
 const productionSteps = [
@@ -101,6 +112,12 @@ export default function StudioIaPage() {
   const [savedProjectId, setSavedProjectId] = useState<string | null>(null);
   const [recentProjects, setRecentProjects] = useState<SavedProject[]>([]);
   const [loadingProjectId, setLoadingProjectId] = useState<string | null>(null);
+  const [voices, setVoices] = useState<ElevenLabsVoice[]>([]);
+  const [selectedVoiceId, setSelectedVoiceId] = useState("");
+  const [loadingVoices, setLoadingVoices] = useState(false);
+  const [voiceConfigError, setVoiceConfigError] = useState<string | null>(null);
+  const [generatingScriptId, setGeneratingScriptId] = useState<string | null>(null);
+  const [audioUrls, setAudioUrls] = useState<Record<string, string>>({});
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
 
   const totalMinutes = useMemo(
@@ -123,6 +140,108 @@ export default function StudioIaPage() {
   useEffect(() => {
     fetchRecentProjects();
   }, []);
+
+  const edgeFunctionMessage = async (error: any, fallback: string) => {
+    try {
+      const payload = await error?.context?.json?.();
+      return payload?.error || fallback;
+    } catch {
+      return error?.message || fallback;
+    }
+  };
+
+  const fetchVoices = async () => {
+    try {
+      setLoadingVoices(true);
+      setVoiceConfigError(null);
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session) throw new Error("Sessão expirada. Entre novamente.");
+
+      const { data, error } = await supabase.functions.invoke("ai-studio-voice", {
+        body: { action: "list_voices" },
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+
+      if (error) {
+        throw new Error(
+          await edgeFunctionMessage(error, "Não foi possível carregar as vozes."),
+        );
+      }
+      if (!data?.success || !Array.isArray(data.voices)) {
+        throw new Error(data?.error || "Nenhuma voz foi encontrada.");
+      }
+
+      setVoices(data.voices);
+      setSelectedVoiceId(current => current || data.voices[0]?.id || "");
+    } catch (error: any) {
+      setVoiceConfigError(error?.message || "ElevenLabs não configurado.");
+    } finally {
+      setLoadingVoices(false);
+    }
+  };
+
+  useEffect(() => {
+    if (savedProjectId && scripts.some(script => script.status === "approved") && !voices.length) {
+      fetchVoices();
+    }
+  }, [savedProjectId]);
+
+  const requestNarration = async (script: MotivationalScript) => {
+    if (!script.id) {
+      toast.error("Salve e reabra o projeto antes de gerar a narração.");
+      return;
+    }
+
+    const getExisting = script.status === "voiced" || script.status === "rendered";
+    const selectedVoice = voices.find(voice => voice.id === selectedVoiceId);
+    if (!getExisting && !selectedVoiceId) {
+      toast.error("Selecione uma voz do ElevenLabs.");
+      return;
+    }
+
+    try {
+      setGeneratingScriptId(script.id);
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session) throw new Error("Sessão expirada. Entre novamente.");
+
+      const { data, error } = await supabase.functions.invoke("ai-studio-voice", {
+        body: getExisting
+          ? { action: "get_audio", scriptId: script.id }
+          : {
+              action: "generate",
+              scriptId: script.id,
+              voiceId: selectedVoiceId,
+              voiceName: selectedVoice?.name || "",
+            },
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+
+      if (error) {
+        throw new Error(
+          await edgeFunctionMessage(error, "Não foi possível gerar a narração."),
+        );
+      }
+      if (!data?.success || !data.audioUrl) {
+        throw new Error(data?.error || "A narração não retornou um áudio válido.");
+      }
+
+      setAudioUrls(current => ({ ...current, [script.id!]: data.audioUrl }));
+      setScripts(current =>
+        current.map(item =>
+          item.id === script.id ? { ...item, status: "voiced" } : item,
+        ),
+      );
+      toast.success(data.reused ? "Narração recuperada." : "Narração gerada e salva.");
+    } catch (error: any) {
+      toast.error(error?.message || "Erro na geração da narração.");
+    } finally {
+      setGeneratingScriptId(null);
+    }
+  };
 
   const setScriptStatus = (
     index: number,
@@ -167,8 +286,20 @@ export default function StudioIaPage() {
       if (error) throw error;
       if (!data?.projectId) throw new Error("O projeto não retornou um identificador.");
 
-      setSavedProjectId(data.projectId);
+      const savedProject: SavedProject = {
+        id: data.projectId,
+        name: projectName.trim() || "Lote motivacional Sourcee",
+        theme: theme.trim(),
+        tone,
+        audience: audience.trim(),
+        duration_seconds: Number(duration),
+        include_cta: includeCta,
+        status: "review",
+        created_at: new Date().toISOString(),
+      };
+
       await fetchRecentProjects();
+      await loadProject(savedProject);
       toast.success(
         `Projeto salvo com ${approvedCount} ${approvedCount === 1 ? "roteiro aprovado" : "roteiros aprovados"}.`,
       );
@@ -225,6 +356,7 @@ export default function StudioIaPage() {
     setScripts([]);
     setSavedProjectId(null);
     setProjectName("Lote motivacional Sourcee");
+    setAudioUrls({});
   };
 
   const generateScripts = async () => {
@@ -518,6 +650,61 @@ export default function StudioIaPage() {
               )}
             </div>
 
+            {savedProjectId && scripts.some(script => ["approved", "voiced", "rendered"].includes(script.status)) && (
+              <Card className="border-violet-500/20 bg-violet-500/5">
+                <CardContent className="p-4">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
+                    <div className="min-w-0 flex-1 space-y-2">
+                      <Label>Voz do ElevenLabs</Label>
+                      <Select
+                        value={selectedVoiceId}
+                        onValueChange={setSelectedVoiceId}
+                        disabled={loadingVoices || voices.length === 0}
+                      >
+                        <SelectTrigger>
+                          <SelectValue
+                            placeholder={loadingVoices ? "Carregando vozes..." : "Selecione uma voz"}
+                          />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {voices.map(voice => (
+                            <SelectItem key={voice.id} value={voice.id}>
+                              {voice.name} · {voice.labels?.accent || voice.labels?.language || voice.category}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <Button
+                      variant="outline"
+                      className="gap-2"
+                      disabled={loadingVoices}
+                      onClick={fetchVoices}
+                    >
+                      <RefreshCw size={15} className={loadingVoices ? "animate-spin" : ""} />
+                      Atualizar vozes
+                    </Button>
+                  </div>
+
+                  {voiceConfigError && (
+                    <p className="mt-3 rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-300">
+                      {voiceConfigError}
+                    </p>
+                  )}
+
+                  {voices.find(voice => voice.id === selectedVoiceId)?.previewUrl && (
+                    <audio
+                      className="mt-3 h-9 w-full"
+                      controls
+                      preload="none"
+                      src={voices.find(voice => voice.id === selectedVoiceId)?.previewUrl || undefined}
+                    />
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
             {scripts.length === 0 ? (
               <Card className="border-dashed bg-card/50">
                 <CardContent className="flex min-h-[410px] flex-col items-center justify-center p-8 text-center">
@@ -577,14 +764,18 @@ export default function StudioIaPage() {
                         <Badge
                           variant="outline"
                           className={
-                            script.status === "approved"
+                            script.status === "voiced" || script.status === "rendered"
+                              ? "border-violet-500/20 bg-violet-500/10 text-violet-300"
+                              : script.status === "approved"
                               ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-400"
                               : script.status === "rejected"
                               ? "border-red-500/20 bg-red-500/10 text-red-400"
                               : "text-muted-foreground"
                           }
                         >
-                          {script.status === "approved"
+                          {script.status === "voiced" || script.status === "rendered"
+                            ? "Narração pronta"
+                            : script.status === "approved"
                             ? "Aprovado"
                             : script.status === "rejected"
                             ? "Descartado"
@@ -612,7 +803,35 @@ export default function StudioIaPage() {
                             </Button>
                           </div>
                         )}
+
+                        {savedProjectId &&
+                          ["approved", "voiced", "rendered"].includes(script.status) && (
+                            <Button
+                              size="sm"
+                              className="gap-2 bg-violet-600 text-white hover:bg-violet-500"
+                              disabled={generatingScriptId === script.id}
+                              onClick={() => requestNarration(script)}
+                            >
+                              {generatingScriptId === script.id ? (
+                                <Loader2 size={14} className="animate-spin" />
+                              ) : (
+                                <Volume2 size={14} />
+                              )}
+                              {script.status === "voiced" || script.status === "rendered"
+                                ? "Ouvir narração"
+                                : "Gerar narração"}
+                            </Button>
+                          )}
                       </div>
+
+                      {script.id && audioUrls[script.id] && (
+                        <audio
+                          className="mt-4 h-10 w-full"
+                          controls
+                          preload="metadata"
+                          src={audioUrls[script.id]}
+                        />
+                      )}
                     </CardContent>
                   </Card>
                 ))}
