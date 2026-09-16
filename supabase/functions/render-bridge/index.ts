@@ -162,8 +162,16 @@ serve(async (req) => {
       case "complete": {
         if (!job_id) throw new Error("Missing job_id");
         
-        const { data: jobData } = await supabase.from('media_renders').select('storage_path, user_id').eq('id', job_id).single();
+        const { data: jobData } = await supabase.from('media_renders').select('storage_path, user_id, status').eq('id', job_id).maybeSingle();
+        if (!jobData) {
+          return new Response(JSON.stringify({ success: true, removed: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        }
         if (!jobData || !jobData.storage_path) throw new Error("Job storage path not defined");
+
+        if (jobData.status === 'cancelled') {
+          await supabase.storage.from('rendered').remove([jobData.storage_path]);
+          return new Response(JSON.stringify({ success: true, cancelled: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        }
 
         // List files in the exact directory
         const directory = pathDir(jobData.storage_path);
@@ -219,7 +227,13 @@ serve(async (req) => {
       case "fail": {
         if (!job_id) throw new Error("Missing job_id");
         
-        const { data: currentJob } = await supabase.from('media_renders').select('attempts, max_attempts').eq('id', job_id).single();
+        const { data: currentJob } = await supabase.from('media_renders').select('attempts, max_attempts, status').eq('id', job_id).maybeSingle();
+        if (!currentJob) {
+          return new Response(JSON.stringify({ success: true, next_status: 'removed' }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        }
+        if (currentJob.status === 'cancelled') {
+          return new Response(JSON.stringify({ success: true, next_status: 'cancelled' }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        }
         const nextStatus = (currentJob && currentJob.attempts >= currentJob.max_attempts) ? 'failed' : 'queued';
 
         const { error: failError } = await supabase.from('media_renders').update({
@@ -235,8 +249,11 @@ serve(async (req) => {
       case "get_upload_url": {
         // Generate signed upload URL for the worker
         if (!job_id) throw new Error("Missing job_id");
-        const { data: jobData } = await supabase.from('media_renders').select('render_key, user_id').eq('id', job_id).single();
+        const { data: jobData } = await supabase.from('media_renders').select('render_key, user_id, status').eq('id', job_id).maybeSingle();
         if (!jobData) throw new Error("Job not found");
+        if (jobData.status === 'cancelled') {
+          return new Response(JSON.stringify({ error: "Render cancelled" }), { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        }
 
         const storagePath = `${jobData.user_id}/${job_id}.mp4`;
         

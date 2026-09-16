@@ -180,14 +180,19 @@ async function processJob(claimResult) {
         pink: '&H00B672F4',
       };
       const subtitleColor = subtitleColors[captionOptions.subtitleColor] || subtitleColors.white;
+      const requestedSubtitlePosition = String(
+        captionOptions.subtitlePosition ?? captionOptions.subtitle_position ?? 'bottom'
+      ).trim().toLowerCase();
       const subtitlePositions = {
         top: { alignment: 8, margin: 85 },
         center: { alignment: 5, margin: 0 },
         bottom: { alignment: 2, margin: 110 },
       };
-      const subtitlePosition = subtitlePositions[captionOptions.subtitlePosition] || subtitlePositions.bottom;
+      const subtitlePosition = subtitlePositions[requestedSubtitlePosition] || subtitlePositions.bottom;
 
-      console.log(`[${job.id}] Rendering Studio IA video (${narrationDuration.toFixed(1)}s, subtitles: ${hasSubtitles ? 'YES' : 'NO'})...`);
+      console.log(
+        `[${job.id}] Rendering Studio IA video (${narrationDuration.toFixed(1)}s, subtitles: ${hasSubtitles ? 'YES' : 'NO'}, position: ${requestedSubtitlePosition})...`
+      );
 
       await new Promise((resolve, reject) => {
         const command = ffmpeg()

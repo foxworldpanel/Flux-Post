@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import {
   ArrowRight,
   Captions,
+  CircleStop,
   Check,
   CheckCircle2,
   Copy,
@@ -13,6 +14,7 @@ import {
   Search,
   Save,
   Sparkles,
+  Trash2,
   Upload,
   Video,
   Volume2,
@@ -24,6 +26,17 @@ import { DashboardLayout } from "@/components/DashboardLayout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -110,6 +123,7 @@ const captionPositionCss: Record<string, string> = {
 export default function StudioIaPage() {
   const navigate = useNavigate();
   const autoOpenedProject = useRef(false);
+  const stoppedRenderPolls = useRef(new Set<string>());
   const [theme, setTheme] = useState("recomeço, coragem e confiança");
   const [projectName, setProjectName] = useState("Lote motivacional Sourcee");
   const [tone, setTone] = useState("emocional e acolhedor");
@@ -144,6 +158,7 @@ export default function StudioIaPage() {
   const [renderStatus, setRenderStatus] = useState<Record<string, string>>({});
   const [previewUrls, setPreviewUrls] = useState<Record<string, string>>({});
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+  const [projectAction, setProjectAction] = useState<"cancel" | "delete" | null>(null);
 
   const totalMinutes = useMemo(
     () => Math.ceil((Number(duration) * Number(quantity)) / 60),
@@ -407,6 +422,7 @@ export default function StudioIaPage() {
 
   const pollRender = async (scriptId: string, renderId: string) => {
     for (let attempt = 0; attempt < 40; attempt += 1) {
+      if (stoppedRenderPolls.current.has(renderId)) return;
       const render = await loadRender(scriptId, renderId);
       if (render?.status === "ready") {
         setScripts(current =>
@@ -421,6 +437,10 @@ export default function StudioIaPage() {
       }
       if (render?.status === "failed") {
         throw new Error(render.error_message || "O renderizador não conseguiu montar o vídeo.");
+      }
+      if (render?.status === "cancelled") {
+        toast.info("Produção cancelada.");
+        return;
       }
       await new Promise(resolve => window.setTimeout(resolve, 3000));
     }
@@ -477,6 +497,7 @@ export default function StudioIaPage() {
         ),
       );
       setRenderStatus(current => ({ ...current, [activeScript.id!]: data.status || "queued" }));
+      stoppedRenderPolls.current.delete(data.renderId);
       toast.info(data.reused ? "Abrindo vídeo já produzido." : "Vídeo enviado para produção.");
       await pollRender(activeScript.id, data.renderId);
     } catch (error: any) {
@@ -563,6 +584,77 @@ export default function StudioIaPage() {
     setSelectedMusicId("");
     setPreviewUrls({});
     setRenderStatus({});
+    setRenderingScriptId(null);
+  };
+
+  const projectRequest = async (action: "cancel_project" | "delete_project") => {
+    if (!savedProjectId) throw new Error("Nenhum projeto está aberto.");
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    if (!session) throw new Error("Sessão expirada. Entre novamente.");
+
+    const { data, error } = await supabase.functions.invoke("ai-studio-voice", {
+      body: { action, projectId: savedProjectId },
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    });
+    if (error) {
+      throw new Error(
+        await edgeFunctionMessage(
+          error,
+          action === "delete_project"
+            ? "Não foi possível excluir o projeto."
+            : "Não foi possível cancelar a produção.",
+        ),
+      );
+    }
+    if (!data?.success) throw new Error(data?.error || "A operação não foi concluída.");
+    return data;
+  };
+
+  const cancelProjectProduction = async () => {
+    try {
+      setProjectAction("cancel");
+      scripts.forEach(script => {
+        if (script.mediaRenderId) stoppedRenderPolls.current.add(script.mediaRenderId);
+      });
+      const data = await projectRequest("cancel_project");
+      setRenderingScriptId(null);
+      setRenderStatus(current => {
+        const next = { ...current };
+        scripts.forEach(script => {
+          if (script.id && script.mediaRenderId) next[script.id] = "cancelled";
+        });
+        return next;
+      });
+      toast.success(
+        data.cancelledCount > 0
+          ? "Produção cancelada. O projeto continua salvo."
+          : "Não havia nenhum vídeo em produção.",
+      );
+    } catch (error: any) {
+      toast.error(error?.message || "Não foi possível cancelar a produção.");
+    } finally {
+      setProjectAction(null);
+    }
+  };
+
+  const deleteProject = async () => {
+    try {
+      setProjectAction("delete");
+      scripts.forEach(script => {
+        if (script.mediaRenderId) stoppedRenderPolls.current.add(script.mediaRenderId);
+      });
+      await projectRequest("delete_project");
+      startNewProject();
+      autoOpenedProject.current = true;
+      await fetchRecentProjects();
+      toast.success("Projeto e arquivos de produção excluídos.");
+    } catch (error: any) {
+      toast.error(error?.message || "Não foi possível excluir o projeto.");
+    } finally {
+      setProjectAction(null);
+    }
   };
 
   const generateScripts = async () => {
@@ -807,6 +899,74 @@ export default function StudioIaPage() {
                       <Button size="sm" variant="outline" onClick={startNewProject}>
                         Novo lote
                       </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="gap-1.5 text-amber-400 hover:bg-amber-500/10 hover:text-amber-300"
+                            disabled={projectAction !== null}
+                          >
+                            {projectAction === "cancel" ? (
+                              <Loader2 size={14} className="animate-spin" />
+                            ) : (
+                              <CircleStop size={14} />
+                            )}
+                            Cancelar produção
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Cancelar a produção atual?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Os vídeos que estiverem na fila ou sendo processados serão interrompidos. O projeto e os roteiros continuarão salvos.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Voltar</AlertDialogCancel>
+                            <AlertDialogAction
+                              className="bg-amber-600 text-white hover:bg-amber-500"
+                              onClick={cancelProjectProduction}
+                            >
+                              Cancelar produção
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="gap-1.5 text-red-400 hover:bg-red-500/10 hover:text-red-300"
+                            disabled={projectAction !== null}
+                          >
+                            {projectAction === "delete" ? (
+                              <Loader2 size={14} className="animate-spin" />
+                            ) : (
+                              <Trash2 size={14} />
+                            )}
+                            Excluir projeto
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Excluir este projeto?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Esta ação remove os roteiros, narrações e vídeos produzidos deste projeto. Não será possível recuperar depois.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Manter projeto</AlertDialogCancel>
+                            <AlertDialogAction
+                              className="bg-red-600 text-white hover:bg-red-500"
+                              onClick={deleteProject}
+                            >
+                              Excluir definitivamente
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
                     </>
                   ) : (
                     <Button
@@ -1233,7 +1393,7 @@ export default function StudioIaPage() {
                           className="absolute inset-0 h-full w-full object-cover opacity-80"
                         />
                       ) : null}
-                      {subtitlesEnabled && (
+                      {subtitlesEnabled && !(activeScript?.id && previewUrls[activeScript.id]) && (
                         <div
                           className={`pointer-events-none absolute left-4 right-4 z-10 text-center font-bold leading-tight ${captionPositionCss[subtitlePosition]}`}
                           style={{
@@ -1246,11 +1406,11 @@ export default function StudioIaPage() {
                           {activeScript?.narration.split(/\s+/).slice(0, 7).join(" ") || "Sua mensagem aparece aqui"}
                         </div>
                       )}
-                      <div className="pointer-events-none absolute inset-x-0 bottom-2 z-10 text-center text-[10px] font-semibold uppercase tracking-[0.18em] text-white/60">
-                        {activeScript?.id && previewUrls[activeScript.id]
-                          ? "Simulação da nova legenda"
-                          : "Preview da legenda"}
-                      </div>
+                      {!(activeScript?.id && previewUrls[activeScript.id]) && (
+                        <div className="pointer-events-none absolute inset-x-0 bottom-2 z-10 text-center text-[10px] font-semibold uppercase tracking-[0.18em] text-white/60">
+                          Preview da legenda
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <div className="max-w-xs text-center text-muted-foreground">

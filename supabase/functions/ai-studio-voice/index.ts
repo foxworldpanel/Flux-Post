@@ -69,6 +69,148 @@ serve(async req => {
     const body = await req.json();
     const action = body?.action || "generate";
 
+    if (action === "cancel_project" || action === "delete_project") {
+      const projectId = String(body?.projectId || "").trim();
+      if (!projectId) return jsonResponse({ error: "projectId is required" }, 400);
+
+      const { data: project, error: projectError } = await service
+        .from("ai_studio_projects")
+        .select("id")
+        .eq("id", projectId)
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (projectError) throw projectError;
+      if (!project) return jsonResponse({ error: "Projeto não encontrado" }, 404);
+
+      const { data: projectScripts, error: scriptsError } = await service
+        .from("ai_studio_scripts")
+        .select("id,media_render_id")
+        .eq("project_id", projectId)
+        .eq("user_id", user.id);
+      if (scriptsError) throw scriptsError;
+
+      const renderIds = Array.from(
+        new Set(
+          (projectScripts || [])
+            .map((script: any) => script.media_render_id)
+            .filter(Boolean),
+        ),
+      );
+
+      let cancelledCount = 0;
+      let cancelledRenderIds: string[] = [];
+      if (renderIds.length > 0) {
+        const { data: cancelled, error: cancelError } = await service
+          .from("media_renders")
+          .update({
+            status: "cancelled",
+            error_message: "Cancelado pelo usuário",
+            last_heartbeat: null,
+            completed_at: new Date().toISOString(),
+          })
+          .in("id", renderIds)
+          .eq("user_id", user.id)
+          .in("status", ["queued", "processing"])
+          .select("id");
+        if (cancelError) throw cancelError;
+        cancelledCount = cancelled?.length || 0;
+        cancelledRenderIds = (cancelled || []).map((render: any) => render.id);
+      }
+
+      if (action === "cancel_project") {
+        if (cancelledRenderIds.length > 0) {
+          const { data: cancelledRenders, error: cancelledRendersError } = await service
+            .from("media_renders")
+            .select("storage_path")
+            .in("id", cancelledRenderIds)
+            .eq("user_id", user.id);
+          if (cancelledRendersError) throw cancelledRendersError;
+
+          const cancelledPaths = (cancelledRenders || [])
+            .map((render: any) => render.storage_path)
+            .filter(Boolean);
+          if (cancelledPaths.length > 0) {
+            const { error: cleanupError } = await service.storage
+              .from("rendered")
+              .remove(cancelledPaths);
+            if (cleanupError) {
+              console.error("[ai-studio-voice] Cancelled render cleanup failed", cleanupError);
+            }
+          }
+
+          const { error: deleteCancelledError } = await service
+            .from("media_renders")
+            .delete()
+            .in("id", cancelledRenderIds)
+            .eq("user_id", user.id);
+          if (deleteCancelledError) throw deleteCancelledError;
+        }
+
+        const { error: updateError } = await service
+          .from("ai_studio_projects")
+          .update({ status: "review", updated_at: new Date().toISOString() })
+          .eq("id", projectId)
+          .eq("user_id", user.id);
+        if (updateError) throw updateError;
+        return jsonResponse({ success: true, cancelledCount });
+      }
+
+      const { data: voiceAssets, error: voiceAssetsError } = await service
+        .from("ai_studio_voice_assets")
+        .select("storage_bucket,storage_path")
+        .eq("project_id", projectId)
+        .eq("user_id", user.id);
+      if (voiceAssetsError) throw voiceAssetsError;
+
+      const audioByBucket = new Map<string, string[]>();
+      for (const asset of voiceAssets || []) {
+        if (!asset.storage_path) continue;
+        const bucket = asset.storage_bucket || "ai-studio-audio";
+        audioByBucket.set(bucket, [...(audioByBucket.get(bucket) || []), asset.storage_path]);
+      }
+      for (const [bucket, paths] of audioByBucket) {
+        const { error: removeError } = await service.storage.from(bucket).remove(paths);
+        if (removeError) console.error("[ai-studio-voice] Audio cleanup failed", removeError);
+      }
+
+      if (renderIds.length > 0) {
+        const { data: renders, error: rendersError } = await service
+          .from("media_renders")
+          .select("id,storage_path")
+          .in("id", renderIds)
+          .eq("user_id", user.id);
+        if (rendersError) throw rendersError;
+
+        const renderPaths = (renders || [])
+          .map((render: any) => render.storage_path)
+          .filter(Boolean);
+        if (renderPaths.length > 0) {
+          const { error: removeRenderError } = await service.storage
+            .from("rendered")
+            .remove(renderPaths);
+          if (removeRenderError) {
+            console.error("[ai-studio-voice] Render cleanup failed", removeRenderError);
+          }
+        }
+
+        const { error: deleteRendersError } = await service
+          .from("media_renders")
+          .delete()
+          .in("id", renderIds)
+          .eq("user_id", user.id);
+        if (deleteRendersError) throw deleteRendersError;
+      }
+
+      const { error: deleteProjectError } = await service
+        .from("ai_studio_projects")
+        .delete()
+        .eq("id", projectId)
+        .eq("user_id", user.id);
+      if (deleteProjectError) throw deleteProjectError;
+
+      return jsonResponse({ success: true, cancelledCount });
+    }
+
     if (!ELEVENLABS_API_KEY) {
       return jsonResponse(
         {
