@@ -52,6 +52,10 @@ interface MotivationalScript {
   mediaRenderId?: string | null;
   musicVolume?: number;
   subtitlesEnabled?: boolean;
+  subtitleFont?: string;
+  subtitleFontSize?: number;
+  subtitleColor?: string;
+  subtitlePosition?: string;
 }
 
 interface LibraryVideo {
@@ -90,6 +94,19 @@ interface ElevenLabsVoice {
   labels: Record<string, string>;
 }
 
+const captionColorCss: Record<string, string> = {
+  white: "#ffffff",
+  yellow: "#fde047",
+  cyan: "#67e8f9",
+  pink: "#f472b6",
+};
+
+const captionPositionCss: Record<string, string> = {
+  top: "top-12",
+  center: "top-1/2 -translate-y-1/2",
+  bottom: "bottom-14",
+};
+
 export default function StudioIaPage() {
   const navigate = useNavigate();
   const autoOpenedProject = useRef(false);
@@ -119,6 +136,10 @@ export default function StudioIaPage() {
   const [selectedMusicId, setSelectedMusicId] = useState("");
   const [musicVolume, setMusicVolume] = useState(18);
   const [subtitlesEnabled, setSubtitlesEnabled] = useState(true);
+  const [subtitleFont, setSubtitleFont] = useState("DejaVu Sans");
+  const [subtitleFontSize, setSubtitleFontSize] = useState(22);
+  const [subtitleColor, setSubtitleColor] = useState("white");
+  const [subtitlePosition, setSubtitlePosition] = useState("bottom");
   const [renderingScriptId, setRenderingScriptId] = useState<string | null>(null);
   const [renderStatus, setRenderStatus] = useState<Record<string, string>>({});
   const [previewUrls, setPreviewUrls] = useState<Record<string, string>>({});
@@ -183,6 +204,10 @@ export default function StudioIaPage() {
     setSelectedMusicId(activeScript.musicTrackId || "");
     setMusicVolume(activeScript.musicVolume ?? 18);
     setSubtitlesEnabled(activeScript.subtitlesEnabled ?? true);
+    setSubtitleFont(activeScript.subtitleFont || "DejaVu Sans");
+    setSubtitleFontSize(activeScript.subtitleFontSize ?? 22);
+    setSubtitleColor(activeScript.subtitleColor || "white");
+    setSubtitlePosition(activeScript.subtitlePosition || "bottom");
   }, [activeScript?.id]);
 
   const edgeFunctionMessage = async (error: any, fallback: string) => {
@@ -425,6 +450,10 @@ export default function StudioIaPage() {
         p_music_track_id: selectedMusicId,
         p_music_volume: musicVolume,
         p_subtitles_enabled: subtitlesEnabled,
+        p_subtitle_font: subtitleFont,
+        p_subtitle_font_size: subtitleFontSize,
+        p_subtitle_color: subtitleColor,
+        p_subtitle_position: subtitlePosition,
       });
       if (error) throw error;
       if (!data?.renderId) throw new Error("O render não retornou um identificador.");
@@ -438,6 +467,10 @@ export default function StudioIaPage() {
                 musicTrackId: selectedMusicId,
                 musicVolume,
                 subtitlesEnabled,
+                subtitleFont,
+                subtitleFontSize,
+                subtitleColor,
+                subtitlePosition,
                 mediaRenderId: data.renderId,
               }
             : item,
@@ -459,7 +492,7 @@ export default function StudioIaPage() {
       const { data, error } = await (supabase as any)
         .from("ai_studio_scripts")
         .select(
-          "id,title,hook,narration,closing,visual_keywords,estimated_seconds,status,position,content_id,music_track_id,media_render_id,music_volume,subtitles_enabled",
+          "id,title,hook,narration,closing,visual_keywords,estimated_seconds,status,position,content_id,music_track_id,media_render_id,music_volume,subtitles_enabled,subtitle_font,subtitle_font_size,subtitle_color,subtitle_position",
         )
         .eq("project_id", project.id)
         .order("position", { ascending: true });
@@ -488,6 +521,10 @@ export default function StudioIaPage() {
           mediaRenderId: script.media_render_id,
           musicVolume: script.music_volume,
           subtitlesEnabled: script.subtitles_enabled,
+          subtitleFont: script.subtitle_font,
+          subtitleFontSize: script.subtitle_font_size,
+          subtitleColor: script.subtitle_color,
+          subtitlePosition: script.subtitle_position,
         })),
       );
       setSavedProjectId(project.id);
@@ -500,6 +537,10 @@ export default function StudioIaPage() {
         setSelectedMusicId(firstProductionScript.music_track_id || "");
         setMusicVolume(firstProductionScript.music_volume ?? 18);
         setSubtitlesEnabled(firstProductionScript.subtitles_enabled ?? true);
+        setSubtitleFont(firstProductionScript.subtitle_font || "DejaVu Sans");
+        setSubtitleFontSize(firstProductionScript.subtitle_font_size ?? 22);
+        setSubtitleColor(firstProductionScript.subtitle_color || "white");
+        setSubtitlePosition(firstProductionScript.subtitle_position || "bottom");
         if (firstProductionScript.media_render_id) {
           void loadRender(firstProductionScript.id, firstProductionScript.media_render_id);
         }
@@ -1067,7 +1108,7 @@ export default function StudioIaPage() {
                     </div>
                   </div>
 
-                  <div className="grid gap-5 rounded-2xl border border-border p-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+                  <div className="rounded-2xl border border-border p-4">
                     <div>
                       <div className="mb-3 flex items-center justify-between text-sm">
                         <Label>Volume da música</Label>
@@ -1084,14 +1125,77 @@ export default function StudioIaPage() {
                         A narração permanece em primeiro plano.
                       </p>
                     </div>
-                    <div className="flex items-center gap-3 rounded-xl bg-muted/40 px-4 py-3">
-                      <Captions size={18} className="text-violet-400" />
-                      <div>
-                        <p className="text-sm font-semibold">Legendas sincronizadas</p>
-                        <p className="text-xs text-muted-foreground">Timing do ElevenLabs</p>
+                  </div>
+
+                  <div className="space-y-4 rounded-2xl border border-border p-4">
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="flex items-center gap-2">
+                        <Captions size={18} className="text-violet-400" />
+                        <div>
+                          <p className="text-sm font-semibold">Estilo da legenda</p>
+                          <p className="text-xs text-muted-foreground">Confira o resultado no preview ao lado.</p>
+                        </div>
                       </div>
                       <Switch checked={subtitlesEnabled} onCheckedChange={setSubtitlesEnabled} />
                     </div>
+
+                    {subtitlesEnabled && (
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <div className="space-y-2">
+                          <Label>Fonte</Label>
+                          <Select value={subtitleFont} onValueChange={setSubtitleFont}>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="DejaVu Sans">Moderna</SelectItem>
+                              <SelectItem value="Liberation Sans">Clean</SelectItem>
+                              <SelectItem value="Liberation Serif">Editorial</SelectItem>
+                              <SelectItem value="DejaVu Sans Mono">Digital</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Posição</Label>
+                          <Select value={subtitlePosition} onValueChange={setSubtitlePosition}>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="top">Superior</SelectItem>
+                              <SelectItem value="center">Centro</SelectItem>
+                              <SelectItem value="bottom">Inferior</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between">
+                            <Label>Tamanho</Label>
+                            <span className="text-xs font-semibold text-violet-400">{subtitleFontSize}px</span>
+                          </div>
+                          <Slider
+                            min={16}
+                            max={36}
+                            step={1}
+                            value={[subtitleFontSize]}
+                            onValueChange={value => setSubtitleFontSize(value[0])}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Cor</Label>
+                          <div className="flex h-10 items-center gap-2">
+                            {Object.entries(captionColorCss).map(([name, color]) => (
+                              <button
+                                key={name}
+                                type="button"
+                                aria-label={`Cor ${name}`}
+                                onClick={() => setSubtitleColor(name)}
+                                className={`h-8 w-8 rounded-full border-2 transition ${
+                                  subtitleColor === name ? "scale-110 border-violet-400" : "border-border"
+                                }`}
+                                style={{ backgroundColor: color }}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   <Button
@@ -1121,12 +1225,30 @@ export default function StudioIaPage() {
                       src={previewUrls[activeScript.id]}
                     />
                   ) : selectedVideoId ? (
-                    <div className="max-w-xs text-center">
-                      <Wand2 className="mx-auto text-violet-400" size={34} />
-                      <p className="mt-4 font-display text-lg font-bold">Preview final</p>
-                      <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                        Gere o vídeo para conferir voz, música e legendas juntas.
-                      </p>
+                    <div className="relative aspect-[9/16] max-h-[620px] w-full max-w-[350px] overflow-hidden rounded-xl bg-zinc-950">
+                      {videoChoices.find(video => video.id === selectedVideoId)?.thumbnail_url && (
+                        <img
+                          src={videoChoices.find(video => video.id === selectedVideoId)?.thumbnail_url || ""}
+                          alt="Preview da cena"
+                          className="absolute inset-0 h-full w-full object-cover opacity-80"
+                        />
+                      )}
+                      {subtitlesEnabled && (
+                        <div
+                          className={`absolute left-4 right-4 text-center font-bold leading-tight ${captionPositionCss[subtitlePosition]}`}
+                          style={{
+                            color: captionColorCss[subtitleColor],
+                            fontFamily: `"${subtitleFont}", sans-serif`,
+                            fontSize: `${Math.max(14, subtitleFontSize - 3)}px`,
+                            textShadow: "0 2px 2px #000, 0 0 5px #000, 0 0 8px #000",
+                          }}
+                        >
+                          {activeScript?.narration.split(/\s+/).slice(0, 7).join(" ") || "Sua mensagem aparece aqui"}
+                        </div>
+                      )}
+                      <div className="absolute inset-x-0 bottom-2 text-center text-[10px] font-semibold uppercase tracking-[0.18em] text-white/60">
+                        Preview da legenda
+                      </div>
                     </div>
                   ) : (
                     <div className="max-w-xs text-center text-muted-foreground">
