@@ -12,6 +12,7 @@ import GarimpoPage from "./routes/garimpo";
 import PublicacoesPage from "./routes/publicacoes";
 import AgendaPage from "./routes/agenda";
 import SecurityReportPage from "./routes/security-report";
+import StudioIaPage from "./routes/studio-ia";
 import { Toaster } from "sonner";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { lazy, Suspense } from "react";
@@ -54,6 +55,7 @@ function App() {
                   </Suspense>
                 }
               />
+              <Route path="/studio-ia" element={<StudioIaPage />} />
               <Route path="/security-report" element={<SecurityReportPage />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
