@@ -64,6 +64,7 @@ interface MotivationalScript {
   musicTrackId?: string | null;
   mediaRenderId?: string | null;
   musicVolume?: number;
+  musicStartMs?: number;
   subtitlesEnabled?: boolean;
   subtitleFont?: string;
   subtitleFontSize?: number;
@@ -149,6 +150,7 @@ export default function StudioIaPage() {
   const [selectedVideoId, setSelectedVideoId] = useState("");
   const [selectedMusicId, setSelectedMusicId] = useState("");
   const [musicVolume, setMusicVolume] = useState(18);
+  const [musicStartSeconds, setMusicStartSeconds] = useState(0);
   const [subtitlesEnabled, setSubtitlesEnabled] = useState(true);
   const [subtitleFont, setSubtitleFont] = useState("DejaVu Sans");
   const [subtitleFontSize, setSubtitleFontSize] = useState(22);
@@ -218,6 +220,7 @@ export default function StudioIaPage() {
     setSelectedVideoId(activeScript.contentId || "");
     setSelectedMusicId(activeScript.musicTrackId || "");
     setMusicVolume(activeScript.musicVolume ?? 18);
+    setMusicStartSeconds(Math.floor((activeScript.musicStartMs ?? 0) / 1000));
     setSubtitlesEnabled(activeScript.subtitlesEnabled ?? true);
     setSubtitleFont(activeScript.subtitleFont || "DejaVu Sans");
     setSubtitleFontSize(activeScript.subtitleFontSize ?? 22);
@@ -474,6 +477,7 @@ export default function StudioIaPage() {
         p_content_id: selectedVideoId,
         p_music_track_id: selectedMusicId,
         p_music_volume: musicVolume,
+        p_music_start_ms: musicStartSeconds * 1000,
         p_subtitles_enabled: subtitlesEnabled,
         p_subtitle_font: subtitleFont,
         p_subtitle_font_size: subtitleFontSize,
@@ -491,6 +495,7 @@ export default function StudioIaPage() {
                 contentId: selectedVideoId,
                 musicTrackId: selectedMusicId,
                 musicVolume,
+                musicStartMs: musicStartSeconds * 1000,
                 subtitlesEnabled,
                 subtitleFont,
                 subtitleFontSize,
@@ -518,7 +523,7 @@ export default function StudioIaPage() {
       const { data, error } = await (supabase as any)
         .from("ai_studio_scripts")
         .select(
-          "id,title,hook,narration,closing,visual_keywords,estimated_seconds,status,position,content_id,music_track_id,media_render_id,music_volume,subtitles_enabled,subtitle_font,subtitle_font_size,subtitle_color,subtitle_position",
+          "id,title,hook,narration,closing,visual_keywords,estimated_seconds,status,position,content_id,music_track_id,media_render_id,music_volume,music_start_ms,subtitles_enabled,subtitle_font,subtitle_font_size,subtitle_color,subtitle_position",
         )
         .eq("project_id", project.id)
         .order("position", { ascending: true });
@@ -546,6 +551,7 @@ export default function StudioIaPage() {
           musicTrackId: script.music_track_id,
           mediaRenderId: script.media_render_id,
           musicVolume: script.music_volume,
+          musicStartMs: script.music_start_ms,
           subtitlesEnabled: script.subtitles_enabled,
           subtitleFont: script.subtitle_font,
           subtitleFontSize: script.subtitle_font_size,
@@ -562,6 +568,7 @@ export default function StudioIaPage() {
         setSelectedVideoId(firstProductionScript.content_id || "");
         setSelectedMusicId(firstProductionScript.music_track_id || "");
         setMusicVolume(firstProductionScript.music_volume ?? 18);
+        setMusicStartSeconds(Math.floor((firstProductionScript.music_start_ms ?? 0) / 1000));
         setSubtitlesEnabled(firstProductionScript.subtitles_enabled ?? true);
         setSubtitleFont(firstProductionScript.subtitle_font || "DejaVu Sans");
         setSubtitleFontSize(firstProductionScript.subtitle_font_size ?? 22);
@@ -587,6 +594,7 @@ export default function StudioIaPage() {
     setActiveScriptId("");
     setSelectedVideoId("");
     setSelectedMusicId("");
+    setMusicStartSeconds(0);
     setPreviewUrls({});
     setRenderStatus({});
     setRenderingScriptId(null);
@@ -1273,7 +1281,7 @@ export default function StudioIaPage() {
                     </div>
                   </div>
 
-                  <div className="rounded-2xl border border-border p-4">
+                  <div className="grid gap-5 rounded-2xl border border-border p-4 md:grid-cols-[minmax(0,1fr)_180px]">
                     <div>
                       <div className="mb-3 flex items-center justify-between text-sm">
                         <Label>Volume da música</Label>
@@ -1288,6 +1296,34 @@ export default function StudioIaPage() {
                       />
                       <p className="mt-2 text-xs text-muted-foreground">
                         A narração permanece em primeiro plano.
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="studio-music-start">Início da música</Label>
+                      <div className="relative">
+                        <Input
+                          id="studio-music-start"
+                          type="number"
+                          min={0}
+                          max={3600}
+                          step={1}
+                          value={musicStartSeconds}
+                          onChange={event =>
+                            setMusicStartSeconds(
+                              Math.min(
+                                3600,
+                                Math.max(0, Math.floor(Number(event.target.value) || 0)),
+                              ),
+                            )
+                          }
+                          className="pr-20"
+                        />
+                        <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs text-muted-foreground">
+                          segundos
+                        </span>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Ex.: 30 começa a trilha em 00:30.
                       </p>
                     </div>
                   </div>

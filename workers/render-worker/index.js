@@ -181,6 +181,7 @@ async function processJob(claimResult) {
       }
       const narrationDuration = await probeDuration(narrationPath);
       const musicVol = (job.music_volume ?? 18) / 100;
+      const musicStartSec = Math.max(0, Number(job.music_start_ms) || 0) / 1000;
       const captionOptions = job.render_options || {};
       const allowedFonts = new Set([
         'DejaVu Sans',
@@ -224,7 +225,7 @@ async function processJob(claimResult) {
         : false;
 
       console.log(
-        `[${job.id}] Rendering Studio IA video (${narrationDuration.toFixed(1)}s, subtitles: ${hasSubtitles ? 'YES' : 'NO'}, position: ${requestedSubtitlePosition})...`
+        `[${job.id}] Rendering Studio IA video (${narrationDuration.toFixed(1)}s, music start: ${musicStartSec.toFixed(1)}s, subtitles: ${hasSubtitles ? 'YES' : 'NO'}, position: ${requestedSubtitlePosition})...`
       );
 
       await new Promise((resolve, reject) => {
@@ -234,7 +235,7 @@ async function processJob(claimResult) {
 
         let narrationInput = 1;
         if (mRes) {
-          command.input(musicPath).inputOptions(['-stream_loop -1']);
+          command.input(musicPath).inputOptions(['-stream_loop -1', `-ss ${musicStartSec}`]);
           narrationInput = 2;
         }
         command.input(narrationPath);
