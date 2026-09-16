@@ -10,6 +10,70 @@ import { createClient } from '@supabase/supabase-js';
 
 const execAsync = promisify(exec);
 
+function srtTimestamp(seconds) {
+  const safe = Math.max(0, Number(seconds) || 0);
+  const hours = Math.floor(safe / 3600);
+  const minutes = Math.floor((safe % 3600) / 60);
+  const wholeSeconds = Math.floor(safe % 60);
+  const milliseconds = Math.floor((safe - Math.floor(safe)) * 1000);
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(wholeSeconds).padStart(2, '0')},${String(milliseconds).padStart(3, '0')}`;
+}
+
+function alignmentToCues(payload) {
+  const alignment = payload?.normalized_alignment || payload?.alignment || payload;
+  const chars = alignment?.characters;
+  const starts = alignment?.character_start_times_seconds;
+  const ends = alignment?.character_end_times_seconds;
+  if (!Array.isArray(chars) || !Array.isArray(starts) || !Array.isArray(ends)) return [];
+
+  const words = [];
+  let text = '';
+  let start = null;
+  let end = null;
+  for (let index = 0; index < chars.length; index += 1) {
+    const character = chars[index];
+    if (start === null && character.trim()) start = starts[index];
+    text += character;
+    end = ends[index];
+    if (/\s/.test(character) && text.trim()) {
+      words.push({ text: text.trim(), start: Number(start || 0), end: Number(end || start || 0) });
+      text = '';
+      start = null;
+    }
+  }
+  if (text.trim()) words.push({ text: text.trim(), start: Number(start || 0), end: Number(end || start || 0) });
+
+  const cues = [];
+  for (let index = 0; index < words.length; index += 5) {
+    const group = words.slice(index, index + 5);
+    cues.push({
+      text: group.map(word => word.text).join(' '),
+      start: group[0].start,
+      end: Math.max(group[group.length - 1].end, group[0].start + 0.7),
+    });
+  }
+  return cues;
+}
+
+async function writeSubtitles(filePath, alignment) {
+  const cues = alignmentToCues(alignment);
+  if (!cues.length) return false;
+  const content = cues.map((cue, index) =>
+    `${index + 1}\n${srtTimestamp(cue.start)} --> ${srtTimestamp(cue.end)}\n${cue.text}\n`
+  ).join('\n');
+  await fs.writeFile(filePath, content, 'utf8');
+  return true;
+}
+
+async function probeDuration(filePath) {
+  const { stdout } = await execAsync(
+    `ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${filePath}"`
+  );
+  const duration = Number(stdout.trim());
+  if (!Number.isFinite(duration) || duration <= 0) throw new Error('Could not determine narration duration');
+  return duration;
+}
+
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || 'no-key-provided';
 const workerSecret = process.env.RENDER_WORKER_SECRET;
@@ -70,16 +134,78 @@ async function processJob(claimResult) {
   try {
     const videoPath = path.join(workDir, 'input_video.mp4');
     const musicPath = path.join(workDir, 'input_music.mp3');
+    const narrationPath = path.join(workDir, 'narration.mp3');
+    const subtitlePath = path.join(workDir, 'captions.srt');
     const outputPath = path.join(workDir, 'output.mp4');
 
     // 1. Download via Signed URLs
     console.log(`[${job.id}] Downloading assets...`);
-    const [vRes, mRes] = await Promise.all([
+    const [vRes, mRes, nRes] = await Promise.all([
       axios.get(inputs.video_url, { responseType: 'arraybuffer' }),
-      axios.get(inputs.music_url, { responseType: 'arraybuffer' })
+      inputs.music_url ? axios.get(inputs.music_url, { responseType: 'arraybuffer' }) : null,
+      inputs.narration_url ? axios.get(inputs.narration_url, { responseType: 'arraybuffer' }) : null,
     ]);
     await fs.writeFile(videoPath, Buffer.from(vRes.data));
-    await fs.writeFile(musicPath, Buffer.from(mRes.data));
+    if (mRes) await fs.writeFile(musicPath, Buffer.from(mRes.data));
+    if (nRes) await fs.writeFile(narrationPath, Buffer.from(nRes.data));
+
+    const isStudioJob = Boolean(inputs.narration_url);
+    if (isStudioJob) {
+      const narrationDuration = await probeDuration(narrationPath);
+      const hasSubtitles = inputs.subtitles_enabled
+        ? await writeSubtitles(subtitlePath, inputs.alignment)
+        : false;
+      const musicVol = (job.music_volume ?? 18) / 100;
+
+      console.log(`[${job.id}] Rendering Studio IA video (${narrationDuration.toFixed(1)}s, subtitles: ${hasSubtitles ? 'YES' : 'NO'})...`);
+
+      await new Promise((resolve, reject) => {
+        const command = ffmpeg()
+          .input(videoPath)
+          .inputOptions(['-stream_loop -1']);
+
+        let narrationInput = 1;
+        if (mRes) {
+          command.input(musicPath).inputOptions(['-stream_loop -1']);
+          narrationInput = 2;
+        }
+        command.input(narrationPath);
+
+        const filters = [];
+        if (hasSubtitles) {
+          filters.push(
+            `[0:v]subtitles='${subtitlePath}':force_style='FontName=Arial,FontSize=20,Bold=1,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=1,Outline=3,Shadow=1,Alignment=2,MarginV=110'[vout]`
+          );
+        }
+        filters.push(`[${narrationInput}:a]volume=1.0[narration]`);
+        if (mRes) {
+          filters.push(`[1:a]volume=${musicVol}[music]`);
+          filters.push('[narration][music]amix=inputs=2:duration=first:dropout_transition=2[aout]');
+        } else {
+          filters.push('[narration]anull[aout]');
+        }
+
+        command.complexFilter(filters);
+        command.outputOptions([
+          hasSubtitles ? '-map [vout]' : '-map 0:v',
+          '-map [aout]',
+          '-c:v libx264',
+          '-preset fast',
+          '-crf 22',
+          '-pix_fmt yuv420p',
+          '-c:a aac',
+          '-b:a 192k',
+          `-t ${narrationDuration.toFixed(3)}`,
+          '-movflags +faststart'
+        ])
+        .on('error', (err, stdout, stderr) => {
+          console.error(`[${job.id}] Studio FFmpeg STDERR:`, stderr);
+          reject(new Error(`Studio FFmpeg failed: ${err.message}`));
+        })
+        .on('end', resolve)
+        .save(outputPath);
+      });
+    } else {
 
     // 2. FFmpeg Processing
     console.log(`[${job.id}] Probing video for audio streams...`);
@@ -140,6 +266,7 @@ async function processJob(claimResult) {
       .on('end', resolve)
       .save(outputPath);
     });
+    }
 
     // 3. Secure Upload via Signed Upload URL
     console.log(`[${job.id}] Requesting signed upload URL...`);
