@@ -23,7 +23,7 @@ type Platform =
 type CopyMode = "music" | "video";
 
 interface CopyRequest {
-  action?: "generate_copy" | "account_variants";
+  action?: "generate_copy" | "account_variants" | "motivational_scripts";
   contentId?: string;
   copyMode?: CopyMode;
   contentTitle?: string;
@@ -61,6 +61,15 @@ interface CopyRequest {
     accountName?: string;
     username?: string | null;
   }>;
+
+  motivational?: {
+    theme?: string;
+    tone?: string;
+    audience?: string;
+    durationSeconds?: number;
+    quantity?: number;
+    includeCta?: boolean;
+  };
 }
 
 function jsonResponse(data: unknown, status = 200) {
@@ -284,6 +293,8 @@ serve(async (req) => {
     const action =
       body.action === "account_variants"
         ? "account_variants"
+        : body.action === "motivational_scripts"
+        ? "motivational_scripts"
         : "generate_copy";
     const platform = body.platform || "generic";
     const copyMode: CopyMode =
@@ -563,9 +574,66 @@ Return ONLY valid JSON in exactly this structure:
 }
 `.trim();
 
+    const motivationalQuantity = Math.min(
+      10,
+      Math.max(1, Number(body.motivational?.quantity || 3)),
+    );
+    const motivationalDuration = Math.min(
+      60,
+      Math.max(15, Number(body.motivational?.durationSeconds || 30)),
+    );
+    const targetWords = Math.round(motivationalDuration * 2.15);
+    const motivationalTheme =
+      body.motivational?.theme?.trim() || "recomeço e confiança";
+    const motivationalTone =
+      body.motivational?.tone?.trim() || "emocional e acolhedor";
+    const motivationalAudience =
+      body.motivational?.audience?.trim() || "público adulto geral";
+
+    const motivationalPrompt = `
+You are the scriptwriter for Flux Post AI Studio. Create ${motivationalQuantity}
+distinct short motivational voice-over scripts in Brazilian Portuguese.
+
+WORKSPACE: Sourcee
+THEME: ${motivationalTheme}
+TONE: ${motivationalTone}
+AUDIENCE: ${motivationalAudience}
+TARGET DURATION: ${motivationalDuration} seconds
+TARGET LENGTH: approximately ${targetWords} words per narration
+INCLUDE A NATURAL CTA: ${body.motivational?.includeCta ? "yes" : "no"}
+
+EDITORIAL RULES:
+- Each script must have a strong opening in the first sentence.
+- Narration must sound human when spoken aloud, with short clear sentences.
+- Every script must be genuinely different in angle, hook and wording.
+- Avoid empty cliches, exaggerated promises, diagnoses and therapeutic claims.
+- Do not mention AI, Flux Post, Sourcee, social networks or engagement metrics.
+- Do not include hashtags, emojis, scene directions or quotation marks in narration.
+- Do not invent personal stories or claim that a specific event happened.
+- Keep the narration within 15 percent of the target word count.
+- visualKeywords must contain 4 to 7 concrete Pexels search expressions in English.
+- estimatedSeconds must reflect the returned narration length.
+
+Return ONLY valid JSON using exactly this structure:
+{
+  "scripts": [
+    {
+      "title": "short internal title",
+      "hook": "opening sentence",
+      "narration": "complete narration including the hook and closing",
+      "closing": "final sentence",
+      "visualKeywords": ["sunrise nature", "ocean waves"],
+      "estimatedSeconds": ${motivationalDuration}
+    }
+  ]
+}
+`.trim();
+
     const prompt =
       action === "account_variants"
         ? variantsPrompt
+        : action === "motivational_scripts"
+        ? motivationalPrompt
         : standardPrompt;
 
     const thumbnailImage =
@@ -598,8 +666,13 @@ Return ONLY valid JSON in exactly this structure:
           max_tokens:
             action === "account_variants"
               ? Math.min(5000, Math.max(1200, variantAccounts.length * 420))
+              : action === "motivational_scripts"
+              ? Math.min(7000, Math.max(1600, motivationalQuantity * 650))
               : 700,
-          temperature: action === "account_variants" ? 0.9 : 0.8,
+          temperature:
+            action === "account_variants" || action === "motivational_scripts"
+              ? 0.9
+              : 0.8,
           messages: [
             {
               role: "user",
@@ -640,6 +713,65 @@ Return ONLY valid JSON in exactly this structure:
     }
 
     const generated = extractJson(text);
+
+    if (action === "motivational_scripts") {
+      if (!Array.isArray(generated.scripts)) {
+        throw new Error("Claude response is missing motivational scripts");
+      }
+
+      const scripts = generated.scripts
+        .slice(0, motivationalQuantity)
+        .map((script: any, index: number) => {
+          if (
+            !script ||
+            typeof script.title !== "string" ||
+            typeof script.narration !== "string" ||
+            !script.narration.trim()
+          ) {
+            throw new Error(`Invalid motivational script at position ${index + 1}`);
+          }
+
+          return {
+            title: script.title.trim(),
+            hook:
+              typeof script.hook === "string" ? script.hook.trim() : "",
+            narration: script.narration.trim(),
+            closing:
+              typeof script.closing === "string" ? script.closing.trim() : "",
+            visualKeywords: Array.isArray(script.visualKeywords)
+              ? script.visualKeywords
+                  .map((keyword: unknown) => String(keyword).trim())
+                  .filter(Boolean)
+                  .slice(0, 7)
+              : [],
+            estimatedSeconds: Math.min(
+              60,
+              Math.max(
+                15,
+                Number(script.estimatedSeconds || motivationalDuration),
+              ),
+            ),
+          };
+        });
+
+      if (scripts.length !== motivationalQuantity) {
+        throw new Error(
+          `Claude returned ${scripts.length} of ${motivationalQuantity} requested scripts`,
+        );
+      }
+
+      return jsonResponse({
+        success: true,
+        build: COPY_GENERATOR_BUILD,
+        action,
+        scripts,
+        usage: {
+          input_tokens: anthropicData?.usage?.input_tokens || 0,
+          output_tokens: anthropicData?.usage?.output_tokens || 0,
+        },
+        model: anthropicData?.model || "claude-haiku-4-5-20251001",
+      });
+    }
 
     if (action === "account_variants") {
       if (!Array.isArray(generated.variants)) {
