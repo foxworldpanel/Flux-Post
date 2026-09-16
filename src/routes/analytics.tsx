@@ -34,8 +34,8 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import {
-  Area,
-  AreaChart,
+  Bar,
+  BarChart,
   CartesianGrid,
   ResponsiveContainer,
   Tooltip,
@@ -625,13 +625,7 @@ export default function AnalyticsPage() {
               {analytics.chartData.length ? (
                 <div className="h-[340px]">
                   <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={analytics.chartData}>
-                      <defs>
-                        <linearGradient id="analyticsGradient" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor={chartMetric === "views" ? "#8b5cf6" : "#22c55e"} stopOpacity={0.38} />
-                          <stop offset="95%" stopColor={chartMetric === "views" ? "#8b5cf6" : "#22c55e"} stopOpacity={0} />
-                        </linearGradient>
-                      </defs>
+                    <BarChart data={analytics.chartData} barCategoryGap="28%">
                       <CartesianGrid
                         strokeDasharray="3 3"
                         stroke="hsl(var(--border))"
@@ -654,16 +648,16 @@ export default function AnalyticsPage() {
                           border: "1px solid hsl(var(--border))",
                           borderRadius: "10px",
                         }}
+                        cursor={{ fill: "hsl(var(--muted))", opacity: 0.22 }}
                       />
-                      <Area
-                        type="monotone"
+                      <Bar
                         dataKey={chartMetric}
-                        stroke={chartMetric === "views" ? "#8b5cf6" : "#22c55e"}
-                        strokeWidth={2.5}
-                        fill="url(#analyticsGradient)"
-                        activeDot={{ r: 5, strokeWidth: 0 }}
+                        fill={chartMetric === "views" ? "#8b5cf6" : "#22c55e"}
+                        radius={[8, 8, 2, 2]}
+                        maxBarSize={72}
+                        minPointSize={5}
                       />
-                    </AreaChart>
+                    </BarChart>
                   </ResponsiveContainer>
                 </div>
               ) : (
@@ -717,7 +711,7 @@ export default function AnalyticsPage() {
           </Card>
         </div>
 
-        <Card className="overflow-hidden border-border/70 bg-card shadow-[var(--card-shadow)]">
+        <Card className="min-w-0 max-w-full overflow-hidden border-border/70 bg-card shadow-[var(--card-shadow)]">
           <CardHeader className="gap-4 border-b border-border/60 pb-4 md:flex-row md:items-center md:justify-between">
             <div>
               <CardTitle className="flex items-center gap-2 text-base">
@@ -732,18 +726,28 @@ export default function AnalyticsPage() {
           </CardHeader>
           <CardContent className="p-0">
             {visibleTopPosts.length ? (
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[920px] border-collapse text-left">
+              <div className="max-w-full overflow-x-auto">
+                <table className="w-full min-w-[800px] table-fixed border-collapse text-left">
+                  <colgroup>
+                    <col className="w-14" />
+                    <col className="w-[26%]" />
+                    <col className="w-[19%]" />
+                    <col className="w-[9%]" />
+                    <col className="w-[8%]" />
+                    <col className="w-[9%]" />
+                    <col className="w-[10%]" />
+                    <col className="w-14" />
+                  </colgroup>
                   <thead>
                     <tr className="border-b border-border/60 bg-muted/20 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-                      <th className="w-14 px-5 py-3">#</th>
+                      <th className="px-4 py-3">#</th>
                       <th className="px-3 py-3">Conteúdo</th>
                       <th className="px-3 py-3">Rede / conta</th>
                       <th className="px-3 py-3 text-right">Views</th>
                       <th className="px-3 py-3 text-right">Curtidas</th>
                       <th className="px-3 py-3 text-right">Interações</th>
                       <th className="px-3 py-3 text-right">Engajamento</th>
-                      <th className="w-16 px-5 py-3 text-right">Post</th>
+                      <th className="px-3 py-3 text-center">Post</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -752,8 +756,8 @@ export default function AnalyticsPage() {
                       const engagement = metric.views ? (interactions / metric.views) * 100 : 0;
                       return (
                         <tr key={publication.id} className="border-b border-border/50 transition-colors last:border-0 hover:bg-muted/25">
-                          <td className="px-5 py-3"><span className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold ${index < 3 ? "bg-primary/10 text-primary" : "text-muted-foreground"}`}>{index + 1}</span></td>
-                          <td className="max-w-[340px] px-3 py-3">
+                          <td className="px-4 py-3"><span className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold ${index < 3 ? "bg-primary/10 text-primary" : "text-muted-foreground"}`}>{index + 1}</span></td>
+                          <td className="min-w-0 px-3 py-3">
                             <div className="flex items-center gap-3">
                               <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-border bg-muted/60 text-muted-foreground">
                                 {publication.content?.thumbnail_url ? <img src={publication.content.thumbnail_url} alt="" className="h-full w-full object-cover" loading="lazy" /> : <Video size={17} />}
@@ -761,12 +765,12 @@ export default function AnalyticsPage() {
                               <div className="min-w-0"><p className="truncate text-sm font-medium text-foreground">{publicationTitle(publication)}</p><p className="mt-1 truncate text-[11px] text-muted-foreground">{publication.campaign?.nome || "Sem campanha"}</p></div>
                             </div>
                           </td>
-                          <td className="px-3 py-3"><Badge variant="outline" className="mb-1 h-5 text-[9px] uppercase">{platformLabel(publication.platform)}</Badge><p className="max-w-[190px] truncate text-xs text-muted-foreground">{accountLabel(publication.social_account)}</p></td>
+                          <td className="min-w-0 px-3 py-3"><Badge variant="outline" className="mb-1 h-5 max-w-full text-[9px] uppercase">{platformLabel(publication.platform)}</Badge><p className="truncate text-xs text-muted-foreground">{accountLabel(publication.social_account)}</p></td>
                           <td className="px-3 py-3 text-right text-sm font-semibold">{fullNumber.format(metric.views || 0)}</td>
                           <td className="px-3 py-3 text-right text-sm">{fullNumber.format(metric.likes || 0)}</td>
                           <td className="px-3 py-3 text-right text-sm">{fullNumber.format(interactions)}</td>
                           <td className="px-3 py-3 text-right"><span className="rounded-full bg-emerald-500/10 px-2 py-1 text-xs font-medium text-emerald-500">{engagement.toFixed(2)}%</span></td>
-                          <td className="px-5 py-3 text-right">{publication.post_url ? <Button variant="ghost" size="icon" asChild className="h-8 w-8 rounded-full"><a href={publication.post_url} target="_blank" rel="noreferrer" aria-label="Abrir publicação"><ArrowUpRight size={15} /></a></Button> : <span className="text-xs text-muted-foreground">—</span>}</td>
+                          <td className="px-3 py-3 text-center">{publication.post_url ? <Button variant="ghost" size="icon" asChild className="mx-auto h-8 w-8 rounded-full"><a href={publication.post_url} target="_blank" rel="noreferrer" aria-label="Abrir publicação"><ArrowUpRight size={15} /></a></Button> : <span className="text-xs text-muted-foreground">—</span>}</td>
                         </tr>
                       );
                     })}
