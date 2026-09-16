@@ -11,13 +11,13 @@ import WebSocket from 'ws';
 
 const execAsync = promisify(exec);
 
-function srtTimestamp(seconds) {
+function assTimestamp(seconds) {
   const safe = Math.max(0, Number(seconds) || 0);
   const hours = Math.floor(safe / 3600);
   const minutes = Math.floor((safe % 3600) / 60);
   const wholeSeconds = Math.floor(safe % 60);
-  const milliseconds = Math.floor((safe - Math.floor(safe)) * 1000);
-  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(wholeSeconds).padStart(2, '0')},${String(milliseconds).padStart(3, '0')}`;
+  const centiseconds = Math.floor((safe - Math.floor(safe)) * 100);
+  return `${hours}:${String(minutes).padStart(2, '0')}:${String(wholeSeconds).padStart(2, '0')}.${String(centiseconds).padStart(2, '0')}`;
 }
 
 function alignmentToCues(payload) {
@@ -56,12 +56,34 @@ function alignmentToCues(payload) {
   return cues;
 }
 
-async function writeSubtitles(filePath, alignment) {
+function escapeAssText(value) {
+  return String(value)
+    .replace(/\\/g, '\\\\')
+    .replace(/{/g, '\\{')
+    .replace(/}/g, '\\}')
+    .replace(/\r?\n/g, '\\N');
+}
+
+async function writeSubtitles(filePath, alignment, style) {
   const cues = alignmentToCues(alignment);
   if (!cues.length) return false;
-  const content = cues.map((cue, index) =>
-    `${index + 1}\n${srtTimestamp(cue.start)} --> ${srtTimestamp(cue.end)}\n${cue.text}\n`
-  ).join('\n');
+  const content = `[Script Info]
+ScriptType: v4.00+
+PlayResX: 1080
+PlayResY: 1920
+ScaledBorderAndShadow: yes
+WrapStyle: 0
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: FluxCaption,${style.font},${style.fontSize},${style.color},${style.color},&H00000000,&H64000000,-1,0,0,0,100,100,0,0,1,5,1,${style.alignment},72,72,${style.margin},1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+${cues.map(cue =>
+    `Dialogue: 0,${assTimestamp(cue.start)},${assTimestamp(cue.end)},FluxCaption,,0,0,0,,${escapeAssText(cue.text)}`
+  ).join('\n')}
+`;
   await fs.writeFile(filePath, content, 'utf8');
   return true;
 }
@@ -138,7 +160,7 @@ async function processJob(claimResult) {
     const videoPath = path.join(workDir, 'input_video.mp4');
     const musicPath = path.join(workDir, 'input_music.mp3');
     const narrationPath = path.join(workDir, 'narration.mp3');
-    const subtitlePath = path.join(workDir, 'captions.srt');
+    const subtitlePath = path.join(workDir, 'captions.ass');
     const outputPath = path.join(workDir, 'output.mp4');
 
     // 1. Download via Signed URLs
@@ -158,9 +180,6 @@ async function processJob(claimResult) {
         throw new Error('Studio IA job received without narration audio');
       }
       const narrationDuration = await probeDuration(narrationPath);
-      const hasSubtitles = inputs.subtitles_enabled
-        ? await writeSubtitles(subtitlePath, inputs.alignment)
-        : false;
       const musicVol = (job.music_volume ?? 18) / 100;
       const captionOptions = job.render_options || {};
       const allowedFonts = new Set([
@@ -169,19 +188,24 @@ async function processJob(claimResult) {
         'Liberation Serif',
         'DejaVu Sans Mono',
       ]);
-      const subtitleFont = allowedFonts.has(captionOptions.subtitleFont)
-        ? captionOptions.subtitleFont
+      const requestedFont = inputs.subtitle_font ?? captionOptions.subtitleFont ?? captionOptions.subtitle_font;
+      const subtitleFont = allowedFonts.has(requestedFont)
+        ? requestedFont
         : 'DejaVu Sans';
-      const subtitleFontSize = Math.min(36, Math.max(16, Number(captionOptions.subtitleFontSize) || 22));
+      const requestedFontSize = inputs.subtitle_font_size ?? captionOptions.subtitleFontSize ?? captionOptions.subtitle_font_size;
+      const subtitleFontSize = Math.round(
+        Math.min(36, Math.max(16, Number(requestedFontSize) || 22)) * 2.5
+      );
       const subtitleColors = {
         white: '&H00FFFFFF',
         yellow: '&H0000FFFF',
         cyan: '&H00FFFF00',
         pink: '&H00B672F4',
       };
-      const subtitleColor = subtitleColors[captionOptions.subtitleColor] || subtitleColors.white;
+      const requestedColor = inputs.subtitle_color ?? captionOptions.subtitleColor ?? captionOptions.subtitle_color;
+      const subtitleColor = subtitleColors[requestedColor] || subtitleColors.white;
       const requestedSubtitlePosition = String(
-        captionOptions.subtitlePosition ?? captionOptions.subtitle_position ?? 'bottom'
+        inputs.subtitle_position ?? captionOptions.subtitlePosition ?? captionOptions.subtitle_position ?? 'bottom'
       ).trim().toLowerCase();
       const subtitlePositions = {
         top: { alignment: 8, margin: 85 },
@@ -189,6 +213,15 @@ async function processJob(claimResult) {
         bottom: { alignment: 2, margin: 110 },
       };
       const subtitlePosition = subtitlePositions[requestedSubtitlePosition] || subtitlePositions.bottom;
+      const hasSubtitles = inputs.subtitles_enabled
+        ? await writeSubtitles(subtitlePath, inputs.alignment, {
+            font: subtitleFont,
+            fontSize: subtitleFontSize,
+            color: subtitleColor,
+            alignment: subtitlePosition.alignment,
+            margin: subtitlePosition.margin,
+          })
+        : false;
 
       console.log(
         `[${job.id}] Rendering Studio IA video (${narrationDuration.toFixed(1)}s, subtitles: ${hasSubtitles ? 'YES' : 'NO'}, position: ${requestedSubtitlePosition})...`
@@ -208,9 +241,7 @@ async function processJob(claimResult) {
 
         const filters = [];
         if (hasSubtitles) {
-          filters.push(
-            `[0:v]subtitles='${subtitlePath}':force_style='FontName=${subtitleFont},FontSize=${subtitleFontSize},Bold=1,PrimaryColour=${subtitleColor},OutlineColour=&H00000000,BorderStyle=1,Outline=3,Shadow=1,Alignment=${subtitlePosition.alignment},MarginV=${subtitlePosition.margin}'[vout]`
-          );
+          filters.push(`[0:v]subtitles='${subtitlePath}'[vout]`);
         }
         filters.push(`[${narrationInput}:a]volume=1.0[narration]`);
         if (mRes) {

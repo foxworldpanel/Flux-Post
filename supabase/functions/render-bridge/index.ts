@@ -147,6 +147,10 @@ serve(async (req) => {
             narration_url: narrationUrl?.signedUrl || null,
             alignment: voiceAsset?.alignment || null,
             subtitles_enabled: Boolean(jobData.render_options?.subtitlesEnabled),
+            subtitle_font: jobData.render_options?.subtitleFont || jobData.render_options?.subtitle_font || 'DejaVu Sans',
+            subtitle_font_size: Number(jobData.render_options?.subtitleFontSize || jobData.render_options?.subtitle_font_size || 22),
+            subtitle_color: jobData.render_options?.subtitleColor || jobData.render_options?.subtitle_color || 'white',
+            subtitle_position: jobData.render_options?.subtitlePosition || jobData.render_options?.subtitle_position || 'bottom',
             pipeline: jobData.render_options?.pipeline || null
           }
         }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });

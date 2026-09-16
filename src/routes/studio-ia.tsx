@@ -464,6 +464,11 @@ export default function StudioIaPage() {
 
     try {
       setRenderingScriptId(activeScript.id);
+      setPreviewUrls(current => {
+        const next = { ...current };
+        delete next[activeScript.id!];
+        return next;
+      });
       const { data, error } = await (supabase.rpc as any)("start_ai_studio_render", {
         p_script_id: activeScript.id,
         p_content_id: selectedVideoId,
