@@ -12,6 +12,7 @@ import {
   Layers3,
   ListChecks,
   Loader2,
+  Megaphone,
   Mic2,
   Music2,
   Play,
@@ -58,6 +59,10 @@ import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  STUDIO_CAMPAIGN_HANDOFF_KEY,
+  type StudioCampaignHandoff,
+} from "@/lib/studio-campaign-handoff";
 
 interface MotivationalScript {
   id?: string;
@@ -207,6 +212,7 @@ export default function StudioIaPage() {
   const [selectedBatchMusicIds, setSelectedBatchMusicIds] = useState<string[]>([]);
   const [batchAction, setBatchAction] = useState<"voice" | "render" | null>(null);
   const [refreshingRenders, setRefreshingRenders] = useState(false);
+  const [creatingCampaign, setCreatingCampaign] = useState(false);
   const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0, label: "" });
 
   const totalMinutes = useMemo(
@@ -753,6 +759,63 @@ export default function StudioIaPage() {
       toast.error(error?.message || "Não foi possível atualizar os vídeos do lote.");
     } finally {
       setRefreshingRenders(false);
+    }
+  };
+
+  const createCampaignFromBatch = async () => {
+    const readyItems = productionScripts
+      .filter(script =>
+        script.id &&
+        script.mediaRenderId &&
+        script.contentId &&
+        script.musicTrackId &&
+        renderStatus[script.id] === "ready",
+      )
+      .map(script => ({
+        scriptId: script.id!,
+        title: script.title,
+        renderId: script.mediaRenderId!,
+        contentId: script.contentId!,
+        musicTrackId: script.musicTrackId!,
+      }));
+
+    if (!readyItems.length) {
+      toast.error("Finalize pelo menos um vídeo antes de criar a campanha.");
+      return;
+    }
+
+    if (readyItems.length !== productionScripts.length) {
+      toast.error(
+        `Aguarde o lote terminar. ${readyItems.length} de ${productionScripts.length} vídeos estão prontos.`,
+      );
+      return;
+    }
+
+    try {
+      setCreatingCampaign(true);
+      const renderIds = readyItems.map(item => item.renderId);
+      const { error } = await (supabase as any)
+        .from("media_renders")
+        .update({ is_approved: true })
+        .in("id", renderIds);
+      if (error) throw error;
+
+      const handoff: StudioCampaignHandoff = {
+        version: 1,
+        projectId: savedProjectId || "",
+        projectName: projectName.trim() || "Lote do Studio IA",
+        createdAt: new Date().toISOString(),
+        items: readyItems,
+      };
+      window.sessionStorage.setItem(
+        STUDIO_CAMPAIGN_HANDOFF_KEY,
+        JSON.stringify(handoff),
+      );
+      navigate("/campanha?source=studio");
+    } catch (error: any) {
+      toast.error(error?.message || "Não foi possível preparar a campanha.");
+    } finally {
+      setCreatingCampaign(false);
     }
   };
 
@@ -1811,6 +1874,30 @@ export default function StudioIaPage() {
                           </div>
                         );
                       })}
+                    </div>
+
+                    <div className="flex flex-col gap-4 rounded-2xl border border-violet-500/25 bg-gradient-to-r from-violet-600/15 via-violet-500/5 to-transparent p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+                      <div className="flex items-start gap-3">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-500/15 text-violet-300">
+                          <Megaphone size={19} />
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold">Próxima etapa: distribuir o lote</p>
+                          <p className="mt-1 max-w-2xl text-xs leading-5 text-muted-foreground">
+                            Envie os vídeos finalizados para Campanhas. Narração, música e legenda serão preservadas sem um novo render.
+                          </p>
+                        </div>
+                      </div>
+                      <Button
+                        className="h-11 shrink-0 gap-2 bg-violet-600 px-5 text-white hover:bg-violet-500"
+                        disabled={creatingCampaign || productionScripts.some(script => !script.id || renderStatus[script.id] !== "ready")}
+                        onClick={createCampaignFromBatch}
+                      >
+                        {creatingCampaign ? <Loader2 size={16} className="animate-spin" /> : <ArrowRight size={16} />}
+                        {creatingCampaign
+                          ? "Preparando campanha..."
+                          : `Criar campanha com ${productionScripts.length} vídeos`}
+                      </Button>
                     </div>
                   </div>
                 )}

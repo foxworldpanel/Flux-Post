@@ -25,6 +25,10 @@ import {
   generateSmartCampaignPlan,
   resolveSmartCampaignConflicts,
 } from "@/services/smart-campaign-engine";
+import {
+  STUDIO_CAMPAIGN_HANDOFF_KEY,
+  readStudioCampaignHandoff,
+} from "@/lib/studio-campaign-handoff";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type Artist = {
@@ -40,6 +44,7 @@ type Artist = {
 type MusicTrack = { id: string; nome: string; artista: string; artist_id: string; storage_path: string | null; };
 type VideoItem = { id: string; title: string; storage_path: string; duration_seconds?: number; };
 type RenderItem = { id: string; source_content_id: string; music_track_id: string; status: string; storage_path: string | null; is_approved?: boolean; error_message?: string | null; };
+type StudioAssignment = { renderId: string; musicTrackId: string; title: string; };
 
 type EditorialGenerationMode = "music" | "video";
 
@@ -127,6 +132,9 @@ export default function CampanhaPage() {
 
   // Content Queue — ordem editorial explícita dos conteúdos
   const [contentQueue, setContentQueue] = useState<string[]>([]);
+  const [studioAssignments, setStudioAssignments] = useState<Record<string, StudioAssignment>>({});
+  const [studioProjectName, setStudioProjectName] = useState("");
+  const isStudioCampaign = Object.keys(studioAssignments).length > 0;
 
   // Schedule Preview V2
   // Fonte editável da agenda antes da criação das publications.
@@ -185,7 +193,9 @@ export default function CampanhaPage() {
   }, [contentQueue, selectedMusicTrackIds.join(","), musicRotationSeed]);
 
   const getMusicIdForContent = (contentId: string) =>
-    contentMusicRotation.get(contentId) || formData.music_track_id;
+    studioAssignments[contentId]?.musicTrackId ||
+    contentMusicRotation.get(contentId) ||
+    formData.music_track_id;
 
   const getMusicForContent = (contentId: string) =>
     musicas.find(track => track.id === getMusicIdForContent(contentId));
@@ -408,11 +418,8 @@ export default function CampanhaPage() {
   const approveAllEditorial = async () => {
     if (isApprovingAllEditorial) return;
 
-    const readyRenders = renders.filter(render =>
-      contentQueue.includes(render.source_content_id) &&
-      render.music_track_id === getMusicIdForContent(render.source_content_id) &&
-      render.status === "ready" &&
-      !render.is_approved
+    const readyRenders = getReadyRendersForQueue().filter(
+      render => !render.is_approved,
     );
 
     if (!readyRenders.length) {
@@ -881,10 +888,77 @@ export default function CampanhaPage() {
       setSocialAccounts(accountsRes || []);
       setRenders(rendersRes.data || []);
 
+      const studioHandoff = readStudioCampaignHandoff();
+      const availableContentIds = new Set((libraryRes.data || []).map(item => item.id));
+      const validStudioItems = studioHandoff?.items.filter(item => {
+        const render = (rendersRes.data || []).find(candidate => candidate.id === item.renderId);
+        return Boolean(
+          availableContentIds.has(item.contentId) &&
+          render &&
+          render.source_content_id === item.contentId &&
+          render.music_track_id === item.musicTrackId &&
+          render.status === "ready" &&
+          render.storage_path,
+        );
+      }) || [];
+      const hasStudioHandoff = Boolean(
+        studioHandoff &&
+        validStudioItems.length === studioHandoff.items.length,
+      );
+
+      if (hasStudioHandoff && studioHandoff) {
+        const assignments = Object.fromEntries(
+          validStudioItems.map(item => [
+            item.contentId,
+            {
+              renderId: item.renderId,
+              musicTrackId: item.musicTrackId,
+              title: item.title,
+            },
+          ]),
+        );
+        const contentIds = validStudioItems.map(item => item.contentId);
+        const musicTrackIds = Array.from(
+          new Set(validStudioItems.map(item => item.musicTrackId)),
+        );
+        const artistIds = Array.from(
+          new Set(
+            (tracksRes.data || [])
+              .filter(track => musicTrackIds.includes(track.id))
+              .map(track => track.artist_id)
+              .filter(Boolean),
+          ),
+        );
+
+        setStudioAssignments(assignments);
+        setStudioProjectName(studioHandoff.projectName);
+        setSelVideos(new Set(contentIds));
+        setContentQueue(contentIds);
+        setSelMusicTracks(new Set(musicTrackIds));
+        setDraftCampaignId(null);
+        setFormData(previous => ({
+          ...previous,
+          nome: `${studioHandoff.projectName} — Publicação`,
+          artist_id: artistIds.length === 1 ? artistIds[0] : previous.artist_id,
+          music_track_id: musicTrackIds[0] || "",
+        }));
+        setStep(1);
+        toast.success(
+          `${contentIds.length} ${contentIds.length === 1 ? "vídeo carregado" : "vídeos carregados"} do Studio IA.`,
+        );
+      } else {
+        setStudioAssignments({});
+        setStudioProjectName("");
+        if (studioHandoff) {
+          window.sessionStorage.removeItem(STUDIO_CAMPAIGN_HANDOFF_KEY);
+          toast.error("O lote do Studio mudou ou não está mais disponível. Abra o Studio IA e envie novamente.");
+        }
+      }
+
       // Restore latest campaign draft
       const draft = draftRes.data?.[0];
 
-      if (draft) {
+      if (!hasStudioHandoff && draft) {
         setDraftCampaignId(draft.id);
 
         const draftMusicTrackIds =
@@ -996,7 +1070,7 @@ export default function CampanhaPage() {
         }
 
         console.log("[CAMPAIGN DRAFT] Restaurado:", draft.id);
-      } else {
+      } else if (!hasStudioHandoff) {
         setDraftCampaignId(null);
       }
 
@@ -1089,19 +1163,41 @@ export default function CampanhaPage() {
     );
   }
 
+  function getReadyRenderForContent(contentId: string): RenderItem | undefined {
+    const studioAssignment = studioAssignments[contentId];
+    if (studioAssignment) {
+      return renders.find(render => render.id === studioAssignment.renderId);
+    }
+
+    return renders.find(render =>
+      render.source_content_id === contentId &&
+      render.music_track_id === getMusicIdForContent(contentId)
+    );
+  }
+
+  function getReadyRendersForQueue(approvedOnly = false): RenderItem[] {
+    return contentQueue
+      .map(contentId => getReadyRenderForContent(contentId))
+      .filter((render): render is RenderItem => Boolean(
+        render &&
+        render.status === "ready" &&
+        render.storage_path &&
+        (!approvedOnly || render.is_approved),
+      ));
+  }
+
   function canAdvance(): boolean {
     if (step === 1) return !!formData.nome && hasValidManualDailyTimes();
-    if (step === 2) return selMusicTracks.size >= formData.posts_por_dia;
+    if (step === 2) return isStudioCampaign
+      ? selMusicTracks.size > 0
+      : selMusicTracks.size >= formData.posts_por_dia;
     if (step === 3) return selVideos.size > 0;
     if (step === 4) return Array.from(selVideos).every(id => {
-      const r = renders.find(r => r.source_content_id === id && r.music_track_id === getMusicIdForContent(id));
+      const r = getReadyRenderForContent(id);
       return r?.status === "ready" && !!r.storage_path;
     });
     if (step === 5) return Array.from(selVideos).every(id => {
-      const render = renders.find(r =>
-        r.source_content_id === id &&
-        r.music_track_id === getMusicIdForContent(id)
-      );
+      const render = getReadyRenderForContent(id);
       return Boolean(render?.is_approved);
     });
     if (step === 6) return selAccounts.size > 0;
@@ -1112,7 +1208,7 @@ export default function CampanhaPage() {
     selectedAccounts: SocialAccount[],
     readyRenders: RenderItem[]
   ): SchedulePreviewItem[] {
-    return generateSmartCampaignPlan({
+    const plan = generateSmartCampaignPlan({
       postsPerDay: Math.max(
         1,
         Number(formData.posts_por_dia) || 1
@@ -1236,6 +1332,13 @@ export default function CampanhaPage() {
         ];
       })(),
     });
+
+    return isStudioCampaign
+      ? plan.map(slot => ({
+          ...slot,
+          musicTrackId: getMusicIdForContent(slot.contentId),
+        }))
+      : plan;
   }
 
   function updateSchedulePreviewDateTime(
@@ -1349,13 +1452,7 @@ export default function CampanhaPage() {
     const selectedAccounts = socialAccounts.filter(account =>
       selAccounts.has(account.id)
     );
-    const readyRenders = renders.filter(render =>
-      contentQueue.includes(render.source_content_id) &&
-      render.music_track_id === getMusicIdForContent(render.source_content_id) &&
-      render.status === "ready" &&
-      render.is_approved &&
-      Boolean(render.storage_path)
-    );
+    const readyRenders = getReadyRendersForQueue(true);
 
     if (!selectedAccounts.length || readyRenders.length !== contentQueue.length) {
       setSchedulePreview([]);
@@ -1402,13 +1499,7 @@ export default function CampanhaPage() {
           selAccounts.has(account.id)
         );
 
-        const readyRenders = renders.filter(render =>
-          contentQueue.includes(render.source_content_id) &&
-          render.music_track_id === getMusicIdForContent(render.source_content_id) &&
-          render.status === "ready" &&
-          render.is_approved &&
-          !!render.storage_path
-        );
+        const readyRenders = getReadyRendersForQueue(true);
 
         if (selectedAccounts.length && readyRenders.length) {
           try {
@@ -1450,22 +1541,21 @@ export default function CampanhaPage() {
     if (step === 1 && !hasValidManualDailyTimes()) {
       return "Defina horários manuais diferentes e dentro do intervalo da campanha";
     }
-    if (step === 2 && selMusicTracks.size < formData.posts_por_dia) {
+    if (step === 2 && !isStudioCampaign && selMusicTracks.size < formData.posts_por_dia) {
       return `Selecione pelo menos ${formData.posts_por_dia} músicas para não repetir faixa no mesmo dia`;
     }
     if (step === 3 && selVideos.size === 0) return "Selecione pelo menos um vídeo";
     if (step === 4) {
       const pending = Array.from(selVideos).filter(id => {
-        const r = renders.find(r => r.source_content_id === id && r.music_track_id === getMusicIdForContent(id));
+        const r = getReadyRenderForContent(id);
         return r?.status !== "ready" || !r.storage_path;
       });
       if (pending.length > 0) return `Aguarde o processamento: ${pending.length} vídeos pendentes`;
     }
     if (step === 5) {
-      const selectedRenders = renders.filter(r =>
-        selVideos.has(r.source_content_id) &&
-        r.music_track_id === getMusicIdForContent(r.source_content_id)
-      );
+      const selectedRenders = Array.from(selVideos)
+        .map(id => getReadyRenderForContent(id))
+        .filter((render): render is RenderItem => Boolean(render));
       const unapprovedCount = selectedRenders.filter(r => !r.is_approved).length;
       if (unapprovedCount > 0) return `Aprove todos os vídeos (${unapprovedCount} pendentes)`;
     }
@@ -1476,6 +1566,10 @@ export default function CampanhaPage() {
   // ─── Process videos ───────────────────────────────────────────────────────
   // ─── Process videos (Server-side Enqueue) ──────────────────────────────────
   async function handleProcessAll() {
+    if (isStudioCampaign) {
+      toast.info("Os vídeos do Studio IA já estão finalizados e não precisam de novo processamento.");
+      return;
+    }
     if (selMusicTracks.size < formData.posts_por_dia)
       return toast.error(`Selecione pelo menos ${formData.posts_por_dia} músicas`);
     
@@ -1794,7 +1888,7 @@ export default function CampanhaPage() {
       const selectedAccountIds = Array.from(selAccounts);
 
       if (!formData.artist_id) throw new Error("Selecione o artista da campanha");
-      if (selectedMusicTrackIds.length < formData.posts_por_dia) {
+      if (!isStudioCampaign && selectedMusicTrackIds.length < formData.posts_por_dia) {
         throw new Error(`Selecione pelo menos ${formData.posts_por_dia} músicas para não repetir faixa no mesmo dia`);
       }
       if (!selectedVideoIds.length) throw new Error("Selecione pelo menos um vídeo");
@@ -1841,13 +1935,7 @@ export default function CampanhaPage() {
 
       // Validar renders antes de qualquer alteração definitiva da campanha
       // 4. Preparar os renders aprovados/prontos
-      const readyRenders = renders.filter(r =>
-        selectedVideoIds.includes(r.source_content_id) &&
-        r.music_track_id === getMusicIdForContent(r.source_content_id) &&
-        r.status === "ready" &&
-        r.is_approved &&
-        !!r.storage_path
-      );
+      const readyRenders = getReadyRendersForQueue(true);
 
       if (!readyRenders.length) {
         throw new Error("Nenhum vídeo processado e aprovado disponível");
@@ -2190,6 +2278,9 @@ export default function CampanhaPage() {
 
       // A campanha foi lançada com sucesso e não é mais um rascunho
       setDraftCampaignId(null);
+      window.sessionStorage.removeItem(STUDIO_CAMPAIGN_HANDOFF_KEY);
+      setStudioAssignments({});
+      setStudioProjectName("");
 
       toast.success(
         `Campanha iniciada! ${publications.length} publicações agendadas.`
@@ -2206,6 +2297,8 @@ export default function CampanhaPage() {
 
   // ─── Render helpers ───────────────────────────────────────────────────────
   function getRender(videoId: string): RenderItem | undefined {
+    const studioRender = getReadyRenderForContent(videoId);
+    if (studioAssignments[videoId] && studioRender) return studioRender;
     const assignedMusicId = getMusicIdForContent(videoId);
     return renders.find(r => r.source_content_id === videoId && r.music_track_id === assignedMusicId)
       || (processProgress[videoId] ? {
@@ -2214,12 +2307,7 @@ export default function CampanhaPage() {
       } : undefined);
   }
 
-  const approvedRenders = renders.filter(r =>
-    r.is_approved &&
-    r.status === "ready" &&
-    r.music_track_id === getMusicIdForContent(r.source_content_id) &&
-    selVideos.has(r.source_content_id)
-  );
+  const approvedRenders = getReadyRendersForQueue(true);
 
   if (loading) return (
     <DashboardLayout>
@@ -2237,6 +2325,22 @@ export default function CampanhaPage() {
           <h1 className="text-2xl font-bold text-foreground">Nova Campanha</h1>
           <p className="text-sm text-muted-foreground mt-1">Siga as etapas para configurar e lançar sua campanha.</p>
         </div>
+
+        {isStudioCampaign && (
+          <div className="rounded-2xl border border-violet-500/25 bg-gradient-to-r from-violet-600/15 via-violet-500/5 to-transparent p-4">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-500/15 text-violet-300">
+                <Sparkles size={19} />
+              </div>
+              <div>
+                <p className="text-sm font-bold">Lote recebido do Studio IA</p>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                  {studioProjectName} · {contentQueue.length} vídeos finais com narração, música e legenda. Configure a agenda e as contas; não haverá nova renderização.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Stepper */}
         <div className="flex items-center gap-0">
@@ -2434,22 +2538,26 @@ export default function CampanhaPage() {
                   <div>
                     <h2 className="text-lg font-semibold text-foreground">Escolha as músicas</h2>
                     <p className="text-sm text-muted-foreground">
-                      O Flux Post alterna o catálogo inteiro e não repete música no mesmo dia por conta.
+                      {isStudioCampaign
+                        ? "As trilhas abaixo já estão incorporadas aos vídeos finais do Studio IA."
+                        : "O Flux Post alterna o catálogo inteiro e não repete música no mesmo dia por conta."}
                     </p>
                   </div>
-                  <Button type="button" variant="outline" size="sm" onClick={selectAllArtistMusic}>
+                  {!isStudioCampaign && <Button type="button" variant="outline" size="sm" onClick={selectAllArtistMusic}>
                     {musicas
                       .filter(m => !formData.artist_id || m.artist_id === formData.artist_id)
                       .every(m => selMusicTracks.has(m.id))
                       ? "Desmarcar todas"
                       : "Selecionar todas"}
-                  </Button>
+                  </Button>}
                 </div>
                 <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 text-sm">
                   <strong>{selMusicTracks.size} músicas selecionadas.</strong>{" "}
-                  Para {formData.posts_por_dia} posts por dia, são necessárias pelo menos {formData.posts_por_dia} faixas diferentes.
+                  {isStudioCampaign
+                    ? "O vínculo de cada música com seu vídeo está protegido."
+                    : `Para ${formData.posts_por_dia} posts por dia, são necessárias pelo menos ${formData.posts_por_dia} faixas diferentes.`}
                 </div>
-                <div className="space-y-4">
+                {!isStudioCampaign && <div className="space-y-4">
                   <div className="space-y-2">
                     <Label>Modo de áudio</Label>
                     <Select value={formData.audio_mode} onValueChange={(v: any) => setFormData(p => ({ ...p, audio_mode: v }))}>
@@ -2467,16 +2575,18 @@ export default function CampanhaPage() {
                       placeholder="0 = começa do início (use para pular intro e entrar no drop)"
                       className="bg-muted/50 border-border" />
                   </div>
-                </div>
+                </div>}
                 <div className="space-y-3">
                   {musicas.length === 0 && (
                     <p className="text-center text-muted-foreground text-sm py-6">Nenhuma música na biblioteca. Adicione em Músicas.</p>
                   )}
                   {musicas
-                      .filter(m => !formData.artist_id || m.artist_id === formData.artist_id)
+                      .filter(m => isStudioCampaign
+                        ? selMusicTracks.has(m.id)
+                        : !formData.artist_id || m.artist_id === formData.artist_id)
                       .map(m => (
-                    <div key={m.id} onClick={() => toggleMusicSelection(m.id)}
-                      className={`flex items-center gap-3 p-4 rounded-xl border cursor-pointer transition-all ${
+                    <div key={m.id} onClick={() => !isStudioCampaign && toggleMusicSelection(m.id)}
+                      className={`flex items-center gap-3 p-4 rounded-xl border transition-all ${isStudioCampaign ? "cursor-default" : "cursor-pointer"} ${
                         selMusicTracks.has(m.id) ? "border-primary bg-primary/10" : "border-border bg-muted/30 hover:border-border"
                       }`}>
                       <div className="w-10 h-10 rounded-lg bg-purple-600/20 flex items-center justify-center flex-shrink-0">
@@ -2499,18 +2609,23 @@ export default function CampanhaPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <h2 className="text-lg font-semibold text-foreground">Selecione os vídeos</h2>
-                    <p className="text-sm text-muted-foreground">{selVideos.size} selecionado{selVideos.size !== 1 ? "s" : ""}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {selVideos.size} selecionado{selVideos.size !== 1 ? "s" : ""}
+                      {isStudioCampaign ? " · versões finais do Studio IA" : ""}
+                    </p>
                   </div>
-                  <Button variant="outline" size="sm" className="text-xs border-border"
+                  {!isStudioCampaign && <Button variant="outline" size="sm" className="text-xs border-border"
                     onClick={selectAllVideos}>
                     {selVideos.size === biblioteca.length ? "Desmarcar todos" : "Selecionar todos"}
-                  </Button>
+                  </Button>}
                 </div>
                 {biblioteca.length === 0 && (
                   <p className="text-center text-muted-foreground text-sm py-6">Nenhum vídeo na biblioteca. Adicione em Biblioteca.</p>
                 )}
                 <div className="grid grid-cols-3 sm:grid-cols-4 gap-3 max-h-[420px] overflow-y-auto pr-1">
-                  {biblioteca.map(v => {
+                  {biblioteca
+                    .filter(v => !isStudioCampaign || Boolean(studioAssignments[v.id]))
+                    .map(v => {
                     const sel = selVideos.has(v.id);
                     return (
                       <div key={v.id} onClick={() => toggleVideoSelection(v.id)} className={`relative aspect-[9/16] rounded-lg overflow-hidden border-2 cursor-pointer transition-all ${sel ? "border-primary" : "border-transparent hover:border-border"}`}>
@@ -2576,13 +2691,17 @@ export default function CampanhaPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <h2 className="text-lg font-semibold text-foreground">Processar vídeos</h2>
-                    <p className="text-sm text-muted-foreground">O sistema junta cada vídeo com a música usando FFmpeg.</p>
+                    <p className="text-sm text-muted-foreground">
+                      {isStudioCampaign
+                        ? "Os arquivos finais já chegaram prontos do Studio IA. Confira os resultados e continue."
+                        : "O sistema junta cada vídeo com a música usando FFmpeg."}
+                    </p>
                   </div>
-                  <Button onClick={handleProcessAll} disabled={isProcessing}
+                  {!isStudioCampaign && <Button onClick={handleProcessAll} disabled={isProcessing}
                     className="bg-primary hover:bg-primary/90 text-white gap-2">
                     {isProcessing ? <Loader2 size={16} className="animate-spin" /> : <Zap size={16} />}
                     {isProcessing ? "Processando..." : "Processar tudo"}
-                  </Button>
+                  </Button>}
                 </div>
                 <div className="space-y-4">
                   {contentQueue.map((id, idx) => {
@@ -2749,11 +2868,7 @@ export default function CampanhaPage() {
                     const video = biblioteca.find(v => v.id === id);
                     const assignedMusic = getMusicForContent(id);
 
-                    const render = renders.find(
-                      r =>
-                        r.source_content_id === id &&
-                        r.music_track_id === getMusicIdForContent(id)
-                    );
+                    const render = getReadyRenderForContent(id);
 
                     if (!render) return null;
 
