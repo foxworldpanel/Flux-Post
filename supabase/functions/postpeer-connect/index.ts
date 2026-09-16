@@ -66,6 +66,11 @@ serve(async (req) => {
     console.log("POSTPEER_KEY_PRESENT");
 
     const postpeer = new PostPeerClient(POSTPEER_API_KEY);
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    if (!supabaseUrl) {
+      console.error("CRITICAL: SUPABASE_URL environment variable is missing.");
+      throw { status: 500, error: "supabase_url_missing", message: "Configuração do servidor pendente." };
+    }
 
     // MODO DIAGNÓSTICO
     if (run_diagnostic) {
@@ -227,12 +232,6 @@ serve(async (req) => {
 
     // 5. Obter URL de Autorização
     console.log("OAUTH_START");
-    const supabaseUrl = Deno.env.get("SUPABASE_URL");
-    if (!supabaseUrl) {
-      console.error("CRITICAL: SUPABASE_URL environment variable is missing.");
-      throw { status: 500, error: "supabase_url_missing", message: "Configuração do servidor pendente." };
-    }
-    
     // O redirectUri do PostPeer DEVE ser a nossa Edge Function de callback
     // Ela processará a reconciliação e então redirecionará para o frontend (APP_URL)
     const callbackUrl = `${supabaseUrl}/functions/v1/postpeer-callback?state=${state}`;
