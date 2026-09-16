@@ -68,6 +68,7 @@ serve(async (req) => {
           ? await supabase.from('music_tracks').select('*').eq('id', jobData.music_track_id).single()
           : { data: null };
         const voiceAssetId = jobData.render_options?.voiceAssetId;
+        const isStudioJob = String(jobData.render_options?.pipeline || '').startsWith('ai_studio_');
         const { data: voiceAsset } = voiceAssetId
           ? await supabase
               .from('ai_studio_voice_assets')
@@ -82,6 +83,9 @@ serve(async (req) => {
         }
         if (voiceAssetId && (!voiceAsset || voiceAsset.status !== 'ready' || !voiceAsset.storage_path)) {
           throw new Error("Studio IA narration is not ready");
+        }
+        if (isStudioJob && !voiceAssetId) {
+          throw new Error("Studio IA render is missing voiceAssetId");
         }
 
         // 1. Verify objects exist physically and generate short-lived signed URLs (1 hour)
@@ -133,7 +137,8 @@ serve(async (req) => {
             music_url: musicUrl?.signedUrl || null,
             narration_url: narrationUrl?.signedUrl || null,
             alignment: voiceAsset?.alignment || null,
-            subtitles_enabled: Boolean(jobData.render_options?.subtitlesEnabled)
+            subtitles_enabled: Boolean(jobData.render_options?.subtitlesEnabled),
+            pipeline: jobData.render_options?.pipeline || null
           }
         }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
