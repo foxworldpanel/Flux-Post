@@ -98,14 +98,22 @@ serve(async req => {
         );
       }
 
-      const voices = (payload?.voices || []).map((voice: any) => ({
-        id: voice.voice_id,
-        name: voice.name,
-        category: voice.category || "voice",
-        description: voice.description || "",
-        previewUrl: voice.preview_url || null,
-        labels: voice.labels || {},
-      }));
+      const blockedCategories = new Set(["cloned", "professional"]);
+      const voices = (payload?.voices || [])
+        .map((voice: any) => ({
+          id: voice.voice_id,
+          name: voice.name,
+          category: String(voice.category || "voice").toLowerCase(),
+          description: voice.description || "",
+          previewUrl: voice.preview_url || null,
+          labels: voice.labels || {},
+        }))
+        .filter((voice: any) => !blockedCategories.has(voice.category))
+        .sort((left: any, right: any) => {
+          const leftPriority = left.category === "premade" ? 0 : 1;
+          const rightPriority = right.category === "premade" ? 0 : 1;
+          return leftPriority - rightPriority || left.name.localeCompare(right.name);
+        });
 
       return jsonResponse({ success: true, voices });
     }
@@ -206,14 +214,21 @@ serve(async req => {
     const providerPayload = await providerResponse.json();
 
     if (!providerResponse.ok || !providerPayload?.audio_base64) {
+      const providerMessage =
+        providerPayload?.detail?.message ||
+        providerPayload?.detail ||
+        `ElevenLabs error ${providerResponse.status}`;
+      const friendlyMessage = String(providerMessage).includes(
+        "Instantly cloned voices are not available",
+      )
+        ? "Essa voz clonada não está disponível no seu plano. Atualize as vozes e escolha uma voz padrão."
+        : providerMessage;
+
       await service
         .from("ai_studio_voice_assets")
         .update({
           status: "failed_safe",
-          error_message:
-            providerPayload?.detail?.message ||
-            providerPayload?.detail ||
-            `ElevenLabs error ${providerResponse.status}`,
+          error_message: friendlyMessage,
           provider_request_id: providerRequestId,
           updated_at: new Date().toISOString(),
         })
@@ -222,10 +237,7 @@ serve(async req => {
 
       return jsonResponse(
         {
-          error:
-            providerPayload?.detail?.message ||
-            providerPayload?.detail ||
-            "ElevenLabs não conseguiu gerar a narração",
+          error: friendlyMessage,
         },
         502,
       );
