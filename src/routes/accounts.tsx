@@ -17,6 +17,7 @@ import {
   Users,
   Wifi,
   WifiOff,
+  ExternalLink,
 } from "lucide-react";
 import { toast } from "sonner";
 import { socialService, SocialAccount, SocialPlatform, ConnectionStatus, OperationalStatus } from "@/services/social";
@@ -93,6 +94,28 @@ function PlatformLogo({ platform, className = "h-5 w-5" }: { platform: SocialPla
 }
 
 const PAGE_SIZE = 24;
+
+const socialProfileUrl = (account: SocialAccount) => {
+  const username = account.username?.trim().replace(/^@/, "");
+  const hasPublicUsername = username && !username.startsWith("pending_") && !username.startsWith("tiktok_conta_");
+
+  if (account.platform === "tiktok" && hasPublicUsername) {
+    return `https://www.tiktok.com/@${encodeURIComponent(username)}`;
+  }
+  if (account.platform === "instagram" && hasPublicUsername) {
+    return `https://www.instagram.com/${encodeURIComponent(username)}/`;
+  }
+  if (account.platform === "youtube") {
+    if (hasPublicUsername) return `https://www.youtube.com/@${encodeURIComponent(username)}`;
+    if (account.external_account_id) return `https://www.youtube.com/channel/${encodeURIComponent(account.external_account_id)}`;
+  }
+  if (account.platform === "facebook") {
+    const identifier = hasPublicUsername ? username : account.external_account_id;
+    if (identifier) return `https://www.facebook.com/${encodeURIComponent(identifier)}`;
+  }
+
+  return null;
+};
 
 export default function AccountsPage() {
   const [accounts, setAccounts] = useState<SocialAccount[]>([]);
@@ -390,7 +413,9 @@ export default function AccountsPage() {
         ) : (
           <div className="space-y-5">
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {paginatedAccounts.map(account => (
+            {paginatedAccounts.map(account => {
+              const profileUrl = socialProfileUrl(account);
+              return (
               <Card key={account.id} className="group flex min-w-0 flex-col overflow-hidden border-border bg-card p-5 transition-all hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-lg">
                 <div className="mb-5 flex min-w-0 items-start justify-between gap-3">
                   <div className="flex min-w-0 gap-3">
@@ -422,10 +447,19 @@ export default function AccountsPage() {
                     </div>
                   </div>
                   <div className="flex shrink-0 flex-col items-end gap-1">
-                    <Badge className={`gap-1.5 whitespace-nowrap text-[9px] ${CONNECTION_STATUS_MAP[account.connection_status]?.color || 'bg-slate-500/10 text-muted-foreground'}`}>
-                      {account.connection_status === 'conectada' ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
-                      {account.connection_status === 'conectada' ? 'Conectada' : CONNECTION_STATUS_MAP[account.connection_status]?.label}
-                    </Badge>
+                    <div className="flex items-center gap-1">
+                      <Badge className={`gap-1.5 whitespace-nowrap text-[9px] ${CONNECTION_STATUS_MAP[account.connection_status]?.color || 'bg-slate-500/10 text-muted-foreground'}`}>
+                        {account.connection_status === 'conectada' ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
+                        {account.connection_status === 'conectada' ? 'Conectada' : CONNECTION_STATUS_MAP[account.connection_status]?.label}
+                      </Badge>
+                      {profileUrl && (
+                        <Button variant="ghost" size="icon" asChild className="h-7 w-7 rounded-full text-muted-foreground hover:bg-primary/10 hover:text-primary">
+                          <a href={profileUrl} target="_blank" rel="noreferrer" title={`Abrir perfil no ${PLATFORM_LABEL[account.platform]}`} aria-label={`Abrir perfil no ${PLATFORM_LABEL[account.platform]}`}>
+                            <ExternalLink className="h-3.5 w-3.5" />
+                          </a>
+                        </Button>
+                      )}
+                    </div>
                     <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/60">PostPeer</span>
                   </div>
                 </div>
@@ -486,7 +520,8 @@ export default function AccountsPage() {
                   </div>
                 </div>
               </Card>
-            ))}
+              );
+            })}
 
             {filteredAccounts.length === 0 && (
               <div className="col-span-full rounded-3xl border-2 border-dashed border-border py-20 text-center">
