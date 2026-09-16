@@ -70,6 +70,8 @@ interface MotivationalScript {
   hook: string;
   narration: string;
   closing: string;
+  socialCaption?: string;
+  socialHashtags?: string;
   visualKeywords: string[];
   estimatedSeconds: number;
   status: "draft" | "approved" | "rejected" | "voiced" | "rendered";
@@ -179,6 +181,7 @@ export default function StudioIaPage() {
   const [quantity, setQuantity] = useState("3");
   const [includeCta, setIncludeCta] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [generationProgress, setGenerationProgress] = useState("");
   const [saving, setSaving] = useState(false);
   const [scripts, setScripts] = useState<MotivationalScript[]>([]);
   const [savedProjectId, setSavedProjectId] = useState<string | null>(null);
@@ -215,11 +218,6 @@ export default function StudioIaPage() {
   const [creatingCampaign, setCreatingCampaign] = useState(false);
   const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0, label: "" });
 
-  const totalMinutes = useMemo(
-    () => Math.ceil((Number(duration) * Number(quantity)) / 60),
-    [duration, quantity],
-  );
-
   const approvedCount = scripts.filter(script => ["approved", "voiced", "rendered"].includes(script.status)).length;
   const voicedCount = scripts.filter(script => ["voiced", "rendered"].includes(script.status)).length;
   const renderedCount = scripts.filter(script => script.status === "rendered").length;
@@ -239,13 +237,13 @@ export default function StudioIaPage() {
         .select("id,title,thumbnail_url,duration_seconds,source")
         .not("storage_path", "is", null)
         .order("created_at", { ascending: false })
-        .limit(100),
+        .limit(500),
       (supabase as any)
         .from("music_tracks")
         .select("id,nome,artista,estilo")
         .not("storage_path", "is", null)
         .order("criado_em", { ascending: false })
-        .limit(100),
+        .limit(500),
     ]);
     if (!videosResult.error) setVideoChoices(videosResult.data || []);
     if (!musicResult.error) setMusicChoices(musicResult.data || []);
@@ -777,6 +775,13 @@ export default function StudioIaPage() {
         renderId: script.mediaRenderId!,
         contentId: script.contentId!,
         musicTrackId: script.musicTrackId!,
+        caption:
+          script.socialCaption?.trim() ||
+          script.hook?.trim() ||
+          script.narration.trim().slice(0, 220),
+        hashtags:
+          script.socialHashtags?.trim() ||
+          "#motivação #inspiração #coragem #recomeço",
       }));
 
     if (!readyItems.length) {
@@ -805,6 +810,7 @@ export default function StudioIaPage() {
         projectId: savedProjectId || "",
         projectName: projectName.trim() || "Lote do Studio IA",
         createdAt: new Date().toISOString(),
+        postsPerDay: 6,
         items: readyItems,
       };
       window.sessionStorage.setItem(
@@ -825,7 +831,7 @@ export default function StudioIaPage() {
       const { data, error } = await (supabase as any)
         .from("ai_studio_scripts")
         .select(
-          "id,title,hook,narration,closing,visual_keywords,estimated_seconds,status,position,content_id,music_track_id,media_render_id,music_volume,music_start_ms,subtitles_enabled,subtitle_font,subtitle_font_size,subtitle_color,subtitle_position",
+          "id,title,hook,narration,closing,social_caption,social_hashtags,visual_keywords,estimated_seconds,status,position,content_id,music_track_id,media_render_id,music_volume,music_start_ms,subtitles_enabled,subtitle_font,subtitle_font_size,subtitle_color,subtitle_position",
         )
         .eq("project_id", project.id)
         .order("position", { ascending: true });
@@ -849,6 +855,8 @@ export default function StudioIaPage() {
           hook: script.hook || "",
           narration: script.narration,
           closing: script.closing || "",
+          socialCaption: script.social_caption || "",
+          socialHashtags: script.social_hashtags || "",
           visualKeywords: script.visual_keywords || [],
           estimatedSeconds: script.estimated_seconds,
           status: script.status,
@@ -1008,6 +1016,7 @@ export default function StudioIaPage() {
 
     try {
       setLoading(true);
+      setGenerationProgress("");
       setScripts([]);
 
       const {
@@ -1016,42 +1025,59 @@ export default function StudioIaPage() {
 
       if (!session) throw new Error("Sessão expirada. Entre novamente.");
 
-      const { data, error } = await supabase.functions.invoke(
-        "campaign-copy-generator",
-        {
-          body: {
-            action: "motivational_scripts",
-            motivational: {
-              theme: theme.trim(),
-              tone,
-              audience: audience.trim(),
-              durationSeconds: Number(duration),
-              quantity: Number(quantity),
-              includeCta,
-            },
-          },
-          headers: { Authorization: `Bearer ${session.access_token}` },
-        },
-      );
+      const requestedQuantity = Math.min(180, Math.max(1, Number(quantity)));
+      const generatedScripts: MotivationalScript[] = [];
+      const batchSize = 10;
 
-      if (error) throw error;
-      if (!data?.success || !Array.isArray(data.scripts)) {
-        throw new Error(data?.error || "A IA não retornou roteiros válidos.");
+      for (let batchStart = 1; batchStart <= requestedQuantity; batchStart += batchSize) {
+        const currentQuantity = Math.min(batchSize, requestedQuantity - batchStart + 1);
+        setGenerationProgress(
+          `Criando roteiros ${batchStart}–${batchStart + currentQuantity - 1} de ${requestedQuantity}`,
+        );
+
+        const { data, error } = await supabase.functions.invoke(
+          "campaign-copy-generator",
+          {
+            body: {
+              action: "motivational_scripts",
+              motivational: {
+                theme: theme.trim(),
+                tone,
+                audience: audience.trim(),
+                durationSeconds: Number(duration),
+                quantity: currentQuantity,
+                includeCta,
+                batchStart,
+                totalQuantity: requestedQuantity,
+              },
+            },
+            headers: { Authorization: `Bearer ${session.access_token}` },
+          },
+        );
+
+        if (error) throw error;
+        if (!data?.success || !Array.isArray(data.scripts)) {
+          throw new Error(data?.error || "A IA não retornou roteiros válidos.");
+        }
+
+        generatedScripts.push(
+          ...data.scripts.map((script: Omit<MotivationalScript, "status">) => ({
+            ...script,
+            status: "draft" as const,
+          })),
+        );
+        setScripts([...generatedScripts]);
       }
 
       setSavedProjectId(null);
-      setScripts(
-        data.scripts.map((script: Omit<MotivationalScript, "status">) => ({
-          ...script,
-          status: "draft" as const,
-        })),
-      );
-      toast.success(`${data.scripts.length} roteiros criados para revisão.`);
+      setScripts(generatedScripts);
+      toast.success(`${generatedScripts.length} roteiros criados para revisão.`);
     } catch (error: any) {
       console.error("[Studio IA] Motivational generation failed", error);
       toast.error(error?.message || "Não foi possível gerar os roteiros.");
     } finally {
       setLoading(false);
+      setGenerationProgress("");
     }
   };
 
@@ -1191,9 +1217,14 @@ export default function StudioIaPage() {
                   <Select value={quantity} onValueChange={setQuantity}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {[1, 3, 5, 8, 10].map((value) => (
+                      {[3, 6, 10, 18, 42, 90, 180].map((value) => (
                         <SelectItem key={value} value={String(value)}>
-                          {value} {value === 1 ? "roteiro" : "roteiros"}
+                          {value} roteiros
+                          {value === 3
+                            ? " · teste"
+                            : value === 6
+                            ? " · 1 dia"
+                            : ` · ${Math.ceil(value / 6)} dias`}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -1213,7 +1244,7 @@ export default function StudioIaPage() {
 
               <div className="flex items-center justify-between text-xs text-muted-foreground">
                 <span>{quantity} criações independentes</span>
-                <span>≈ {totalMinutes} min de conteúdo</span>
+                <span>6/dia · 2 manhã · 2 tarde · 2 noite</span>
               </div>
 
               <Button
@@ -1222,7 +1253,7 @@ export default function StudioIaPage() {
                 onClick={generateScripts}
               >
                 {loading ? <Loader2 className="animate-spin" size={18} /> : <Sparkles size={18} />}
-                {loading ? "Criando roteiros..." : "Gerar roteiros com IA"}
+                {loading ? generationProgress || "Criando roteiros..." : "Gerar roteiros com IA"}
               </Button>
             </CardContent>
           </Card>

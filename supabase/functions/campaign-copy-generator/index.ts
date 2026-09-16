@@ -11,7 +11,7 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-const COPY_GENERATOR_BUILD = "v5-strict-video-hashtags";
+const COPY_GENERATOR_BUILD = "v6-studio-social-copy";
 
 type Platform =
   | "instagram"
@@ -69,6 +69,8 @@ interface CopyRequest {
     durationSeconds?: number;
     quantity?: number;
     includeCta?: boolean;
+    batchStart?: number;
+    totalQuantity?: number;
   };
 }
 
@@ -589,6 +591,17 @@ Return ONLY valid JSON in exactly this structure:
       body.motivational?.tone?.trim() || "emocional e acolhedor";
     const motivationalAudience =
       body.motivational?.audience?.trim() || "público adulto geral";
+    const motivationalBatchStart = Math.max(
+      1,
+      Number(body.motivational?.batchStart || 1),
+    );
+    const motivationalTotalQuantity = Math.min(
+      180,
+      Math.max(
+        motivationalQuantity,
+        Number(body.motivational?.totalQuantity || motivationalQuantity),
+      ),
+    );
 
     const motivationalPrompt = `
 You are the scriptwriter for Flux Post AI Studio. Create ${motivationalQuantity}
@@ -601,6 +614,7 @@ AUDIENCE: ${motivationalAudience}
 TARGET DURATION: ${motivationalDuration} seconds
 TARGET LENGTH: approximately ${targetWords} words per narration
 INCLUDE A NATURAL CTA: ${body.motivational?.includeCta ? "yes" : "no"}
+GLOBAL PLAN: scripts ${motivationalBatchStart} to ${motivationalBatchStart + motivationalQuantity - 1} of ${motivationalTotalQuantity}
 
 EDITORIAL RULES:
 - Each script must have a strong opening in the first sentence.
@@ -613,6 +627,14 @@ EDITORIAL RULES:
 - Keep the narration within 15 percent of the target word count.
 - visualKeywords must contain 4 to 7 concrete Pexels search expressions in English.
 - estimatedSeconds must reflect the returned narration length.
+- socialCaption must be a short post description inspired by the narration,
+  but must not copy the narration word for word. Maximum 220 characters.
+- socialCaption should complement the video with one natural reflection or
+  question. Do not add a music credit because the system adds it separately.
+- socialHashtags must contain 4 to 8 relevant Brazilian Portuguese hashtags,
+  separated by spaces, without spam or unrelated trending tags.
+- Use the GLOBAL PLAN position to vary the angle and avoid repetitive scripts,
+  captions, openings and hashtags across a large production batch.
 
 Return ONLY valid JSON using exactly this structure:
 {
@@ -622,6 +644,8 @@ Return ONLY valid JSON using exactly this structure:
       "hook": "opening sentence",
       "narration": "complete narration including the hook and closing",
       "closing": "final sentence",
+      "socialCaption": "short complementary post description",
+      "socialHashtags": "#motivação #coragem #recomeço #inspiração",
       "visualKeywords": ["sunrise nature", "ocean waves"],
       "estimatedSeconds": ${motivationalDuration}
     }
@@ -738,6 +762,14 @@ Return ONLY valid JSON using exactly this structure:
             narration: script.narration.trim(),
             closing:
               typeof script.closing === "string" ? script.closing.trim() : "",
+            socialCaption:
+              typeof script.socialCaption === "string"
+                ? script.socialCaption.trim().slice(0, 500)
+                : "",
+            socialHashtags:
+              typeof script.socialHashtags === "string"
+                ? script.socialHashtags.trim().slice(0, 1000)
+                : "",
             visualKeywords: Array.isArray(script.visualKeywords)
               ? script.visualKeywords
                   .map((keyword: unknown) => String(keyword).trim())

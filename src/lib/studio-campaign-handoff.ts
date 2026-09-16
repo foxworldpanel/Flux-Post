@@ -6,6 +6,8 @@ export type StudioCampaignHandoffItem = {
   renderId: string;
   contentId: string;
   musicTrackId: string;
+  caption?: string;
+  hashtags?: string;
 };
 
 export type StudioCampaignHandoff = {
@@ -13,6 +15,7 @@ export type StudioCampaignHandoff = {
   projectId: string;
   projectName: string;
   createdAt: string;
+  postsPerDay?: number;
   items: StudioCampaignHandoffItem[];
 };
 

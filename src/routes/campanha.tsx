@@ -44,7 +44,13 @@ type Artist = {
 type MusicTrack = { id: string; nome: string; artista: string; artist_id: string; storage_path: string | null; };
 type VideoItem = { id: string; title: string; storage_path: string; duration_seconds?: number; };
 type RenderItem = { id: string; source_content_id: string; music_track_id: string; status: string; storage_path: string | null; is_approved?: boolean; error_message?: string | null; };
-type StudioAssignment = { renderId: string; musicTrackId: string; title: string; };
+type StudioAssignment = {
+  renderId: string;
+  musicTrackId: string;
+  title: string;
+  caption: string;
+  hashtags: string;
+};
 
 type EditorialGenerationMode = "music" | "video";
 
@@ -923,6 +929,10 @@ export default function CampanhaPage({ mode = "traditional" }: { mode?: "traditi
               renderId: item.renderId,
               musicTrackId: item.musicTrackId,
               title: item.title,
+              caption: item.caption?.trim() || item.title,
+              hashtags:
+                item.hashtags?.trim() ||
+                "#motivação #inspiração #coragem #recomeço",
             },
           ]),
         );
@@ -945,12 +955,37 @@ export default function CampanhaPage({ mode = "traditional" }: { mode?: "traditi
         setSelVideos(new Set(contentIds));
         setContentQueue(contentIds);
         setSelMusicTracks(new Set(musicTrackIds));
+        setEditorialCopies(
+          Object.fromEntries(
+            validStudioItems.map(item => [
+              item.contentId,
+              {
+                caption: item.caption?.trim() || item.title,
+                hashtags:
+                  item.hashtags?.trim() ||
+                  "#motivação #inspiração #coragem #recomeço",
+                aiStatus: "generated" as const,
+              },
+            ]),
+          ),
+        );
         setDraftCampaignId(null);
+        const studioPostsPerDay = Math.min(
+          6,
+          contentIds.length,
+          Math.max(1, Number(studioHandoff.postsPerDay || 6)),
+        );
+        const studioCampaignDays = Math.max(
+          1,
+          Math.ceil(contentIds.length / studioPostsPerDay),
+        );
         setFormData(previous => ({
           ...previous,
           nome: `${studioHandoff.projectName} — Publicação`,
           artist_id: artistIds.length === 1 ? artistIds[0] : previous.artist_id,
           music_track_id: musicTrackIds[0] || "",
+          posts_por_dia: studioPostsPerDay,
+          data_fim: format(addDays(new Date(), studioCampaignDays - 1), "yyyy-MM-dd"),
         }));
         setStep(1);
         toast.success(
@@ -1244,7 +1279,9 @@ export default function CampanhaPage({ mode = "traditional" }: { mode?: "traditi
           id: render!.source_content_id,
         })),
 
-      musicTracks: selectedMusicTrackIds.map(id => ({ id })),
+      musicTracks: isStudioCampaign
+        ? undefined
+        : selectedMusicTrackIds.map(id => ({ id })),
 
       minIntervalMinutes: Math.max(
         1,
@@ -2859,12 +2896,13 @@ export default function CampanhaPage({ mode = "traditional" }: { mode?: "traditi
                   </div>
 
                   <p className="text-sm text-muted-foreground mt-1">
-                    Revise o vídeo, a legenda e as hashtags antes de aprovar.
-                    A versão aprovada será usada na publicação.
+                    {isStudioFlow
+                      ? "A descrição curta e as hashtags foram criadas a partir de cada roteiro. Revise e edite se desejar antes de publicar."
+                      : "Revise o vídeo, a legenda e as hashtags antes de aprovar. A versão aprovada será usada na publicação."}
                   </p>
 
                   <div className="flex flex-wrap gap-2 mt-4">
-                    <Button
+                    {!isStudioFlow && <><Button
                       type="button"
                       size="sm"
                       onClick={() => generateAllEditorialCopies("music")}
@@ -2898,6 +2936,7 @@ export default function CampanhaPage({ mode = "traditional" }: { mode?: "traditi
                         ? "Gerando pelos vídeos..."
                         : "Gerar todos pelos vídeos"}
                     </Button>
+                    </>}
 
                     <Button
                       type="button"
@@ -3061,7 +3100,7 @@ export default function CampanhaPage({ mode = "traditional" }: { mode?: "traditi
                             </div>
 
                             <div className="flex flex-wrap items-center gap-2 pt-1">
-                              <Button
+                              {!isStudioFlow && <><Button
                                 type="button"
                                 size="sm"
                                 variant="outline"
@@ -3108,6 +3147,7 @@ export default function CampanhaPage({ mode = "traditional" }: { mode?: "traditi
                                   ? "Gerando..."
                                   : "Gerar pelo vídeo"}
                               </Button>
+                              </>}
 
                               <Button
                                 size="sm"
