@@ -7,6 +7,7 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import 'dotenv/config';
 import { createClient } from '@supabase/supabase-js';
+import WebSocket from 'ws';
 
 const execAsync = promisify(exec);
 
@@ -85,7 +86,9 @@ if (!supabaseUrl || !workerSecret) {
 
 // Create a storage client for uploadToSignedUrl
 // We use the anon key since we will use a signed token for the actual upload
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  realtime: { transport: WebSocket },
+});
 
 const BRIDGE_URL = `${supabaseUrl}/functions/v1/render-bridge`;
 
