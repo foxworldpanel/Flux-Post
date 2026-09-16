@@ -406,7 +406,7 @@ export default function StudioIaPage() {
   };
 
   const pollRender = async (scriptId: string, renderId: string) => {
-    for (let attempt = 0; attempt < 120; attempt += 1) {
+    for (let attempt = 0; attempt < 40; attempt += 1) {
       const render = await loadRender(scriptId, renderId);
       if (render?.status === "ready") {
         setScripts(current =>
@@ -424,7 +424,7 @@ export default function StudioIaPage() {
       }
       await new Promise(resolve => window.setTimeout(resolve, 3000));
     }
-    throw new Error("O vídeo continua na fila. Você pode voltar ao projeto mais tarde.");
+    toast.info("O vídeo continua na fila. O acompanhamento foi liberado para não prender a tela.");
   };
 
   const startRender = async () => {
@@ -1217,25 +1217,25 @@ export default function StudioIaPage() {
                 </div>
 
                 <div className="flex min-h-[420px] items-center justify-center rounded-2xl border border-border bg-black/80 p-3">
-                  {activeScript?.id && previewUrls[activeScript.id] ? (
-                    <video
-                      className="max-h-[620px] w-full rounded-xl object-contain"
-                      controls
-                      playsInline
-                      src={previewUrls[activeScript.id]}
-                    />
-                  ) : selectedVideoId ? (
+                  {selectedVideoId ? (
                     <div className="relative aspect-[9/16] max-h-[620px] w-full max-w-[350px] overflow-hidden rounded-xl bg-zinc-950">
-                      {videoChoices.find(video => video.id === selectedVideoId)?.thumbnail_url && (
+                      {activeScript?.id && previewUrls[activeScript.id] ? (
+                        <video
+                          className="absolute inset-0 h-full w-full object-cover"
+                          controls
+                          playsInline
+                          src={previewUrls[activeScript.id]}
+                        />
+                      ) : videoChoices.find(video => video.id === selectedVideoId)?.thumbnail_url ? (
                         <img
                           src={videoChoices.find(video => video.id === selectedVideoId)?.thumbnail_url || ""}
                           alt="Preview da cena"
                           className="absolute inset-0 h-full w-full object-cover opacity-80"
                         />
-                      )}
+                      ) : null}
                       {subtitlesEnabled && (
                         <div
-                          className={`absolute left-4 right-4 text-center font-bold leading-tight ${captionPositionCss[subtitlePosition]}`}
+                          className={`pointer-events-none absolute left-4 right-4 z-10 text-center font-bold leading-tight ${captionPositionCss[subtitlePosition]}`}
                           style={{
                             color: captionColorCss[subtitleColor],
                             fontFamily: `"${subtitleFont}", sans-serif`,
@@ -1246,8 +1246,10 @@ export default function StudioIaPage() {
                           {activeScript?.narration.split(/\s+/).slice(0, 7).join(" ") || "Sua mensagem aparece aqui"}
                         </div>
                       )}
-                      <div className="absolute inset-x-0 bottom-2 text-center text-[10px] font-semibold uppercase tracking-[0.18em] text-white/60">
-                        Preview da legenda
+                      <div className="pointer-events-none absolute inset-x-0 bottom-2 z-10 text-center text-[10px] font-semibold uppercase tracking-[0.18em] text-white/60">
+                        {activeScript?.id && previewUrls[activeScript.id]
+                          ? "Simulação da nova legenda"
+                          : "Preview da legenda"}
                       </div>
                     </div>
                   ) : (
