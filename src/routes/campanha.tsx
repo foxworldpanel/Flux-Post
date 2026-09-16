@@ -554,6 +554,31 @@ export default function CampanhaPage({ mode = "traditional" }: { mode?: "traditi
       }
     }
 
+    // Os roteiros do Studio já chegam com descrição e hashtags aprovadas.
+    // Publicar o lote não deve depender de uma nova chamada à IA: além de
+    // desnecessária, uma indisponibilidade externa não pode bloquear a agenda.
+    if (isStudioFlow) {
+      for (const contentId of contentIds) {
+        const baseCopy = getEditorialCopy(contentId);
+        const assignedMusic = getMusicForContent(contentId);
+        if (!assignedMusic) {
+          throw new Error(`Música não encontrada para o conteúdo ${contentId}`);
+        }
+
+        for (const account of accounts) {
+          result.set(keyFor(contentId, account.id), {
+            caption: appendMusicCreditToCaption(
+              baseCopy.caption,
+              assignedMusic,
+            ),
+            hashtags: mergeArtistHashtags(baseCopy.hashtags),
+          });
+        }
+      }
+
+      return result;
+    }
+
     if (accounts.length === 1) {
       for (const contentId of contentIds) {
         const baseCopy = getEditorialCopy(contentId);
@@ -2234,7 +2259,9 @@ export default function CampanhaPage({ mode = "traditional" }: { mode?: "traditi
       );
 
       toast.info(
-        selectedAccounts.length > 1
+        isStudioFlow
+          ? "Preparando descrições e hashtags do lote..."
+          : selectedAccounts.length > 1
           ? `Criando legendas exclusivas para ${selectedAccounts.length} contas...`
           : "Preparando a legenda da publicação..."
       );
