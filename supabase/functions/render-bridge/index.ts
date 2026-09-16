@@ -88,10 +88,17 @@ serve(async (req) => {
           throw new Error("Studio IA render is missing voiceAssetId");
         }
 
-        // 1. Verify objects exist physically and generate short-lived signed URLs (1 hour)
-        const { data: videoFiles } = await supabase.storage.from('content-library').list(pathDir(content.storage_path), {
-          search: pathBase(content.storage_path)
-        });
+        // Pexels items may intentionally keep a remote HTTPS URL instead of a
+        // Supabase Storage object. Both sources are valid render inputs.
+        const isRemoteVideo = /^https?:\/\//i.test(content.storage_path || '');
+
+        // 1. Verify stored objects physically. Remote HTTPS videos are
+        // downloaded directly by the worker and do not need this check.
+        const { data: videoFiles } = !isRemoteVideo
+          ? await supabase.storage.from('content-library').list(pathDir(content.storage_path), {
+              search: pathBase(content.storage_path)
+            })
+          : { data: [] };
 
         const { data: musicFiles } = music?.storage_path
           ? await supabase.storage.from('musicas').list(pathDir(music.storage_path), {
@@ -99,7 +106,7 @@ serve(async (req) => {
             })
           : { data: [] };
 
-        const videoExists = videoFiles && videoFiles.length > 0;
+        const videoExists = isRemoteVideo || Boolean(videoFiles && videoFiles.length > 0);
         const musicExists = !jobData.music_track_id || Boolean(musicFiles && musicFiles.length > 0);
 
         if (!videoExists || !musicExists) {
@@ -120,7 +127,9 @@ serve(async (req) => {
         }
 
         // Generate signed URLs with 2 hours expiry to be safe for slow downloads
-        const { data: videoUrl } = await supabase.storage.from('content-library').createSignedUrl(content.storage_path, 7200);
+        const { data: videoUrl } = isRemoteVideo
+          ? { data: { signedUrl: content.storage_path } }
+          : await supabase.storage.from('content-library').createSignedUrl(content.storage_path, 7200);
         const { data: musicUrl } = music?.storage_path
           ? await supabase.storage.from('musicas').createSignedUrl(music.storage_path, 7200)
           : { data: null };
