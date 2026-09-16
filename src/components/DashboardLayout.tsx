@@ -1,10 +1,8 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   BarChart3,
-  Calendar,
   ChevronLeft,
   ChevronRight,
-  Clapperboard,
   History,
   LayoutDashboard,
   LogOut,
@@ -12,7 +10,6 @@ import {
   Menu,
   Music,
   Search,
-  ShieldCheck,
   Users,
   Video,
   X,
@@ -33,11 +30,8 @@ const navItems = [
   { label: "Garimpo", icon: Search, href: "/garimpo" },
   { label: "Biblioteca", icon: Video, href: "/biblioteca" },
   { label: "Redes Sociais", icon: Users, href: "/accounts" },
-  { label: "Agenda", icon: Calendar, href: "/agenda" },
   { label: "Publicações", icon: History, href: "/publicacoes" },
   { label: "Analytics", icon: BarChart3, href: "/analytics" },
-  { label: "Processar", icon: Clapperboard, href: "/processar" },
-  { label: "Segurança", icon: ShieldCheck, href: "/security-report" },
 ];
 
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
