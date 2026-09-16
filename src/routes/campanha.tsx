@@ -872,6 +872,17 @@ export default function CampanhaPage({ mode = "traditional" }: { mode?: "traditi
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
+      const studioContentIds = Array.from(
+        new Set(studioHandoff?.items.map(item => item.contentId).filter(Boolean) || []),
+      );
+      const libraryQuery = supabase
+        .from("content_library")
+        .select("id, title, storage_path, duration_seconds")
+        .order("created_at", { ascending: false });
+      const libraryRequest = isStudioFlow && studioContentIds.length > 0
+        ? libraryQuery.in("id", studioContentIds)
+        : libraryQuery.not("status", "in", '("reserved","used")');
+
       const [artistsRes, tracksRes, libraryRes, accountsRes, campRes, rendersRes, draftRes] = await Promise.all([
         supabase
           .from("artists")
@@ -880,11 +891,7 @@ export default function CampanhaPage({ mode = "traditional" }: { mode?: "traditi
           .eq("status", "active")
           .order("name", { ascending: true }),
         supabase.from("music_tracks").select("id, nome, artista, artist_id, storage_path"),
-        supabase
-          .from("content_library")
-          .select("id, title, storage_path, duration_seconds")
-          .not("status", "in", '("reserved","used")')
-          .order("created_at", { ascending: false }),
+        libraryRequest,
         socialService.getConnectedAccounts(),
         supabase.from("campanhas").select("*").eq("user_id", user.id).in("status", ["ativo", "pausado"]).order("data_inicio", { ascending: false }),
         supabase.from("media_renders").select("*").eq("user_id", user.id),
@@ -995,7 +1002,6 @@ export default function CampanhaPage({ mode = "traditional" }: { mode?: "traditi
         setStudioAssignments({});
         setStudioProjectName("");
         if (isStudioFlow && studioHandoff) {
-          window.sessionStorage.removeItem(STUDIO_CAMPAIGN_HANDOFF_KEY);
           setStudioHandoffError("O lote mudou ou um dos arquivos finais não está mais disponível.");
         } else if (isStudioFlow) {
           setStudioHandoffError("Nenhum lote foi enviado pelo Studio IA.");
