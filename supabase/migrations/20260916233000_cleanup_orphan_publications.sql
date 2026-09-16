@@ -105,7 +105,7 @@ $$;
 REVOKE ALL ON FUNCTION public.delete_campaign_atomic(uuid) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.delete_campaign_atomic(uuid) TO authenticated;
 
-CREATE OR REPLACE FUNCTION public.cleanup_stale_orphan_publications()
+CREATE OR REPLACE FUNCTION public.clear_orphan_publications()
 RETURNS jsonb
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -119,9 +119,7 @@ BEGIN
 
   DELETE FROM public.publications
   WHERE user_id = v_user
-    AND campaign_id IS NULL
-    AND lower(COALESCE(status, '')) IN ('publishing', 'processing')
-    AND COALESCE(updated_at, created_at, now()) < now() - interval '2 minutes';
+    AND campaign_id IS NULL;
   GET DIAGNOSTICS v_removed = ROW_COUNT;
 
   RETURN jsonb_build_object(
@@ -131,9 +129,9 @@ BEGIN
 END;
 $$;
 
-REVOKE ALL ON FUNCTION public.cleanup_stale_orphan_publications()
+REVOKE ALL ON FUNCTION public.clear_orphan_publications()
   FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION public.cleanup_stale_orphan_publications()
+GRANT EXECUTE ON FUNCTION public.clear_orphan_publications()
   TO authenticated;
 
 NOTIFY pgrst, 'reload schema';
