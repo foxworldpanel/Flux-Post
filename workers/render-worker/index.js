@@ -149,13 +149,40 @@ async function processJob(claimResult) {
     if (mRes) await fs.writeFile(musicPath, Buffer.from(mRes.data));
     if (nRes) await fs.writeFile(narrationPath, Buffer.from(nRes.data));
 
-    const isStudioJob = Boolean(inputs.narration_url);
+    const isStudioJob = String(inputs.pipeline || job.render_options?.pipeline || '').startsWith('ai_studio_');
     if (isStudioJob) {
+      if (!inputs.narration_url || !nRes) {
+        throw new Error('Studio IA job received without narration audio');
+      }
       const narrationDuration = await probeDuration(narrationPath);
       const hasSubtitles = inputs.subtitles_enabled
         ? await writeSubtitles(subtitlePath, inputs.alignment)
         : false;
       const musicVol = (job.music_volume ?? 18) / 100;
+      const captionOptions = job.render_options || {};
+      const allowedFonts = new Set([
+        'DejaVu Sans',
+        'Liberation Sans',
+        'Liberation Serif',
+        'DejaVu Sans Mono',
+      ]);
+      const subtitleFont = allowedFonts.has(captionOptions.subtitleFont)
+        ? captionOptions.subtitleFont
+        : 'DejaVu Sans';
+      const subtitleFontSize = Math.min(36, Math.max(16, Number(captionOptions.subtitleFontSize) || 22));
+      const subtitleColors = {
+        white: '&H00FFFFFF',
+        yellow: '&H0000FFFF',
+        cyan: '&H00FFFF00',
+        pink: '&H00B672F4',
+      };
+      const subtitleColor = subtitleColors[captionOptions.subtitleColor] || subtitleColors.white;
+      const subtitlePositions = {
+        top: { alignment: 8, margin: 85 },
+        center: { alignment: 5, margin: 0 },
+        bottom: { alignment: 2, margin: 110 },
+      };
+      const subtitlePosition = subtitlePositions[captionOptions.subtitlePosition] || subtitlePositions.bottom;
 
       console.log(`[${job.id}] Rendering Studio IA video (${narrationDuration.toFixed(1)}s, subtitles: ${hasSubtitles ? 'YES' : 'NO'})...`);
 
@@ -174,7 +201,7 @@ async function processJob(claimResult) {
         const filters = [];
         if (hasSubtitles) {
           filters.push(
-            `[0:v]subtitles='${subtitlePath}':force_style='FontName=Arial,FontSize=20,Bold=1,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=1,Outline=3,Shadow=1,Alignment=2,MarginV=110'[vout]`
+            `[0:v]subtitles='${subtitlePath}':force_style='FontName=${subtitleFont},FontSize=${subtitleFontSize},Bold=1,PrimaryColour=${subtitleColor},OutlineColour=&H00000000,BorderStyle=1,Outline=3,Shadow=1,Alignment=${subtitlePosition.alignment},MarginV=${subtitlePosition.margin}'[vout]`
           );
         }
         filters.push(`[${narrationInput}:a]volume=1.0[narration]`);
