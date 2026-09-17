@@ -331,7 +331,19 @@ export default function DesignIaPage() {
           overlay,
         },
       });
-      if (error) throw error;
+      if (error) {
+        let detailedMessage = error.message;
+        const context = (error as any)?.context;
+        if (context && typeof context.json === "function") {
+          try {
+            const payload = await context.json();
+            detailedMessage = payload?.error || payload?.message || detailedMessage;
+          } catch {
+            // Keep the SDK message when the response has no JSON body.
+          }
+        }
+        throw new Error(detailedMessage);
+      }
       if (data?.error) throw new Error(data.error);
       const asset = data.asset as GeneratedAsset;
       setCurrentAsset(asset);
