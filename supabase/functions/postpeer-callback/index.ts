@@ -91,7 +91,7 @@ serve(async (req) => {
         id: i.id,
         profileId: i.profileId,
         platform: i.platform,
-        status: i.status
+        status: i.authStatus || i.status
       });
     });
 
@@ -127,7 +127,7 @@ serve(async (req) => {
         provider: 'postpeer',
         provider_connection_id: integration.id,
         provider_account_id: integration.platformUserId,
-        provider_status: integration.status,
+        provider_status: integration.authStatus || integration.status || 'active',
         external_account_id: integration.platformUserId,
         external_display_name: integration.displayName || undefined,
         username: integration.username || integration.handle || '', // Preencher com dado real
@@ -137,7 +137,7 @@ serve(async (req) => {
         last_sync_at: new Date().toISOString(),
         metadata: {
           postpeer_integration_id: integration.id,
-          postpeer_updated_at: integration.updatedAt
+          postpeer_updated_at: integration.updatedAt || integration.createdAt
         }
       })
       .eq("id", stateData.social_account_id);
