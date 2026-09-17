@@ -78,7 +78,7 @@ serve(async (req) => {
         platform: i.platform,
         platformUserId: i.platformUserId,
         displayName: i.displayName,
-        status: i.status,
+        status: i.authStatus || i.status,
         hasUsername: !!(i.username || i.handle),
         hasImageUrl: !!i.imageUrl
       });
@@ -131,15 +131,15 @@ serve(async (req) => {
         external_account_id: integration.platformUserId,
         external_display_name: integration.displayName || undefined,
         username: integration.username || integration.handle || '', // Prioriza dados reais
-        provider_status: integration.status,
-        connection_status: (integration.status === 'active' || integration.status === 'valid') ? 'conectada' : 'erro',
+        provider_status: integration.authStatus || integration.status || 'active',
+        connection_status: ((integration.authStatus || integration.status || 'active') === 'active' || (integration.authStatus || integration.status) === 'valid') ? 'conectada' : 'erro',
         profile_image_url: integration.imageUrl || account.profile_image_url,
         connected_at: account.connected_at || new Date().toISOString(),
         last_sync_at: new Date().toISOString()
       })
       .eq("id", account.id);
 
-    return new Response(JSON.stringify({ success: true, status: integration.status, recovered: !account.provider_connection_id }), {
+    return new Response(JSON.stringify({ success: true, status: integration.authStatus || integration.status || 'active', recovered: !account.provider_connection_id }), {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
