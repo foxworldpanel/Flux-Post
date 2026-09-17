@@ -13,6 +13,7 @@ import PublicacoesPage from "./routes/publicacoes";
 import AgendaPage from "./routes/agenda";
 import SecurityReportPage from "./routes/security-report";
 import StudioIaPage from "./routes/studio-ia";
+import DesignIaPage from "./routes/design-ia";
 import { Toaster } from "sonner";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { lazy, Suspense } from "react";
@@ -57,6 +58,7 @@ function App() {
                 }
               />
               <Route path="/studio-ia" element={<StudioIaPage />} />
+              <Route path="/design-ia" element={<DesignIaPage />} />
               <Route path="/security-report" element={<SecurityReportPage />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
