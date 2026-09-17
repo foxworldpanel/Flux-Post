@@ -13,8 +13,11 @@ export interface PostPeerIntegration {
   username?: string;
   handle?: string;
   imageUrl?: string;
-  status: string;
-  updatedAt: string;
+  status?: string;
+  authStatus?: string;
+  authFailureReason?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface PostPeerMediaItem {
@@ -134,7 +137,8 @@ export class PostPeerClient {
 
   async getOAuthUrl(platform: string, profileId: string, callbackUrl?: string): Promise<{ url: string }> {
     const params = new URLSearchParams({ profileId });
-    if (callbackUrl) params.set('callbackUrl', callbackUrl);
+    // PostPeer expects `redirectUri` (not `callbackUrl`) as the URL to return to after OAuth.
+    if (callbackUrl) params.set('redirectUri', callbackUrl);
 
     const res = await fetch(`${this.baseUrl}/connect/${platform.toLowerCase()}?${params.toString()}`, {
       headers: { 'x-access-key': this.apiKey }
