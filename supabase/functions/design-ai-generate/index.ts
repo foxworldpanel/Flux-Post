@@ -5,8 +5,6 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY") || "";
 const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY") || "";
-const OPENAI_ORCHESTRATOR_MODEL =
-  Deno.env.get("OPENAI_IMAGE_ORCHESTRATOR_MODEL") || "gpt-6-astra";
 const OPENAI_IMAGE_MODEL =
   Deno.env.get("OPENAI_IMAGE_MODEL") || "gpt-image-2.5-sunburst";
 const ANTHROPIC_DESIGN_MODEL =
@@ -59,6 +57,70 @@ function base64ToBytes(value: string) {
 function normalizeDimension(value: number, fallback: number) {
   const safe = Number.isFinite(value) ? Math.round(value) : fallback;
   return Math.min(3840, Math.max(256, Math.round(safe / 16) * 16));
+}
+
+function shouldTryFallback(status: number, payload: any) {
+  const code = String(payload?.error?.code || "").toLowerCase();
+  const message = String(payload?.error?.message || "").toLowerCase();
+  return status === 404 || code === "model_not_found" || message.includes("model") && message.includes("not found");
+}
+
+async function requestOpenAiImage(
+  model: string,
+  prompt: string,
+  references: Array<{ dataUrl: string; mediaType: string }>,
+  size: string,
+  quality: string,
+  transparent: boolean,
+) {
+  const safeQuality = model === "gpt-image-2" && ["xhigh", "max"].includes(quality)
+    ? "high"
+    : quality;
+
+  let response: Response;
+  if (references.length) {
+    const form = new FormData();
+    form.append("model", model);
+    form.append("prompt", prompt);
+    form.append("size", size);
+    form.append("quality", safeQuality);
+    form.append("background", transparent ? "transparent" : "opaque");
+    form.append("output_format", "png");
+    references.forEach((reference, index) => {
+      const bytes = base64ToBytes(reference.dataUrl.split(",")[1]);
+      form.append(
+        "image[]",
+        new Blob([bytes], { type: reference.mediaType }),
+        `reference-${index + 1}.${reference.mediaType.split("/")[1] || "png"}`,
+      );
+    });
+
+    response = await fetch("https://api.openai.com/v1/images/edits", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${OPENAI_API_KEY}` },
+      body: form,
+    });
+  } else {
+    response = await fetch("https://api.openai.com/v1/images/generations", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model,
+        prompt,
+        size,
+        quality: safeQuality,
+        background: transparent ? "transparent" : "opaque",
+        output_format: "png",
+        n: 1,
+      }),
+    });
+  }
+
+  const payload = await response.json();
+  return { response, payload };
 }
 
 async function analyzeWithClaude(
@@ -214,50 +276,42 @@ ${style?.notes ? `Preferências do projeto: ${style.notes}` : ""}
 Use as imagens fornecidas somente como referência de linguagem visual. Não copie textos, logotipos ou marcas existentes.
 IMPORTANTE: não escreva nenhuma palavra, letra, número, preço ou logotipo na imagem. Deixe espaço visual limpo e bem composto para o sistema aplicar texto depois. Resultado premium, pronto para campanha profissional.`;
 
-    const content: any[] = [{ type: "input_text", text: finalPrompt }];
-    for (const reference of referenceImages) {
-      content.push({
-        type: "input_image",
-        image_url: reference.dataUrl,
-        detail: "auto",
-      });
+    const size = `${width}x${height}`;
+    const requestedQuality = body.quality || "high";
+    let usedImageModel = OPENAI_IMAGE_MODEL;
+    let { response: openAiResponse, payload: openAiData } = await requestOpenAiImage(
+      usedImageModel,
+      finalPrompt,
+      referenceImages,
+      size,
+      requestedQuality,
+      Boolean(body.transparent),
+    );
+
+    if (!openAiResponse.ok && usedImageModel !== "gpt-image-2" && shouldTryFallback(openAiResponse.status, openAiData)) {
+      console.warn(`[design-ai] ${usedImageModel} unavailable; trying gpt-image-2`);
+      usedImageModel = "gpt-image-2";
+      ({ response: openAiResponse, payload: openAiData } = await requestOpenAiImage(
+        usedImageModel,
+        finalPrompt,
+        referenceImages,
+        size,
+        requestedQuality,
+        Boolean(body.transparent),
+      ));
     }
 
-    const openAiResponse = await fetch("https://api.openai.com/v1/responses", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: OPENAI_ORCHESTRATOR_MODEL,
-        input: [{ role: "user", content }],
-        tools: [
-          {
-            type: "image_generation",
-            model: OPENAI_IMAGE_MODEL,
-            size: `${width}x${height}`,
-            quality: body.quality || "high",
-            background: body.transparent ? "transparent" : "opaque",
-            output_format: "png",
-          },
-        ],
-        tool_choice: { type: "image_generation" },
-      }),
-    });
-
-    const openAiData = await openAiResponse.json();
     if (!openAiResponse.ok) {
       console.error("[design-ai] OpenAI error", JSON.stringify(openAiData));
-      throw new Error(openAiData?.error?.message || `Erro OpenAI ${openAiResponse.status}`);
+      const upstreamMessage = openAiData?.error?.message || `Erro OpenAI ${openAiResponse.status}`;
+      const upstreamCode = openAiData?.error?.code ? ` [${openAiData.error.code}]` : "";
+      throw new Error(`${upstreamMessage}${upstreamCode}`);
     }
 
-    const generation = openAiData?.output?.find(
-      (item: any) => item.type === "image_generation_call" && item.result,
-    );
-    if (!generation?.result) throw new Error("A OpenAI não retornou uma imagem");
+    const imageBase64 = openAiData?.data?.[0]?.b64_json;
+    if (!imageBase64) throw new Error("A OpenAI não retornou uma imagem");
 
-    const imageBytes = base64ToBytes(generation.result);
+    const imageBytes = base64ToBytes(imageBase64);
     const assetId = crypto.randomUUID();
     const storagePath = `${user.id}/generated/${assetId}.png`;
     const { error: uploadError } = await service.storage
@@ -295,8 +349,8 @@ IMPORTANTE: não escreva nenhuma palavra, letra, número, preço ou logotipo na 
       asset: { ...asset, signedUrl: signed?.signedUrl || null },
       direction,
       models: {
-        director: providerMode === "claude_openai" ? ANTHROPIC_DESIGN_MODEL : OPENAI_ORCHESTRATOR_MODEL,
-        renderer: OPENAI_IMAGE_MODEL,
+        director: providerMode === "claude_openai" ? ANTHROPIC_DESIGN_MODEL : "openai-image",
+        renderer: usedImageModel,
       },
     });
   } catch (error) {
