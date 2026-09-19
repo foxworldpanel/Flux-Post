@@ -1,1 +1,10 @@
 project_id = "yfdbsjdhntajsddvlcsc"
+
+[functions.postpeer-connect]
+verify_jwt = false
+
+[functions.postpeer-callback]
+verify_jwt = false
+
+[functions.postpeer-sync]
+verify_jwt = false
