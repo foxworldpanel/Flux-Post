@@ -4,7 +4,7 @@ import { corsHeaders, PostPeerClient } from "../_shared/social-helpers.ts";
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders, status: 204 });
+    return new Response(null, { headers: corsHeaders, status: 204 });
   }
 
   try {
